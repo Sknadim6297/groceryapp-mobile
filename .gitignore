@@ -38,6 +38,9 @@ yarn-error.*
 
 example
 
+# local APK measurements
+.apk-analysis/
+
 # generated native folders
 /ios
 /android
