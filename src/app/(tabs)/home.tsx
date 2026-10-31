@@ -1,26 +1,9 @@
 import { StatusBar } from 'expo-status-bar';
-import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
-import { BrandCarousel } from '@/components/home/BrandCarousel';
-import { CategoryGrid } from '@/components/home/CategoryGrid';
-import { DailyEssentials } from '@/components/home/DailyEssentials';
 import { DeliveryHeader } from '@/components/home/DeliveryHeader';
-import { FreeCashPromoBanner } from '@/components/home/FreeCashPromoBanner';
-import { ExploreMore } from '@/components/home/ExploreMore';
-import {
-  FreeDeliveryBanner,
-  FruitsBanner,
-  MinutesBanner,
-  SavingsBanner,
-} from '@/components/home/HomeBanners';
-import { OfferRow } from '@/components/home/OfferRow';
-import { PopularPicks } from '@/components/home/PopularPicks';
-import { ProductSection } from '@/components/home/ProductSection';
-import { SectionHeader } from '@/components/home/SectionHeader';
-import { colors, homeLayout } from '@/constants/theme';
-import { UI_PREVIEW_MODE } from '@/constants/preview';
-import { boughtAgain, recentProducts, recommendedProducts, spotlightProducts, topSelling } from '@/data/homeFeed';
-import { previewDryFruitProducts } from '@/data/previewImageCatalog';
+import { colors, fonts, homeLayout } from '@/constants/theme';
+import { LIVE_CATALOGUE_CONNECTED } from '@/constants/liveData';
 
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
@@ -38,44 +21,15 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}>
         <View style={[styles.column, { width: contentWidth }]}>
           <DeliveryHeader />
-          <FreeCashPromoBanner />
-          <DailyEssentials />
-          <SavingsBanner />
-          <ProductSection
-            title="Recommended for you"
-            subtitle="Handpicked just for you"
-            products={recommendedProducts}
-            columns={2}
-          />
-          <ProductSection title="Recently Viewed" products={recentProducts} columns={3} showHeart />
-          <OfferRow />
-          <ProductSection title="In the Spotlight" products={spotlightProducts} columns={3} />
-          <MinutesBanner />
-          <ExploreMore />
-          <PopularPicks />
-          {UI_PREVIEW_MODE ? (
-            <ProductSection
-              title="Dry Fruits & Cereals"
-              subtitle="Preview images. Prices are from the supplied list, not a live offer."
-              products={previewDryFruitProducts()}
-              columns={3}
-            />
-          ) : null}
-          <View style={styles.categoryBlock}>
-            {UI_PREVIEW_MODE ? null : <SectionHeader title="Shop by Category" />}
-            <CategoryGrid />
-          </View>
-          <BrandCarousel />
-          <FreeDeliveryBanner />
-          <ProductSection
-            title="Recently bought"
-            subtitle="Buy again, quickly"
-            products={boughtAgain}
-            columns={3}
-            icon="refresh"
-          />
-          <FruitsBanner />
-          <ProductSection title="Top Selling Today" products={topSelling} columns={4} />
+          {LIVE_CATALOGUE_CONNECTED ? null : (
+            <View style={styles.unavailable}>
+              <Text style={styles.unavailableTitle}>Catalogue unavailable</Text>
+              <Text style={styles.unavailableBody}>
+                Products, prices, and offers are not shown until the store service confirms them. Nothing here is a live
+                price or a delivery promise.
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -99,9 +53,24 @@ const styles = StyleSheet.create({
     backgroundColor: colors.softBackground,
     flexGrow: 1,
   },
-  categoryBlock: {
-    paddingHorizontal: 16,
-    paddingTop: 18,
-    gap: 4,
+  unavailable: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: colors.white,
+    gap: 6,
+  },
+  unavailableTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    lineHeight: 22,
+    color: colors.text,
+  },
+  unavailableBody: {
+    fontFamily: fonts.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textSecondary,
   },
 });

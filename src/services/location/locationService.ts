@@ -1,6 +1,5 @@
 import * as Location from 'expo-location';
 
-import { UI_PREVIEW_MODE } from '@/constants/preview';
 import type { DeliveryLocation } from '@/types/location';
 
 const LOCATE_TIMEOUT_MS = 12000;
@@ -34,10 +33,6 @@ function addressFromPlace(place: Location.LocationGeocodedAddress): Pick<
 }
 
 export async function readCurrentLocation(): Promise<CurrentLocationOutcome> {
-  if (UI_PREVIEW_MODE) {
-    return { status: 'unavailable' };
-  }
-
   try {
     const servicesEnabled = await Location.hasServicesEnabledAsync();
     if (!servicesEnabled) {

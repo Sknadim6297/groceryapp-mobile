@@ -17,12 +17,12 @@ import { OtpIllustration } from '@/components/auth/OtpIllustration';
 import { OtpInput } from '@/components/auth/OtpInput';
 import { OtpResend } from '@/components/auth/OtpResend';
 import { AppIcon } from '@/components/ui/AppIcon';
+import { useToast } from '@/components/ui/AppToast';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { PREVIEW_DEMO_OTP } from '@/constants/previewDemo';
-import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts } from '@/constants/theme';
 import { useAuthFlow } from '@/context/AuthFlowContext';
-import { resendOtpCode } from '@/services/customerOtp';
+import { resendCustomerOtp, verifyCustomerOtp } from '@/services/customerAuth';
+import { screenAfterCustomerCall } from '@/types/customerApi';
 import { INDIA_CALLING_CODE, OTP_LENGTH } from '@/types/auth';
 import { formatIndiaMobileDisplay, isValidIndiaMobile } from '@/utils/phoneValidation';
 
@@ -34,11 +34,13 @@ export default function OtpScreen() {
   const [code, setCode] = useState('');
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const { showToast } = useToast();
   const ready = isValidIndiaMobile(nationalNumber);
   const complete = code.length === OTP_LENGTH;
 
   useEffect(() => {
-    if (UI_PREVIEW_MODE || ready) {
+    if (ready) {
       return;
     }
 
@@ -53,30 +55,56 @@ export default function OtpScreen() {
     router.replace('/login');
   }
 
-  function onVerify() {
-    if (UI_PREVIEW_MODE) {
-      if (code !== PREVIEW_DEMO_OTP) {
-        setVerifyMessage('Demo code is 123456. This does not verify a phone number or send an SMS.');
-        return;
-      }
-      router.push('/location');
+  async function onVerify() {
+    if (busy) {
+      return;
+    }
+
+    if (!ready) {
+      showToast('error', 'Enter a valid 10-digit mobile number.');
+      router.replace('/login');
       return;
     }
 
     if (!complete) {
+      showToast('error', 'Enter the 6-digit code.');
       return;
     }
 
-    router.push('/location');
+    setBusy(true);
+    setVerifyMessage(null);
+    const result = await verifyCustomerOtp(nationalNumber, code);
+    setBusy(false);
+    showToast(result.tone, result.message);
+    setVerifyMessage(result.message);
+    if (screenAfterCustomerCall(result, 'verify') !== 'home') {
+      return;
+    }
+
+    router.replace('/home');
   }
 
-  if (!UI_PREVIEW_MODE && !ready) {
+  async function onResend() {
+    if (busy) {
+      return;
+    }
+
+    if (!ready) {
+      return;
+    }
+
+    setBusy(true);
+    const result = await resendCustomerOtp(nationalNumber);
+    setBusy(false);
+    setResendMessage(result.message);
+    showToast(result.tone, result.message);
+  }
+
+  if (!ready) {
     return null;
   }
 
-  const displayedNumber = ready
-    ? `${INDIA_CALLING_CODE} ${formatIndiaMobileDisplay(nationalNumber)}`
-    : 'UI preview';
+  const displayedNumber = `${INDIA_CALLING_CODE} ${formatIndiaMobileDisplay(nationalNumber)}`;
 
   return (
     <View style={styles.screen}>
@@ -149,9 +177,7 @@ export default function OtpScreen() {
 
             <View style={styles.form}>
               <Text style={styles.pending}>
-                {UI_PREVIEW_MODE
-                  ? 'UI preview. Enter 123456 to continue. No SMS is sent and the code is not checked with a server.'
-                  : 'A verification code has not been sent. OTP delivery is not connected yet.'}
+                Enter the 6-digit code for this number. A code is checked only after the server confirms it.
               </Text>
               <OtpInput
                 value={code}
@@ -163,13 +189,10 @@ export default function OtpScreen() {
               />
               <OtpResend
                 detail={resendMessage}
+                actionLabel="Resend OTP"
+                disabled={busy}
                 onPress={() => {
-                  if (UI_PREVIEW_MODE) {
-                    setResendMessage('UI preview. No verification code is sent.');
-                    return;
-                  }
-
-                  setResendMessage(resendOtpCode().message);
+                  void onResend();
                 }}
               />
               {verifyMessage ? (
@@ -179,8 +202,11 @@ export default function OtpScreen() {
               ) : null}
               <PrimaryButton
                 label="Verify & Continue"
-                onPress={onVerify}
+                onPress={() => {
+                  void onVerify();
+                }}
                 disabled={!complete}
+                loading={busy}
                 accessibilityLabel="Verify and continue"
                 testID="verify-otp"
               />

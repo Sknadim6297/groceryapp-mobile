@@ -10,6 +10,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
 import { colors, fonts } from '@/constants/theme';
+import { ToastProvider } from '@/components/ui/AppToast';
 import { AuthFlowProvider } from '@/context/AuthFlowContext';
 import { DeliveryLocationProvider } from '@/context/DeliveryLocationContext';
 import { MockCartProvider } from '@/context/MockCartContext';
@@ -61,6 +62,7 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={navigationTheme}>
+      <ToastProvider>
       <AuthFlowProvider>
         <DeliveryLocationProvider>
         <ProfileDraftProvider>
@@ -94,6 +96,7 @@ export default function RootLayout() {
         </ProfileDraftProvider>
         </DeliveryLocationProvider>
       </AuthFlowProvider>
+      </ToastProvider>
     </ThemeProvider>
   );
 }

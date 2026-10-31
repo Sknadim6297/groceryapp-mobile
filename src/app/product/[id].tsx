@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CatalogImage } from '@/components/home/CatalogImage';
 import { PreviewScaffold } from '@/components/preview/PreviewScaffold';
 import { AppIcon } from '@/components/ui/AppIcon';
+import { LIVE_CATALOGUE_CONNECTED } from '@/constants/liveData';
 import { colors, fonts } from '@/constants/theme';
 import { useMockCart } from '@/context/MockCartContext';
 import { findDemoProduct } from '@/data/findDemoProduct';

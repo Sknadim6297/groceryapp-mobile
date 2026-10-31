@@ -5,9 +5,11 @@ import { colors, fonts } from '@/constants/theme';
 type OtpResendProps = {
   onPress: () => void;
   detail: string | null;
+  actionLabel?: string;
+  disabled?: boolean;
 };
 
-export function OtpResend({ onPress, detail }: OtpResendProps) {
+export function OtpResend({ onPress, detail, actionLabel = 'Resend unavailable', disabled = false }: OtpResendProps) {
   return (
     <View style={styles.wrap}>
       <View style={styles.row}>
@@ -15,11 +17,12 @@ export function OtpResend({ onPress, detail }: OtpResendProps) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Resend OTP"
-          accessibilityHint="OTP resend is not connected"
+          accessibilityHint={disabled ? 'Please wait' : 'Request another code'}
+          disabled={disabled}
           onPress={onPress}
           hitSlop={8}
           style={({ pressed }) => pressed && styles.pressed}>
-          <Text style={styles.action}>Resend unavailable</Text>
+          <Text style={[styles.action, disabled && styles.disabled]}>{actionLabel}</Text>
         </Pressable>
       </View>
       {detail ? (
@@ -53,6 +56,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     color: colors.primaryInk,
+  },
+  disabled: {
+    opacity: 0.45,
   },
   pressed: {
     opacity: 0.7,

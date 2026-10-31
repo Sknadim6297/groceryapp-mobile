@@ -8,7 +8,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LocationOptionCard } from '@/components/location/LocationOptionCard';
 import { AppIcon, type AppIconName } from '@/components/ui/AppIcon';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts } from '@/constants/theme';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { formatDeliveryAddress, referenceLocations } from '@/data/referenceLocations';
@@ -48,11 +47,6 @@ export default function LocationScreen() {
       return;
     }
 
-    if (UI_PREVIEW_MODE) {
-      setStatus('preview');
-      return;
-    }
-
     setDetecting(true);
     setStatus(null);
     const result = await readCurrentLocation();
@@ -79,15 +73,6 @@ export default function LocationScreen() {
       router.back();
       return true;
     };
-
-    if (UI_PREVIEW_MODE && !selection) {
-      if (returnToProfile()) {
-        return;
-      }
-
-      router.push('/complete-profile');
-      return;
-    }
 
     if (!selection) {
       return;
@@ -120,16 +105,7 @@ export default function LocationScreen() {
               style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
               <AppIcon name="back" color={colors.text} size={18} />
               </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Skip and browse without a delivery location"
-              onPress={() => {
-                setRevisingProfile(false);
-                router.push('/home');
-              }}
-              style={({ pressed }) => [styles.skip, pressed && styles.pressed]}>
-              <Text style={styles.skipLabel}>Skip</Text>
-            </Pressable>
+            <View style={styles.navSpacer} />
           </View>
 
           <View style={styles.hero}>
@@ -218,7 +194,7 @@ export default function LocationScreen() {
           <PrimaryButton
             label="Continue"
             onPress={continueNext}
-            disabled={!UI_PREVIEW_MODE && !selection}
+            disabled={!selection}
             accessibilityLabel="Continue to profile"
           />
           <Text style={styles.disclaimer}>Delivery availability is not confirmed until the store service checks this address.</Text>
@@ -256,6 +232,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 8,
+  },
+  navSpacer: {
+    width: 40,
+    height: 40,
   },
   back: {
     width: 40,

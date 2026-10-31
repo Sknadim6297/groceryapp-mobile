@@ -16,26 +16,26 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/ui/AppIcon';
+import { useToast } from '@/components/ui/AppToast';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts } from '@/constants/theme';
 import { useAuthFlow } from '@/context/AuthFlowContext';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useProfileDraft } from '@/context/ProfileDraftContext';
+import { buildCustomerRegistration, registerCustomer } from '@/services/customerAuth';
 import { isValidEmail } from '@/utils/profileValidation';
 import { isValidIndiaMobile } from '@/utils/phoneValidation';
-
-const REGISTRATION_UNAVAILABLE =
-  'Customer registration is not connected yet. No account will be created.';
 
 export default function CompleteProfileScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const compact = width < 360;
   const { nationalNumber } = useAuthFlow();
-  const { setRevisingProfile } = useDeliveryLocation();
+  const { confirmed, setRevisingProfile } = useDeliveryLocation();
   const draft = useProfileDraft();
+  const { showToast } = useToast();
   const [submitting, setSubmitting] = useState(false);
+  const [registrationSent, setRegistrationSent] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
@@ -43,7 +43,7 @@ export default function CompleteProfileScreen() {
   const canSubmit = draft.fullName.trim().length > 0 && isValidEmail(draft.email);
 
   useEffect(() => {
-    if (UI_PREVIEW_MODE || mobileReady) {
+    if (mobileReady) {
       return;
     }
 
@@ -59,15 +59,15 @@ export default function CompleteProfileScreen() {
     router.replace('/location');
   }
 
-  function completeProfile() {
+  async function completeProfile() {
     if (submitting) {
       return;
     }
 
-    if (UI_PREVIEW_MODE) {
-      setSubmitting(true);
-      setRevisingProfile(false);
-      router.push('/home');
+    if (registrationSent) {
+      const message = 'Registration was already submitted. The server has not confirmed it.';
+      showToast('info', message);
+      setNotice(message);
       return;
     }
 
@@ -78,14 +78,40 @@ export default function CompleteProfileScreen() {
     setNameError(nextNameError);
     setEmailError(nextEmailError);
 
-    if (nextNameError || nextEmailError) {
+    if (nextNameError || nextEmailError || !mobileReady) {
+      showToast('error', nextNameError ?? nextEmailError ?? 'Enter a valid 10-digit mobile number.');
       return;
     }
 
-    setNotice(REGISTRATION_UNAVAILABLE);
+    const registration = buildCustomerRegistration({
+      mobile: nationalNumber,
+      name,
+      email,
+      dateOfBirth: draft.dateOfBirth,
+      location: confirmed,
+    });
+    if (!registration.ok) {
+      showToast('error', registration.message);
+      setNotice(registration.message);
+      if (registration.message.startsWith('Select a delivery address')) {
+        setRevisingProfile(true);
+        router.push('/location');
+      }
+      return;
+    }
+
+    setSubmitting(true);
+    setNotice(null);
+    const result = await registerCustomer(registration.body);
+    setSubmitting(false);
+    showToast(result.tone, result.message);
+    setNotice(result.message);
+    if (result.tone !== 'error') {
+      setRegistrationSent(true);
+    }
   }
 
-  if (!UI_PREVIEW_MODE && !mobileReady) {
+  if (!mobileReady) {
     return null;
   }
 
@@ -111,20 +137,7 @@ export default function CompleteProfileScreen() {
                 style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
                 <AppIcon name="back" color={colors.text} size={18} />
               </Pressable>
-              {UI_PREVIEW_MODE ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Skip profile and browse"
-                  onPress={() => {
-                    setRevisingProfile(false);
-                    router.push('/home');
-                  }}
-                  style={({ pressed }) => [styles.skip, pressed && styles.pressed]}>
-                  <Text style={styles.skipLabel}>Skip</Text>
-                </Pressable>
-              ) : (
-                <View style={styles.skipSpacer} />
-              )}
+              <View style={styles.skipSpacer} />
             </View>
 
             <View style={styles.hero}>
@@ -205,14 +218,13 @@ export default function CompleteProfileScreen() {
 
             <PrimaryButton
               label="Complete Profile"
-              onPress={completeProfile}
-              disabled={!UI_PREVIEW_MODE && !canSubmit}
+              onPress={() => {
+                void completeProfile();
+              }}
+              disabled={!canSubmit}
               loading={submitting}
               accessibilityLabel="Complete profile"
             />
-            {UI_PREVIEW_MODE ? (
-              <Text style={styles.notice}>UI preview. This does not create an account.</Text>
-            ) : null}
             {notice ? (
               <Text accessibilityRole="alert" style={styles.notice}>
                 {notice}

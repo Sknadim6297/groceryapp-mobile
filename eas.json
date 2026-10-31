@@ -4,22 +4,9 @@
     "appVersionSource": "local"
   },
   "build": {
-    "ui-preview": {
-      "distribution": "internal",
-      "developmentClient": false,
-      "env": {
-        "EXPO_PUBLIC_UI_PREVIEW": "ui-preview"
-      },
-      "android": {
-        "buildType": "apk"
-      }
-    },
     "production": {
       "distribution": "store",
       "developmentClient": false,
-      "env": {
-        "EXPO_PUBLIC_UI_PREVIEW": "off"
-      },
       "android": {
         "buildType": "app-bundle"
       }

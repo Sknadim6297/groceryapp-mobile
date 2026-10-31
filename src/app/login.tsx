@@ -17,10 +17,12 @@ import { AuthIllustration } from '@/components/auth/AuthIllustration';
 import { MobileNumberInput } from '@/components/auth/MobileNumberInput';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { BrandLogo } from '@/components/ui/BrandLogo';
+import { useToast } from '@/components/ui/AppToast';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts } from '@/constants/theme';
 import { useAuthFlow } from '@/context/AuthFlowContext';
+import { sendCustomerOtp } from '@/services/customerAuth';
+import { screenAfterCustomerCall } from '@/types/customerApi';
 import { getIndiaMobileError, isValidIndiaMobile } from '@/utils/phoneValidation';
 
 export default function LoginScreen() {
@@ -31,8 +33,13 @@ export default function LoginScreen() {
   const [mobile, setMobile] = useState(nationalNumber);
   const [touched, setTouched] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const valid = isValidIndiaMobile(mobile);
-  const error = touched ? getIndiaMobileError(mobile) : null;
+  const [sending, setSending] = useState(false);
+  const { showToast } = useToast();
+  const error = touched
+    ? mobile.length === 0
+      ? 'Enter your mobile number.'
+      : getIndiaMobileError(mobile)
+    : null;
 
   function goBack() {
     if (router.canGoBack()) {
@@ -48,17 +55,37 @@ export default function LoginScreen() {
     setNotice(null);
   }
 
-  function onGetOtp() {
-    if (UI_PREVIEW_MODE) {
-      if (isValidIndiaMobile(mobile)) {
-        setNationalNumber(mobile);
-      }
-      router.push('/otp');
+  async function onGetOtp() {
+    if (sending) {
+      return;
+    }
+
+    if (mobile.length === 0) {
+      setTouched(true);
+      showToast('error', 'Enter your mobile number.');
       return;
     }
 
     if (!isValidIndiaMobile(mobile)) {
       setTouched(true);
+      showToast('error', getIndiaMobileError(mobile) ?? 'Enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    setNationalNumber(mobile);
+    setSending(true);
+    setNotice(null);
+    const result = await sendCustomerOtp(mobile);
+    setSending(false);
+    showToast(result.tone, result.message);
+    const screen = screenAfterCustomerCall(result, 'send');
+    if (screen === 'complete-profile') {
+      setNationalNumber(mobile);
+      router.push('/complete-profile');
+      return;
+    }
+    setNotice(result.message);
+    if (screen !== 'otp') {
       return;
     }
 
@@ -95,18 +122,7 @@ export default function LoginScreen() {
                 <AppIcon name="back" color={colors.text} size={18} />
               </Pressable>
               <BrandLogo height={40} />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Skip sign-in and browse"
-                onPress={() => {
-                  setMobile('');
-                  setNationalNumber('');
-                  router.push('/home');
-                }}
-                style={({ pressed }) => [styles.skip, pressed && styles.pressed]}
-                testID="login-skip">
-                <Text style={styles.skipLabel}>{UI_PREVIEW_MODE ? 'Preview skip' : 'Skip'}</Text>
-              </Pressable>
+              <View style={styles.navSpacer} />
             </View>
 
             <View style={styles.hero}>
@@ -142,14 +158,14 @@ export default function LoginScreen() {
               />
               <PrimaryButton
                 label="Get OTP"
-                onPress={onGetOtp}
-                disabled={!UI_PREVIEW_MODE && !valid}
+                onPress={() => {
+                  void onGetOtp();
+                }}
+                disabled={sending}
+                loading={sending}
                 accessibilityLabel="Get OTP"
                 testID="get-otp"
               />
-              {UI_PREVIEW_MODE ? (
-                <Text style={styles.notice}>UI preview. This does not sign in or send a code.</Text>
-              ) : null}
               {notice ? (
                 <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.notice}>
                   {notice}
@@ -223,21 +239,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  skip: {
-    minHeight: 40,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  skipLabel: {
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    lineHeight: 18,
-    color: colors.text,
+  navSpacer: {
+    width: 44,
+    height: 44,
   },
   pressed: {
     opacity: 0.75,

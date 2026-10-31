@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts } from '@/constants/theme';
 import type { ManualAddressInput } from '@/types/location';
 
@@ -35,17 +34,6 @@ export function ManualAddressForm({ onSubmit }: ManualAddressFormProps) {
 
   function submit() {
     if (!ready) {
-      if (UI_PREVIEW_MODE) {
-        onSubmit({
-          addressLine1: 'UI preview — not a delivery address',
-          landmark: '',
-          city: 'Preview',
-          state: 'Preview',
-          postalCode: '',
-        });
-        return;
-      }
-
       setError('Enter the address, city, state, and a 6-digit PIN code.');
       return;
     }
@@ -92,7 +80,7 @@ export function ManualAddressForm({ onSubmit }: ManualAddressFormProps) {
           {error}
         </Text>
       ) : null}
-      <PrimaryButton label="Use this address" onPress={submit} disabled={!UI_PREVIEW_MODE && !ready} />
+      <PrimaryButton label="Use this address" onPress={submit} disabled={!ready} />
     </View>
   );
 }
