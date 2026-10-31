@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
@@ -9,7 +10,7 @@ export function SearchBar() {
 
   return (
     <View style={styles.field}>
-      <AppIcon name="search" color={colors.textSecondary} size={18} />
+      <AppIcon name="search" color={colors.textSecondary} size={20} weight="light" />
       <TextInput
         value={query}
         onChangeText={setQuery}
@@ -17,6 +18,12 @@ export function SearchBar() {
         placeholderTextColor="#94A3B8"
         style={styles.input}
         returnKeyType="search"
+        onSubmitEditing={() => {
+          const next = query.trim();
+          if (next.length > 0) {
+            router.push({ pathname: '/shop', params: { q: next } });
+          }
+        }}
         autoCapitalize="none"
         autoCorrect={false}
         autoComplete="off"
@@ -38,13 +45,13 @@ export function SearchBar() {
 const styles = StyleSheet.create({
   field: {
     minHeight: 44,
-    borderRadius: 12,
+    borderRadius: 14,
     backgroundColor: colors.white,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingLeft: 12,
-    paddingRight: 12,
-    gap: 8,
+    paddingLeft: 14,
+    paddingRight: 14,
+    gap: 10,
   },
   input: {
     flex: 1,

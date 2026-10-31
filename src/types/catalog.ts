@@ -11,7 +11,7 @@ export type DemoProduct = {
   name: string;
   unit: string;
   price: number;
-  compareAt: number;
-  discountLabel: string;
+  compareAt?: number;
+  discountLabel?: string;
   image: ImageSource;
 };

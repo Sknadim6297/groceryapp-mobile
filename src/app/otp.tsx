@@ -18,6 +18,7 @@ import { OtpInput } from '@/components/auth/OtpInput';
 import { OtpResend } from '@/components/auth/OtpResend';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { PREVIEW_DEMO_OTP } from '@/constants/previewDemo';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts } from '@/constants/theme';
 import { useAuthFlow } from '@/context/AuthFlowContext';
@@ -54,6 +55,10 @@ export default function OtpScreen() {
 
   function onVerify() {
     if (UI_PREVIEW_MODE) {
+      if (code !== PREVIEW_DEMO_OTP) {
+        setVerifyMessage('Demo code is 123456. This does not verify a phone number or send an SMS.');
+        return;
+      }
       router.push('/location');
       return;
     }
@@ -145,7 +150,7 @@ export default function OtpScreen() {
             <View style={styles.form}>
               <Text style={styles.pending}>
                 {UI_PREVIEW_MODE
-                  ? 'UI preview. You can continue without a code. Nothing is verified.'
+                  ? 'UI preview. Enter 123456 to continue. No SMS is sent and the code is not checked with a server.'
                   : 'A verification code has not been sent. OTP delivery is not connected yet.'}
               </Text>
               <OtpInput
@@ -175,7 +180,7 @@ export default function OtpScreen() {
               <PrimaryButton
                 label="Verify & Continue"
                 onPress={onVerify}
-                disabled={!UI_PREVIEW_MODE && !complete}
+                disabled={!complete}
                 accessibilityLabel="Verify and continue"
                 testID="verify-otp"
               />

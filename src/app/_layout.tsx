@@ -13,6 +13,7 @@ import { colors, fonts } from '@/constants/theme';
 import { AuthFlowProvider } from '@/context/AuthFlowContext';
 import { DeliveryLocationProvider } from '@/context/DeliveryLocationContext';
 import { MockCartProvider } from '@/context/MockCartContext';
+import { PreviewSessionProvider } from '@/context/PreviewSessionContext';
 import { ProfileDraftProvider } from '@/context/ProfileDraftContext';
 
 SplashScreen.preventAutoHideAsync();
@@ -64,6 +65,7 @@ export default function RootLayout() {
         <DeliveryLocationProvider>
         <ProfileDraftProvider>
         <MockCartProvider>
+        <PreviewSessionProvider>
         <Stack
           screenOptions={{
             headerShown: false,
@@ -87,6 +89,7 @@ export default function RootLayout() {
           }}
         />
         </Stack>
+        </PreviewSessionProvider>
         </MockCartProvider>
         </ProfileDraftProvider>
         </DeliveryLocationProvider>

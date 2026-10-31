@@ -1,4 +1,5 @@
 import { SymbolView } from 'expo-symbols';
+import androidLight from 'expo-symbols/androidWeights/light';
 import androidMedium from 'expo-symbols/androidWeights/medium';
 import type { ColorValue } from 'react-native';
 
@@ -31,6 +32,24 @@ const icons = {
   heart: { ios: 'heart', android: 'favorite_border', web: 'favorite_border' },
   heartFill: { ios: 'heart.fill', android: 'favorite', web: 'favorite' },
   plus: { ios: 'plus', android: 'add', web: 'add' },
+  minus: { ios: 'minus', android: 'remove', web: 'remove' },
+  crown: { ios: 'crown', android: 'workspace_premium', web: 'workspace_premium' },
+  box: { ios: 'shippingbox', android: 'inventory_2', web: 'inventory_2' },
+  shield: { ios: 'checkmark.shield', android: 'verified_user', web: 'verified_user' },
+  headset: { ios: 'headphones', android: 'headset_mic', web: 'headset_mic' },
+  truck: { ios: 'truck.box', android: 'local_shipping', web: 'local_shipping' },
+  grid: { ios: 'square.grid.2x2', android: 'grid_view', web: 'grid_view' },
+  leafLine: { ios: 'leaf', android: 'eco', web: 'eco' },
+  flame: { ios: 'flame', android: 'local_fire_department', web: 'local_fire_department' },
+  plug: { ios: 'powerplug', android: 'electrical_services', web: 'electrical_services' },
+  plant: { ios: 'leaf.circle', android: 'potted_plant', web: 'potted_plant' },
+  gift: { ios: 'gift', android: 'card_giftcard', web: 'card_giftcard' },
+  refresh: { ios: 'arrow.clockwise', android: 'refresh', web: 'refresh' },
+  bag: { ios: 'bag', android: 'shopping_bag', web: 'shopping_bag' },
+  star: { ios: 'star', android: 'star', web: 'star' },
+  close: { ios: 'xmark', android: 'close', web: 'close' },
+  card: { ios: 'creditcard', android: 'credit_card', web: 'credit_card' },
+  link: { ios: 'link', android: 'link', web: 'link' },
 } as const;
 
 export type AppIconName = keyof typeof icons;
@@ -39,15 +58,20 @@ type AppIconProps = {
   name: AppIconName;
   color: ColorValue;
   size?: number;
+  weight?: 'medium' | 'light';
 };
 
-export function AppIcon({ name, color, size = 22 }: AppIconProps) {
+export function AppIcon({ name, color, size = 22, weight = 'medium' }: AppIconProps) {
   return (
     <SymbolView
       name={icons[name]}
       tintColor={color}
       size={size}
-      weight={{ ios: 'medium', android: androidMedium }}
+      weight={
+        weight === 'light'
+          ? { ios: 'light', android: androidLight }
+          : { ios: 'medium', android: androidMedium }
+      }
       style={{ width: size, height: size }}
     />
   );

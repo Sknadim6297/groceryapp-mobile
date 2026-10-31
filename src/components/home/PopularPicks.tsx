@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
   section: {
     paddingHorizontal: 16,
     paddingTop: 18,
-    paddingBottom: 20,
+    paddingBottom: 0,
     gap: 12,
   },
   headingRow: {

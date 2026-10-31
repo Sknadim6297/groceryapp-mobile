@@ -1,3 +1,5 @@
+import { UI_PREVIEW_MODE } from '@/constants/preview';
+import { previewCategoryById } from '@/data/previewImageCatalog';
 import type { Category } from '@/types/category';
 
 /** Local demo categories for the home grid. This is not a live catalogue. */
@@ -47,6 +49,13 @@ export const mockCategories: Category[] = [
 export function findMockCategory(id: string | undefined): Category | undefined {
   if (!id) {
     return undefined;
+  }
+
+  if (UI_PREVIEW_MODE) {
+    const preview = previewCategoryById(id);
+    if (preview) {
+      return preview;
+    }
   }
 
   return mockCategories.find((category) => category.id === id);

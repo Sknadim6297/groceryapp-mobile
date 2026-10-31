@@ -1,7 +1,5 @@
-import { PlaceholderScreen } from '@/components/ui/PlaceholderScreen';
+import { ReviewCartScreen } from '@/components/cart/ReviewCartScreen';
 
 export default function CartScreen() {
-  return (
-    <PlaceholderScreen title="Cart" message="This is a placeholder. Your cart is not connected yet." />
-  );
+  return <ReviewCartScreen />;
 }

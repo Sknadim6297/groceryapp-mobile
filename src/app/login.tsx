@@ -105,7 +105,7 @@ export default function LoginScreen() {
                 }}
                 style={({ pressed }) => [styles.skip, pressed && styles.pressed]}
                 testID="login-skip">
-                <Text style={styles.skipLabel}>Skip</Text>
+                <Text style={styles.skipLabel}>{UI_PREVIEW_MODE ? 'Preview skip' : 'Skip'}</Text>
               </Pressable>
             </View>
 
