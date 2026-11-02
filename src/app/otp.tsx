@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -16,64 +16,69 @@ import {
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { DevOtpPanel } from '@/components/auth/DevOtpPanel';
 import { OtpInput } from '@/components/auth/OtpInput';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { BrandLogo } from '@/components/ui/BrandLogo';
 import { useToast } from '@/components/ui/AppToast';
 import { colors, fonts } from '@/constants/theme';
+import { DevOtpPanel } from '@/components/auth/DevOtpPanel';
 import { useAuthFlow } from '@/context/AuthFlowContext';
+import { useAuthSession } from '@/context/AuthSessionContext';
+import { useCustomerAccount } from '@/context/CustomerAccountContext';
+import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
 import { resendCustomerOtp, verifyCustomerOtp } from '@/services/customerAuth';
 import {
   isDevOtpEnabled,
   issueDevTestOtp,
   peekDevTestOtp,
-  readDevTestSession,
   setDevMockCustomerStatus,
   verifyDevTestOtp,
-  type DevMockCustomerStatus,
   type DevOtpFailure,
+  type DevOtpView,
 } from '@/services/devOtp';
 import { screenAfterCustomerCall } from '@/types/customerApi';
 import { INDIA_CALLING_CODE, OTP_LENGTH } from '@/types/auth';
 import { formatIndiaMobileDisplay, isValidIndiaMobile } from '@/utils/phoneValidation';
 
-function devOtpFailureMessage(reason: DevOtpFailure): string {
+function developmentFailure(reason: DevOtpFailure): string {
   if (reason === 'expired') {
-    return 'That development test code expired. Tap Resend OTP.';
+    return 'That development code has expired. Resend OTP creates a new one.';
   }
   if (reason === 'used') {
-    return 'That development test code was already used. Tap Resend OTP.';
+    return 'That development code was already used. Resend OTP creates a new one.';
   }
-  if (reason === 'wrong') {
-    return 'That development test code does not match.';
+  if (reason === 'disabled') {
+    return 'Development OTP is not available in this build.';
   }
-  return 'Development test OTP is unavailable.';
+  return 'That development code does not match.';
 }
 
 export default function OtpScreen() {
   const insets = useSafeAreaInsets();
+  const keyboardCover = useKeyboardOverlap();
+  const keyboardOverlap = Platform.OS === 'android' ? keyboardCover : 0;
   const { width } = useWindowDimensions();
   const compact = width < 360;
-  const { nationalNumber } = useAuthFlow();
+  const { nationalNumber, setStanding, otpDispatched, setOtpDispatched } = useAuthFlow();
+  const { signIn, keepDevelopmentLogin } = useAuthSession();
+  const { setAccount } = useCustomerAccount();
   const [code, setCode] = useState('');
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [devOtp, setDevOtp] = useState<DevOtpView | null>(() => (isDevOtpEnabled() ? peekDevTestOtp(nationalNumber) : null));
   const { showToast } = useToast();
-  const devMode = isDevOtpEnabled();
-  const [, refreshDevOtp] = useState(0);
   const ready = isValidIndiaMobile(nationalNumber);
   const complete = code.length === OTP_LENGTH;
-  const devOtp = devMode && ready ? peekDevTestOtp(nationalNumber) : null;
+  const leaving = useRef(false);
 
   useEffect(() => {
-    if (ready) {
+    if (leaving.current || (ready && otpDispatched)) {
       return;
     }
 
     router.replace('/login');
-  }, [ready]);
+  }, [otpDispatched, ready]);
 
   function goBack() {
     if (router.canGoBack()) {
@@ -103,32 +108,61 @@ export default function OtpScreen() {
     setVerifyMessage(null);
     let holdLoading = false;
     try {
-      if (devMode) {
-        const result = verifyDevTestOtp(nationalNumber, code);
-        refreshDevOtp((value) => value + 1);
-        if (!result.ok || readDevTestSession()?.kind !== 'development-test') {
-          const message = devOtpFailureMessage(result.ok ? 'disabled' : result.reason);
+      if (isDevOtpEnabled()) {
+        const outcome = verifyDevTestOtp(nationalNumber, code);
+        if (!outcome.ok) {
+          const message = developmentFailure(outcome.reason);
           showToast('error', message);
           setVerifyMessage(message);
+          setDevOtp(peekDevTestOtp(nationalNumber));
           return;
         }
-        showToast('success', 'Development test code matched. This is not a real account.');
+        leaving.current = true;
+        const saved = await keepDevelopmentLogin();
+        if (!saved) {
+          leaving.current = false;
+          showToast('warning', 'This development sign-in could not be saved on this device.');
+          return;
+        }
         holdLoading = true;
         setTimeout(() => {
-          router.replace(result.destination === 'home' ? '/home' : '/complete-profile');
+          router.replace(outcome.destination === 'home' ? '/home' : '/complete-profile');
           setBusy(false);
         }, 60);
         return;
       }
-
       const result = await verifyCustomerOtp(nationalNumber, code);
       showToast(result.tone, result.message);
       setVerifyMessage(result.message);
       const screen = screenAfterCustomerCall(result, 'verify');
-      if (screen === 'complete-profile' || screen === 'home') {
+      if (screen === 'home' && result.temporaryLogin) {
+        const saved = await signIn(result.temporaryLogin);
+        if (!saved) {
+          showToast('warning', 'This sign-in could not be saved on this device.');
+          return;
+        }
+        if (result.temporaryLogin.customerId && result.temporaryLogin.name) {
+          setAccount({
+            customerId: result.temporaryLogin.customerId,
+            name: result.temporaryLogin.name,
+            mobile: result.temporaryLogin.mobile,
+            companyMobile: null,
+          });
+        }
         holdLoading = true;
         setTimeout(() => {
-          router.replace(screen === 'home' ? '/home' : '/complete-profile');
+          router.replace('/home');
+          setBusy(false);
+        }, 60);
+        return;
+      }
+      if (screen === 'complete-profile') {
+        leaving.current = true;
+        setStanding('unregistered');
+        setOtpDispatched(false);
+        holdLoading = true;
+        setTimeout(() => {
+          router.replace('/complete-profile');
           setBusy(false);
         }, 60);
         return;
@@ -151,28 +185,40 @@ export default function OtpScreen() {
 
     setBusy(true);
     try {
-      if (devMode) {
-        const issued = issueDevTestOtp(nationalNumber, devOtp?.mockStatus ?? 'unregistered');
-        refreshDevOtp((value) => value + 1);
+      if (isDevOtpEnabled()) {
+        const current = peekDevTestOtp(nationalNumber);
+        const next = issueDevTestOtp(nationalNumber, current?.mockStatus ?? 'unregistered');
+        if (!next) {
+          showToast('error', 'Enter a valid 10-digit mobile number.');
+          return;
+        }
+        setDevOtp(next);
         setCode('');
-        setVerifyMessage(null);
-        const message = issued
-          ? 'A new development test code is shown above.'
-          : 'Development test OTP is unavailable.';
-        setResendMessage(message);
-        showToast(issued ? 'info' : 'error', message);
+        setResendMessage('A new development OTP is ready. It was not sent by SMS.');
+        showToast('success', 'A new development OTP is ready. It was not sent by SMS.');
         return;
       }
-
       const result = await resendCustomerOtp(nationalNumber);
       setResendMessage(result.message);
       showToast(result.tone, result.message);
+      const screen = screenAfterCustomerCall(result, 'send');
+      if (screen === 'otp') {
+        setOtpDispatched(true);
+      }
+      if (screen === 'complete-profile') {
+        leaving.current = true;
+        setStanding('unregistered');
+        setOtpDispatched(false);
+        setTimeout(() => {
+          router.replace('/complete-profile');
+        }, 60);
+      }
     } finally {
       setBusy(false);
     }
   }
 
-  if (!ready) {
+  if (!ready || !otpDispatched) {
     return null;
   }
 
@@ -202,7 +248,10 @@ export default function OtpScreen() {
           <ScrollView
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
-            contentContainerStyle={[styles.sheetContent, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+            contentContainerStyle={[
+              styles.sheetContent,
+              { paddingBottom: Math.max(insets.bottom, 12) + 8 + keyboardOverlap },
+            ]}>
             <Text accessibilityRole="header" maxFontSizeMultiplier={1.2} style={styles.title}>
               Enter verification code
             </Text>
@@ -220,12 +269,12 @@ export default function OtpScreen() {
                 <AppIcon name="pencil" color={colors.primaryInk} size={22} />
               </Pressable>
             </View>
-            {devMode && devOtp ? (
+            {devOtp && isDevOtpEnabled() ? (
               <DevOtpPanel
                 otp={devOtp}
-                onStatus={(status: DevMockCustomerStatus) => {
+                onStatus={(status) => {
                   setDevMockCustomerStatus(nationalNumber, status);
-                  refreshDevOtp((value) => value + 1);
+                  setDevOtp(peekDevTestOtp(nationalNumber));
                 }}
               />
             ) : null}

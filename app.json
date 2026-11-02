@@ -20,7 +20,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "softwareKeyboardLayoutMode": "pan"
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "output": "server",
@@ -28,6 +28,7 @@
     },
     "plugins": [
       "expo-router",
+      "expo-secure-store",
       [
         "expo-location",
         {
@@ -50,7 +51,7 @@
     "extra": {
       "router": {
         "asyncRoutes": {
-          "web": true
+          "web": false
         }
       },
       "eas": {

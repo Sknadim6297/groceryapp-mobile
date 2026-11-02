@@ -9,6 +9,7 @@ import { AppIcon } from '@/components/ui/AppIcon';
 import { SoftIcon } from '@/components/ui/SoftIcon';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts } from '@/constants/theme';
+import { profileRoutes } from '@/navigation/profileRoutes';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useMockCart } from '@/context/MockCartContext';
 import { usePreviewSession } from '@/context/PreviewSessionContext';
@@ -71,7 +72,7 @@ export function ReviewCartScreen() {
           accessibilityRole="button"
           accessibilityLabel="Profile"
           hitSlop={8}
-          onPress={() => router.push('/profile')}
+          onPress={() => router.push(profileRoutes.profile)}
           style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}>
           <AppIcon name="profile" color={colors.white} size={24} />
         </Pressable>
@@ -245,7 +246,7 @@ export function ReviewCartScreen() {
             </View>
           </ScrollView>
 
-          <View style={[styles.footer, { paddingBottom: 10 }]}>
+          <View style={styles.footer}>
             <View style={styles.footerTop}>
               <Text style={styles.footerSubtotal}>Subtotal: {formatRupee(payable)}</Text>
               <Pressable accessibilityRole="button" accessibilityLabel="View bill and savings" onPress={showBill}>
@@ -614,6 +615,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     paddingHorizontal: 14,
     paddingTop: 10,
+    paddingBottom: 10,
     gap: 10,
   },
   footerTop: {

@@ -32,7 +32,10 @@ export function PreviewScaffold({ title, subtitle, children, footer }: PreviewSc
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
       </View>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, footer ? null : { paddingBottom: 16 + insets.bottom }]}
+        showsVerticalScrollIndicator={false}>
         {children}
       </ScrollView>
       {footer ? <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 10) }]}>{footer}</View> : null}

@@ -77,6 +77,7 @@ const styles = StyleSheet.create({
   label: {
     width: '100%',
     marginTop: 6,
+    minHeight: 26,
     fontFamily: fonts.medium,
     fontSize: 11,
     lineHeight: 13,

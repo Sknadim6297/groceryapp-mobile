@@ -30,7 +30,10 @@ const records = new Map<string, DevOtpRecord>();
 let session: DevTestSession | null = null;
 
 function developmentBuild(): boolean {
-  return typeof __DEV__ !== 'undefined' && __DEV__ === true;
+  if (typeof __DEV__ === 'undefined' || __DEV__ !== true) {
+    return false;
+  }
+  return process.env.EXPO_PUBLIC_UI_PREVIEW !== 'ui-preview';
 }
 
 function wipe(): void {
@@ -65,6 +68,7 @@ export function isDevOtpEnabled(): boolean {
 export function rejectDevTestSessionOutsideDevelopment(): void {
   if (!developmentBuild()) {
     wipe();
+    void sessionStore.remove();
   }
 }
 
@@ -160,6 +164,141 @@ export function readDevTestSession(enabled = developmentBuild()): DevTestSession
   return session;
 }
 
+const DEV_SESSION_KEY = 'groceryapp.development-test-session';
+
+type DevSessionStore = {
+  read: () => Promise<string | null>;
+  write: (value: string) => Promise<void>;
+  remove: () => Promise<void>;
+};
+
+const sessionMemory = new Map<string, string>();
+
+const memorySessionStore: DevSessionStore = {
+  async read() {
+    return sessionMemory.get(DEV_SESSION_KEY) ?? null;
+  },
+  async write(value) {
+    sessionMemory.set(DEV_SESSION_KEY, value);
+  },
+  async remove() {
+    sessionMemory.delete(DEV_SESSION_KEY);
+  },
+};
+
+let sessionStore: DevSessionStore = memorySessionStore;
+
+/** Tests replace the store so a restart can be simulated without a device. */
+export function installDevSessionStoreForTests(next: DevSessionStore | null): void {
+  sessionMemory.clear();
+  sessionStore = next ?? memorySessionStore;
+}
+
 export function resetDevTestOtpForTests(): void {
   wipe();
+  sessionMemory.clear();
+}
+
+export function serializeDevTestSession(value: DevTestSession): string | null {
+  if (value.kind !== 'development-test' || !isValidIndiaMobile(value.mobile)) {
+    return null;
+  }
+  if (value.destination !== 'home' && value.destination !== 'complete-profile') {
+    return null;
+  }
+  return JSON.stringify({ kind: 'development-test', mobile: value.mobile, destination: value.destination });
+}
+
+export function parseDevTestSession(raw: string | null): DevTestSession | null {
+  if (!raw) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null;
+    }
+    const record = parsed as Record<string, unknown>;
+    const mobile = typeof record.mobile === 'string' ? record.mobile : '';
+    const destination = record.destination === 'home' || record.destination === 'complete-profile' ? record.destination : null;
+    if (record.kind !== 'development-test' || !destination || !isValidIndiaMobile(mobile)) {
+      return null;
+    }
+    return { kind: 'development-test', mobile, destination };
+  } catch {
+    return null;
+  }
+}
+
+/** Home is available only for a registered development-test customer inside a development build. */
+export function canUseDevelopmentHome(value: DevTestSession | null, enabled = developmentBuild()): boolean {
+  return enabled && value?.kind === 'development-test' && value.destination === 'home';
+}
+
+export async function saveDevTestSession(value: DevTestSession, enabled = developmentBuild()): Promise<boolean> {
+  if (!enabled) {
+    wipe();
+    await sessionStore.remove();
+    return false;
+  }
+  const serialized = serializeDevTestSession(value);
+  if (!serialized) {
+    return false;
+  }
+  session = value;
+  await sessionStore.write(serialized);
+  return true;
+}
+
+export async function loadDevTestSession(enabled = developmentBuild()): Promise<DevTestSession | null> {
+  if (!enabled) {
+    wipe();
+    await sessionStore.remove();
+    return null;
+  }
+  const raw = await sessionStore.read();
+  const restored = parseDevTestSession(raw);
+  if (!restored) {
+    if (raw) {
+      await sessionStore.remove();
+    }
+    return null;
+  }
+  session = restored;
+  return restored;
+}
+
+/** Drops the development code and any saved development login. Does not call the OTP API. */
+export async function clearDevTestSession(): Promise<void> {
+  wipe();
+  await sessionStore.remove();
+}
+
+export async function activateDeviceDevSessionStore(): Promise<void> {
+  try {
+    const SecureStore = await import('expo-secure-store');
+    const secureStore: DevSessionStore = {
+      async read() {
+        return SecureStore.getItemAsync(DEV_SESSION_KEY);
+      },
+      async write(value) {
+        await SecureStore.setItemAsync(DEV_SESSION_KEY, value);
+      },
+      async remove() {
+        await SecureStore.deleteItemAsync(DEV_SESSION_KEY);
+      },
+    };
+    if (!developmentBuild()) {
+      wipe();
+      await secureStore.remove();
+      sessionStore = memorySessionStore;
+      return;
+    }
+    sessionStore = secureStore;
+  } catch {
+    if (!developmentBuild()) {
+      wipe();
+    }
+    sessionStore = memorySessionStore;
+  }
 }

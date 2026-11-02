@@ -26,35 +26,47 @@ import { useAuthFlow } from '@/context/AuthFlowContext';
 import { useCustomerAccount } from '@/context/CustomerAccountContext';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useProfileDraft } from '@/context/ProfileDraftContext';
-import { buildCustomerRegistration, registerCustomer } from '@/services/customerAuth';
-import { screenAfterCustomerCall } from '@/types/customerApi';
+import { useRememberedCustomer } from '@/context/RememberedCustomerContext';
+import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
+import { buildCustomerRegistration, registerCustomer, sendCustomerOtp } from '@/services/customerAuth';
+import { isDevOtpEnabled } from '@/services/devOtp';
+import { registrationFollowUp, screenAfterCustomerCall } from '@/types/customerApi';
 import { isValidEmail } from '@/utils/profileValidation';
-import { isValidIndiaMobile } from '@/utils/phoneValidation';
+import { formatIndiaMobileDisplay, isValidIndiaMobile } from '@/utils/phoneValidation';
+import { registeredDisplayName, registeredDisplayPhone } from '@/utils/registeredIdentity';
 
 export default function CompleteProfileScreen() {
   const insets = useSafeAreaInsets();
+  const keyboardCover = useKeyboardOverlap();
+  const keyboardOverlap = Platform.OS === 'android' ? keyboardCover : 0;
   const { width } = useWindowDimensions();
   const compact = width < 360;
-  const { nationalNumber } = useAuthFlow();
-  const { setAccount } = useCustomerAccount();
+  const { nationalNumber, standing, setStanding, setOtpDispatched } = useAuthFlow();
+  const { account, setAccount } = useCustomerAccount();
   const { confirmed, setRevisingProfile } = useDeliveryLocation();
   const draft = useProfileDraft();
+  const { customer: remembered } = useRememberedCustomer();
+  const [nameCleared, setNameCleared] = useState(false);
   const { showToast } = useToast();
+  const rememberedName = remembered?.name.trim() ?? '';
+  const nameValue = draft.fullName.length > 0 ? draft.fullName : nameCleared ? '' : rememberedName;
   const [submitting, setSubmitting] = useState(false);
   const [registrationSent, setRegistrationSent] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const mobileReady = isValidIndiaMobile(nationalNumber);
-  const canSubmit = draft.fullName.trim().length > 0 && isValidEmail(draft.email);
+  const sameAccount = account && account.mobile === nationalNumber ? account : null;
+  const alreadyRegistered = standing === 'registered';
+  const canSubmit = alreadyRegistered || (nameValue.trim().length > 0 && isValidEmail(draft.email));
 
   useEffect(() => {
-    if (mobileReady) {
+    if (mobileReady && standing !== 'unknown') {
       return;
     }
 
     router.replace('/login');
-  }, [mobileReady]);
+  }, [mobileReady, standing]);
 
   function goBack() {
     if (router.canGoBack()) {
@@ -65,19 +77,50 @@ export default function CompleteProfileScreen() {
     router.replace('/location');
   }
 
+  async function openVerification() {
+    const result = await sendCustomerOtp(nationalNumber);
+    showToast(result.tone, result.message);
+    setNotice(result.message);
+    const screen = screenAfterCustomerCall(result, 'send');
+    if (screen === 'otp') {
+      setStanding('registered');
+      setOtpDispatched(true);
+      setTimeout(() => {
+        router.replace('/otp');
+      }, 60);
+      return true;
+    }
+    if (screen === 'complete-profile') {
+      setStanding('unregistered');
+      setOtpDispatched(false);
+    }
+    return false;
+  }
+
   async function completeProfile() {
     if (submitting) {
       return;
     }
 
-    if (registrationSent) {
-      const message = 'Registration was already submitted. The server has not confirmed it.';
-      showToast('info', message);
-      setNotice(message);
+    if (isDevOtpEnabled()) {
+      showToast('info', 'Development mode does not register this number.');
       return;
     }
 
-    const name = draft.fullName.trim();
+    if (alreadyRegistered || registrationSent) {
+      setSubmitting(true);
+      let holdLoading = false;
+      try {
+        holdLoading = await openVerification();
+      } finally {
+        if (!holdLoading) {
+          setSubmitting(false);
+        }
+      }
+      return;
+    }
+
+    const name = nameValue.trim();
     const email = draft.email.trim();
     const nextNameError = name.length === 0 ? 'Enter your full name.' : null;
     const nextEmailError = isValidEmail(email) ? null : 'Enter a valid email address.';
@@ -113,19 +156,13 @@ export default function CompleteProfileScreen() {
       const result = await registerCustomer(registration.body);
       showToast(result.tone, result.message);
       setNotice(result.message);
-      if (screenAfterCustomerCall(result, 'register') === 'home') {
-        if (result.customer) {
-          setAccount(result.customer);
-        }
-        holdLoading = true;
-        setTimeout(() => {
-          router.replace('/home');
-          setSubmitting(false);
-        }, 60);
-        return;
+      if (result.customer) {
+        setAccount(result.customer);
       }
-      if (result.tone !== 'error') {
+      if (registrationFollowUp(result) === 'otp') {
+        setStanding('registered');
         setRegistrationSent(true);
+        holdLoading = await openVerification();
       }
     } finally {
       if (!holdLoading) {
@@ -134,7 +171,7 @@ export default function CompleteProfileScreen() {
     }
   }
 
-  if (!mobileReady) {
+  if (!mobileReady || standing === 'unknown') {
     return null;
   }
 
@@ -172,82 +209,116 @@ export default function CompleteProfileScreen() {
           <ScrollView
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
-            contentContainerStyle={[styles.sheetContent, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}
+            contentContainerStyle={[styles.sheetContent, { paddingBottom: Math.max(insets.bottom, 12) + 8 + keyboardOverlap }]}
             showsVerticalScrollIndicator={false}>
             <Text accessibilityRole="header" maxFontSizeMultiplier={1.2} style={styles.title}>
               Personal information
             </Text>
             <Text maxFontSizeMultiplier={1.2} style={styles.subtitle}>
-              Add your name, email, and delivery address.
+              {alreadyRegistered
+                ? 'This number is already registered. Continue to the verification code.'
+                : 'Add your name, email, and delivery address.'}
             </Text>
 
-            <Field label="Full name" error={nameError}>
-              <View style={[styles.inputRow, nameError ? styles.inputInvalid : null]}>
-                <TextInput
-                  value={draft.fullName}
-                  onChangeText={(next) => {
-                    draft.setFullName(next);
-                    setNameError(null);
-                    setNotice(null);
-                  }}
-                  placeholder="Enter your full name"
-                  placeholderTextColor={colors.textSecondary}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                  accessibilityLabel="Full name"
-                  style={styles.input}
-                />
-                {draft.fullName.length > 0 ? (
+            {alreadyRegistered && sameAccount ? (
+              <>
+                <Field label="Full name" error={null}>
+                  <View style={styles.inputRow}>
+                    <Text style={styles.input}>{registeredDisplayName(sameAccount)}</Text>
+                  </View>
+                </Field>
+                <Field label="Mobile" error={null}>
+                  <View style={styles.inputRow}>
+                    <Text style={styles.input}>{registeredDisplayPhone(sameAccount)}</Text>
+                  </View>
+                </Field>
+                {sameAccount.companyMobile ? (
+                  <Field label="Company mobile" error={null}>
+                    <View style={styles.inputRow}>
+                      <Text style={styles.input}>
+                        {isValidIndiaMobile(sameAccount.companyMobile)
+                          ? `+91 ${formatIndiaMobileDisplay(sameAccount.companyMobile)}`
+                          : sameAccount.companyMobile}
+                      </Text>
+                    </View>
+                  </Field>
+                ) : null}
+              </>
+            ) : null}
+
+            {alreadyRegistered ? null : (
+              <>
+                <Field label="Full name" error={nameError}>
+                  <View style={[styles.inputRow, nameError ? styles.inputInvalid : null]}>
+                    <TextInput
+                      value={nameValue}
+                      onChangeText={(next) => {
+                        setNameCleared(next.length === 0);
+                        draft.setFullName(next);
+                        setNameError(null);
+                        setNotice(null);
+                      }}
+                      placeholder="Enter your full name"
+                      placeholderTextColor={colors.textSecondary}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      accessibilityLabel="Full name"
+                      style={styles.input}
+                    />
+                    {nameValue.length > 0 ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Clear full name"
+                        onPress={() => {
+                          setNameCleared(true);
+                          draft.setFullName('');
+                          setNameError(null);
+                        }}
+                        hitSlop={8}>
+                        <AppIcon name="close" color={colors.textSecondary} size={16} />
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </Field>
+
+                <Field label="Email" error={emailError}>
+                  <View style={[styles.inputRow, emailError ? styles.inputInvalid : null]}>
+                    <TextInput
+                      value={draft.email}
+                      onChangeText={(next) => {
+                        draft.setEmail(next);
+                        setEmailError(null);
+                        setNotice(null);
+                      }}
+                      placeholder="Enter your email"
+                      placeholderTextColor={colors.textSecondary}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      accessibilityLabel="Email address"
+                      style={styles.input}
+                    />
+                  </View>
+                </Field>
+
+                <Field label="Delivery address" error={null}>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Clear full name"
+                    accessibilityLabel={address.length > 0 ? `Delivery address ${address}` : 'Add a delivery address'}
                     onPress={() => {
-                      draft.setFullName('');
-                      setNameError(null);
+                      setRevisingProfile(true);
+                      router.push('/location');
                     }}
-                    hitSlop={8}>
-                    <AppIcon name="close" color={colors.textSecondary} size={16} />
+                    style={({ pressed }) => [styles.inputRow, pressed && styles.pressed]}>
+                    <Text numberOfLines={2} style={[styles.address, address.length === 0 && styles.addressEmpty]}>
+                      {address.length > 0 ? address : 'Add a delivery address'}
+                    </Text>
+                    <AppIcon name="chevron" color={colors.primaryInk} size={18} />
                   </Pressable>
-                ) : null}
-              </View>
-            </Field>
+                </Field>
 
-            <Field label="Email" error={emailError}>
-              <View style={[styles.inputRow, emailError ? styles.inputInvalid : null]}>
-                <TextInput
-                  value={draft.email}
-                  onChangeText={(next) => {
-                    draft.setEmail(next);
-                    setEmailError(null);
-                    setNotice(null);
-                  }}
-                  placeholder="Enter your email"
-                  placeholderTextColor={colors.textSecondary}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  accessibilityLabel="Email address"
-                  style={styles.input}
-                />
-              </View>
-            </Field>
-
-            <Field label="Delivery address" error={null}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={address.length > 0 ? `Delivery address ${address}` : 'Add a delivery address'}
-                onPress={() => {
-                  setRevisingProfile(true);
-                  router.push('/location');
-                }}
-                style={({ pressed }) => [styles.inputRow, pressed && styles.pressed]}>
-                <Text numberOfLines={2} style={[styles.address, address.length === 0 && styles.addressEmpty]}>
-                  {address.length > 0 ? address : 'Add a delivery address'}
-                </Text>
-                <AppIcon name="chevron" color={colors.primaryInk} size={18} />
-              </Pressable>
-            </Field>
-
+              </>
+            )}
             {notice ? (
               <Text accessibilityRole="alert" maxFontSizeMultiplier={1.15} numberOfLines={2} style={styles.notice}>
                 {notice}

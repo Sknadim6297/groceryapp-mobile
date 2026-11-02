@@ -1,13 +1,16 @@
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Keyboard, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppIcon, type AppIconName } from '@/components/ui/AppIcon';
 import { colors, fonts } from '@/constants/theme';
+import { profileRoutes } from '@/navigation/profileRoutes';
 
 const tabs = [
   { name: 'home', label: 'Home', icon: 'home', activeIcon: 'homeFocused' },
   { name: 'shop', label: 'Shop', icon: 'shop', activeIcon: 'shop' },
   { name: 'track', label: 'Track', icon: 'truck', activeIcon: 'truck' },
   { name: 'cart', label: 'Cart', icon: 'cart', activeIcon: 'cart' },
+  { name: profileRoutes.tab, label: 'Profile', icon: 'profile', activeIcon: 'profile' },
 ] as const satisfies readonly { name: string; label: string; icon: AppIconName; activeIcon: AppIconName }[];
 
 type FloatingTabBarProps = {
@@ -17,14 +20,38 @@ type FloatingTabBarProps = {
   };
   descriptors: Record<string, { options: { title?: string } }>;
   navigateToTab: (routeKey: string) => void;
-  insets: { bottom: number };
+  insets: { bottom: number; left?: number; right?: number };
 };
 
 export function FloatingTabBar({ state, descriptors, navigateToTab, insets }: FloatingTabBarProps) {
   const focusedName = state.routes[state.index]?.name;
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvent, () => setKeyboardOpen(true));
+    const hide = Keyboard.addListener(hideEvent, () => setKeyboardOpen(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  if (keyboardOpen) {
+    return null;
+  }
 
   return (
-    <View style={[styles.slot, { paddingBottom: Platform.OS === 'ios' ? insets.bottom : 0 }]}>
+    <View
+      style={[
+        styles.slot,
+        {
+          paddingBottom: insets.bottom,
+          paddingLeft: 10 + (insets.left ?? 0),
+          paddingRight: 10 + (insets.right ?? 0),
+        },
+      ]}>
       <View style={styles.menu}>
         {tabs.map((tab) => {
           const route = state.routes.find((item) => item.name === tab.name);
@@ -39,16 +66,15 @@ export function FloatingTabBar({ state, descriptors, navigateToTab, insets }: Fl
               accessibilityRole="tab"
               accessibilityLabel={label}
               accessibilityState={{ selected: focused }}
-              aria-selected={focused}
               onPress={() => navigateToTab(route.key)}
-              style={({ pressed }) => [styles.tab, pressed && styles.pressed]}>
-              <View style={[styles.item, focused && styles.itemActive]}>
+              style={({ pressed }) => [styles.tab, pressed ? styles.pressed : null]}>
+              <View style={[styles.item, focused ? styles.itemActive : null]}>
                 <AppIcon
                   name={focused ? tab.activeIcon : tab.icon}
                   color={focused ? colors.primaryInk : colors.text}
-                  size={28}
+                  size={24}
                 />
-                <Text numberOfLines={1} style={[styles.label, focused && styles.labelActive]}>
+                <Text numberOfLines={1} style={[styles.label, focused ? styles.labelActive : null]}>
                   {label}
                 </Text>
               </View>
@@ -64,7 +90,6 @@ const styles = StyleSheet.create({
   slot: {
     backgroundColor: colors.white,
     paddingTop: 4,
-    paddingHorizontal: 10,
   },
   menu: {
     minHeight: 58,

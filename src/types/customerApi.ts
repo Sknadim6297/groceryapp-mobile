@@ -33,6 +33,25 @@ export type RegisteredCustomer = {
   companyMobile: string | null;
 };
 
+/** A credential the server returned. CustomerId is never stored here. */
+export type AuthCredential = {
+  mobile: string;
+  field: string;
+  value: string;
+};
+
+/**
+ * TEMPORARY device sign-in.
+ * Written only after verify-otp returns Status Success.
+ * Not a backend token, and not sent on later API requests.
+ */
+export type TemporaryUiLogin = {
+  basis: 'temporary-ui';
+  mobile: string;
+  customerId: string;
+  name: string;
+};
+
 export type AuthTone = 'success' | 'error' | 'warning' | 'info';
 
 export type CustomerAuthNext = 'stay' | 'register' | 'otp' | 'home';
@@ -47,19 +66,29 @@ export type CustomerApiResult = {
   confirmed: boolean;
   /**
    * `register` when the server says the customer is not registered.
-   * `otp` when a code was sent.
-   * `home` when this step is accepted for an existing customer or a finished registration.
+   * `otp` when a code was sent, or when registration succeeded and the code is still required.
+   * `home` when verify-otp returns Status Success. That opens a temporary device login, not a backend session.
    */
   next: CustomerAuthNext;
   /** Present only when registration returned a customer id and name. */
   customer?: RegisteredCustomer;
+    /** Present only when verify-otp returned a non-empty session credential. The UI does not store this as login. */
+  session?: AuthCredential;
+  /**
+   * TEMPORARY local UI sign-in. Set only after verify-otp returns Status Success.
+   * This is not a backend session and must not be sent as Authorization.
+   */
+  localLogin?: 'temporary-ui';
+  /** Device login built from the verified mobile and any CustomerId and Name in that response. */
+  temporaryLogin?: TemporaryUiLogin;
 };
 
 export type AuthScreen = 'stay' | 'complete-profile' | 'otp' | 'home';
 
 /**
- * Login always asks for the 6-digit code before Home.
- * A new customer opens registration. An accepted code opens Home.
+ * A dispatched code opens OTP. Registration does not open Home.
+ * Home opens only after verify-otp returns Status Success.
+ * A token is not required, and a token alone is not enough.
  */
 export function screenAfterCustomerCall(
   result: CustomerApiResult,
@@ -68,11 +97,24 @@ export function screenAfterCustomerCall(
   if (result.next === 'register' && step !== 'register') {
     return 'complete-profile';
   }
-  if (step === 'send' && result.next === 'otp') {
+  if (result.next === 'otp' && (step === 'send' || step === 'register')) {
     return 'otp';
   }
-  if ((step === 'verify' || step === 'register') && result.next === 'home') {
+  if (step === 'verify' && result.localLogin === 'temporary-ui') {
     return 'home';
+  }
+  return 'stay';
+}
+
+const DUPLICATE_CUSTOMER = /already registered|duplicate mobile|mobile number already/i;
+
+/**
+ * A confirmed registration, or a duplicate mobile, requests one OTP.
+ * Anything else stays so the customer can correct the form and try again.
+ */
+export function registrationFollowUp(result: CustomerApiResult): 'otp' | 'stay' {
+  if (screenAfterCustomerCall(result, 'register') === 'otp' || DUPLICATE_CUSTOMER.test(result.message)) {
+    return 'otp';
   }
   return 'stay';
 }

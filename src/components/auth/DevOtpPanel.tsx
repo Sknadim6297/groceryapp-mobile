@@ -35,7 +35,7 @@ export function DevOtpPanel({ otp, onStatus }: DevOtpPanelProps) {
   return (
     <View accessibilityRole="summary" style={styles.panel} testID="dev-otp-panel">
       <View style={styles.codeRow}>
-        <Text style={styles.kicker}>Development Test OTP</Text>
+        <Text style={styles.kicker}>Development OTP</Text>
         <Text accessibilityLabel={`Development test code ${otp.code.split('').join(' ')}`} style={styles.code}>
           {otp.code}
         </Text>

@@ -12,7 +12,9 @@ import { useEffect } from 'react';
 import { colors, fonts } from '@/constants/theme';
 import { ToastProvider } from '@/components/ui/AppToast';
 import { AuthFlowProvider } from '@/context/AuthFlowContext';
+import { AuthSessionProvider } from '@/context/AuthSessionContext';
 import { CustomerAccountProvider } from '@/context/CustomerAccountContext';
+import { RememberedCustomerProvider } from '@/context/RememberedCustomerContext';
 import { rejectDevTestSessionOutsideDevelopment } from '@/services/devOtp';
 import { DeliveryLocationProvider } from '@/context/DeliveryLocationContext';
 import { MockCartProvider } from '@/context/MockCartContext';
@@ -70,6 +72,8 @@ export default function RootLayout() {
     <ThemeProvider value={navigationTheme}>
       <ToastProvider>
       <AuthFlowProvider>
+      <AuthSessionProvider>
+      <RememberedCustomerProvider>
       <CustomerAccountProvider>
         <DeliveryLocationProvider>
         <ProfileDraftProvider>
@@ -104,6 +108,8 @@ export default function RootLayout() {
         </ProfileDraftProvider>
         </DeliveryLocationProvider>
       </CustomerAccountProvider>
+      </RememberedCustomerProvider>
+      </AuthSessionProvider>
       </AuthFlowProvider>
       </ToastProvider>
     </ThemeProvider>

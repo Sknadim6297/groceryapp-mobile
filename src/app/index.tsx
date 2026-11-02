@@ -6,6 +6,8 @@ import { Animated, Easing, StyleSheet, View } from 'react-native';
 
 import { BrandLogo } from '@/components/ui/BrandLogo';
 import { colors } from '@/constants/theme';
+import { useAuthSession } from '@/context/AuthSessionContext';
+import { canUseDevelopmentHome, isDevOtpEnabled } from '@/services/devOtp';
 
 const SPLASH_MS = 1100;
 
@@ -16,6 +18,7 @@ const preload = [
 ];
 
 export default function SplashScreen() {
+  const { hydrated, session, devSession } = useAuthSession();
   const [opacity] = useState(() => new Animated.Value(0));
   const [scale] = useState(() => new Animated.Value(0.84));
   const [shift] = useState(() => new Animated.Value(14));
@@ -27,14 +30,27 @@ export default function SplashScreen() {
       Animated.timing(shift, { toValue: 0, duration: 780, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]);
     motion.start();
+    if (!hydrated) {
+      return () => {
+        motion.stop();
+      };
+    }
     const timer = setTimeout(() => {
+      if (session || canUseDevelopmentHome(devSession)) {
+        router.replace('/home');
+        return;
+      }
+      if (isDevOtpEnabled() && devSession?.destination === 'complete-profile') {
+        router.replace('/complete-profile');
+        return;
+      }
       router.replace('/intro');
     }, SPLASH_MS);
     return () => {
       clearTimeout(timer);
       motion.stop();
     };
-  }, [opacity, scale, shift]);
+  }, [devSession, hydrated, opacity, scale, session, shift]);
 
   return (
     <View style={styles.screen}>

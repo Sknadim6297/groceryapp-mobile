@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
 import type { DeliveryLocation } from '@/types/location';
 
@@ -9,6 +9,7 @@ type DeliveryLocationContextValue = {
   setSelection: (location: DeliveryLocation | null) => void;
   setRevisingProfile: (value: boolean) => void;
   confirmSelection: () => void;
+  clearDelivery: () => void;
 };
 
 const DeliveryLocationContext = createContext<DeliveryLocationContextValue | null>(null);
@@ -17,6 +18,11 @@ export function DeliveryLocationProvider({ children }: { children: ReactNode }) 
   const [selection, setSelection] = useState<DeliveryLocation | null>(null);
   const [confirmed, setConfirmed] = useState<DeliveryLocation | null>(null);
   const [revisingProfile, setRevisingProfile] = useState(false);
+  const clearDelivery = useCallback(() => {
+    setSelection(null);
+    setConfirmed(null);
+    setRevisingProfile(false);
+  }, []);
   const value = useMemo(
     () => ({
       selection,
@@ -27,8 +33,9 @@ export function DeliveryLocationProvider({ children }: { children: ReactNode }) 
       confirmSelection: () => {
         setConfirmed(selection);
       },
+      clearDelivery,
     }),
-    [selection, confirmed, revisingProfile],
+    [selection, confirmed, revisingProfile, clearDelivery],
   );
 
   return <DeliveryLocationContext.Provider value={value}>{children}</DeliveryLocationContext.Provider>;

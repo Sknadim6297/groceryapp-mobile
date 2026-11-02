@@ -7,10 +7,13 @@ import { ManualAddressForm } from '@/components/location/ManualAddressForm';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { colors, fonts } from '@/constants/theme';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
+import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
 import type { ManualAddressInput } from '@/types/location';
 
 export default function LocationManualScreen() {
   const insets = useSafeAreaInsets();
+  const keyboardCover = useKeyboardOverlap();
+  const keyboardOverlap = Platform.OS === 'android' ? keyboardCover : 0;
   const { setSelection } = useDeliveryLocation();
 
   function saveAddress(value: ManualAddressInput) {
@@ -40,7 +43,7 @@ export default function LocationManualScreen() {
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={[
             styles.scroll,
-            { paddingTop: insets.top + 8, paddingBottom: Math.max(insets.bottom, 16) + 12 },
+            { paddingTop: insets.top + 8, paddingBottom: Math.max(insets.bottom, 16) + 12 + keyboardOverlap },
           ]}>
           <View style={styles.column}>
             <Pressable

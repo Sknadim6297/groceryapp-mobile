@@ -34,8 +34,7 @@ export function CatalogImage({ source, style, label, contentFit = 'contain' }: C
       transition={120}
       onLoad={() => setLoaded(true)}
       onError={() => setFailed(true)}
-      accessible={Boolean(label)}
-      accessibilityLabel={label}
+      {...(label ? { accessible: true as const, accessibilityLabel: label } : {})}
     />
   );
 }

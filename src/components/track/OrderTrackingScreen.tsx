@@ -87,7 +87,7 @@ export function OrderTrackingScreen() {
         />
       )}
 
-      <View style={[styles.footer, { paddingBottom: 10 }]}>
+      <View style={styles.footer}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Help"
@@ -571,6 +571,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     paddingHorizontal: 14,
     paddingTop: 10,
+    paddingBottom: 10,
   },
   helpButton: {
     minHeight: 48,

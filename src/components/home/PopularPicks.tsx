@@ -2,13 +2,19 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { ProductCard } from '@/components/home/ProductCard';
+import { productCardWidth, productColumns } from '@/components/home/productLayout';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { colors, fonts } from '@/constants/theme';
 import { mockProducts } from '@/data/mockProducts';
 
+const SECTION_PAD = 32;
+const GRID_GAP = 8;
+
 export function PopularPicks() {
   const { width } = useWindowDimensions();
-  const compact = width < 360;
+  const columns = productColumns(width, 2, SECTION_PAD, GRID_GAP);
+  const cardWidth = productCardWidth(width, columns, SECTION_PAD, GRID_GAP);
+  const compact = cardWidth < 100;
 
   return (
     <View style={styles.section}>
@@ -31,7 +37,9 @@ export function PopularPicks() {
       </View>
       <View style={styles.row}>
         {mockProducts.map((product) => (
-          <ProductCard key={product.id} product={product} compact={compact} />
+          <View key={product.id} style={{ width: cardWidth }}>
+            <ProductCard product={product} compact={compact} />
+          </View>
         ))}
       </View>
     </View>
@@ -44,6 +52,7 @@ const styles = StyleSheet.create({
     paddingTop: 18,
     paddingBottom: 0,
     gap: 12,
+    overflow: 'hidden',
   },
   headingRow: {
     flexDirection: 'row',
@@ -85,6 +94,9 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    gap: 10,
+    flexWrap: 'wrap',
+    gap: GRID_GAP,
+    width: '100%',
+    alignItems: 'stretch',
   },
 });

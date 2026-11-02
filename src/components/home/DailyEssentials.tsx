@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { CatalogImage } from '@/components/home/CatalogImage';
 import { SectionHeader } from '@/components/home/SectionHeader';
@@ -9,6 +9,9 @@ import { dailyEssentials } from '@/data/homeFeed';
 import { previewDailyEssentialOverride } from '@/data/previewImageCatalog';
 
 export function DailyEssentials() {
+  const { width } = useWindowDimensions();
+  const columns = width < 390 ? 2 : 3;
+
   return (
     <View style={styles.section}>
       <SectionHeader title="Daily essentials" subtitle="Everything you need, every day" />
@@ -17,7 +20,7 @@ export function DailyEssentials() {
           const override = previewDailyEssentialOverride(item.id);
           const name = override?.name ?? item.name;
           return (
-          <View key={item.id} style={styles.cell}>
+          <View key={item.id} style={[styles.cell, { width: `${100 / columns}%` }]}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={name}
@@ -56,7 +59,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   cell: {
-    width: '33.333%',
     padding: 5,
   },
   card: {
@@ -66,7 +68,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     padding: 8,
-    minHeight: 132,
+    minHeight: 0,
     shadowColor: '#171717',
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -78,7 +80,7 @@ const styles = StyleSheet.create({
   },
   image: {
     width: '100%',
-    height: 84,
+    aspectRatio: 1.15,
     backgroundColor: 'transparent',
   },
   footer: {

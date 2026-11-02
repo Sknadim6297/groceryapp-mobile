@@ -10,6 +10,7 @@ import { SideMenu } from '@/components/home/SideMenu';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts } from '@/constants/theme';
+import { profileRoutes } from '@/navigation/profileRoutes';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { previewDeliveryIconUrl } from '@/data/previewImageCatalog';
 import { formatDeliveryAddress } from '@/data/referenceLocations';
@@ -37,7 +38,7 @@ export function DeliveryHeader() {
               : `Delivery location. ${address}`
           }
           onPress={() => router.push('/location')}
-          style={({ pressed }) => [styles.location, pressed && styles.pressed]}>
+          style={({ pressed }) => [styles.location, pressed ? styles.pressed : null]}>
           <View style={styles.copy}>
             <View style={styles.titleRow}>
               {etaIcon ? (
@@ -47,7 +48,7 @@ export function DeliveryHeader() {
                   label="Preview delivery artwork. Not a confirmed delivery time."
                 />
               ) : null}
-              <Text numberOfLines={1} style={[styles.title, compact && styles.titleCompact]}>
+              <Text numberOfLines={1} style={[styles.title, compact ? styles.titleCompact : null]}>
                 {title}
               </Text>
             </View>
@@ -63,8 +64,8 @@ export function DeliveryHeader() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Profile"
-            onPress={() => router.push('/profile')}
-            style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
+            onPress={() => router.push(profileRoutes.profile)}
+            style={({ pressed }) => [styles.action, pressed ? styles.pressed : null]}>
             <AppIcon name="profile" color={colors.white} size={24} />
           </Pressable>
           <Pressable
@@ -72,7 +73,7 @@ export function DeliveryHeader() {
             accessibilityLabel="Menu"
             accessibilityState={{ expanded: menuOpen }}
             onPress={() => setMenuOpen(true)}
-            style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
+            style={({ pressed }) => [styles.action, pressed ? styles.pressed : null]}>
             <AppIcon name="menu" color={colors.white} size={24} />
           </Pressable>
         </View>

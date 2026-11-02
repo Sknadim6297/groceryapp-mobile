@@ -1,6 +1,7 @@
 import { CUSTOMER_API } from '@/constants/api';
 import { postJson } from '@/services/api/http';
-import { interpretCustomerResponse } from '@/services/api/interpretCustomerResponse';
+import { interpretCustomerResponse, safeServerMessage, sessionFieldNames } from '@/services/api/interpretCustomerResponse';
+import { applyTemporaryUiLogin } from '@/services/temporaryUiLogin';
 import type { CustomerApiResult, CustomerRegistrationRequest } from '@/types/customerApi';
 import type { DeliveryLocation } from '@/types/location';
 import { formatDeliveryAddress } from '@/data/referenceLocations';
@@ -15,12 +16,30 @@ const INVALID_MOBILE: CustomerApiResult = {
   next: 'stay',
 };
 
+function withServerMessage(status: number, body: unknown, fallback: string): CustomerApiResult {
+  const result = interpretCustomerResponse(status, body, fallback);
+  const exact = safeServerMessage(body);
+  if (exact && !result.message.includes(exact)) {
+    return { ...result, message: exact };
+  }
+  return result;
+}
+
+function noteSession(path: string, body: unknown) {
+  if (typeof __DEV__ === 'undefined' || __DEV__ !== true) {
+    return;
+  }
+  const names = sessionFieldNames(body);
+  console.info('[customer-api]', path, names.length === 0 ? 'no session credential' : `session credential fields: ${names.join(', ')}`);
+}
+
 export async function sendCustomerOtp(mobile: string): Promise<CustomerApiResult> {
   if (!isValidIndiaMobile(mobile)) {
     return INVALID_MOBILE;
   }
   const response = await postJson(CUSTOMER_API.sendOtp, { Mobile: mobile });
-  return interpretCustomerResponse(response.status, response.body, 'The server did not accept the OTP request.');
+  noteSession(CUSTOMER_API.sendOtp, response.body);
+  return withServerMessage(response.status, response.body, 'The server did not accept the OTP request.');
 }
 
 export async function resendCustomerOtp(mobile: string): Promise<CustomerApiResult> {
@@ -28,7 +47,8 @@ export async function resendCustomerOtp(mobile: string): Promise<CustomerApiResu
     return INVALID_MOBILE;
   }
   const response = await postJson(CUSTOMER_API.resendOtp, { Mobile: mobile });
-  return interpretCustomerResponse(response.status, response.body, 'The server did not resend a code.');
+  noteSession(CUSTOMER_API.resendOtp, response.body);
+  return withServerMessage(response.status, response.body, 'The server did not resend a code.');
 }
 
 export async function verifyCustomerOtp(mobile: string, otp: string): Promise<CustomerApiResult> {
@@ -39,7 +59,9 @@ export async function verifyCustomerOtp(mobile: string, otp: string): Promise<Cu
     return { tone: 'error', message: 'Enter the 6-digit code.', confirmed: false, next: 'stay' };
   }
   const response = await postJson(CUSTOMER_API.verifyOtp, { Mobile: mobile, OTP: otp });
-  return interpretCustomerResponse(response.status, response.body, 'The server did not confirm this code.');
+  noteSession(CUSTOMER_API.verifyOtp, response.body);
+  const result = withServerMessage(response.status, response.body, 'The server did not confirm this code.');
+  return applyTemporaryUiLogin(result, response.body, mobile);
 }
 
 export function buildCustomerRegistration(input: {

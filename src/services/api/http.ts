@@ -20,7 +20,7 @@ export type ApiPostResult = {
   body: unknown;
 };
 
-const SECRET_KEY = /otp|token|password|authorization|secret|cookie/i;
+const SECRET_KEY = /otp|token|password|authorization|secret|cookie|session|jwt|bearer|exception|stack|customerid|customer_id|^name$/i;
 const PHONE_KEY = /mobile|phone|msisdn/i;
 
 function maskDigits(value: string): string {
@@ -54,27 +54,60 @@ function sanitizeForLog(value: unknown, depth = 0): unknown {
   return sanitized;
 }
 
-function logCustomerCall(path: string, status: number, detail: unknown) {
+function logCustomerCall(method: string, path: string, status: number, detail: unknown, category: string) {
   if (!__DEV__) {
     return;
   }
-  console.info('[customer-api]', path, 'HTTP', status, sanitizeForLog(detail));
+  const record = detail && typeof detail === 'object' ? (Array.isArray(detail) ? detail[0] : detail) : null;
+  const messageField =
+    record && typeof record === 'object'
+      ? (record as Record<string, unknown>).Message ?? (record as Record<string, unknown>).message
+      : typeof detail === 'string'
+        ? detail
+        : null;
+  console.info('[customer-api]', {
+    method,
+    endpoint: path,
+    status,
+    category,
+    shape: Array.isArray(detail) ? 'array' : detail === null || detail === undefined ? 'empty' : typeof detail,
+    message: typeof messageField === 'string' ? maskDigits(messageField).slice(0, 180) : null,
+    body: sanitizeForLog(detail),
+  });
 }
 
-export async function postJson(path: string, body: unknown): Promise<ApiPostResult> {
+async function requestJson(
+  method: 'get' | 'post',
+  path: string,
+  body?: unknown,
+  query?: Record<string, string>,
+): Promise<ApiPostResult> {
   if (!API_BASE_URL.startsWith('https://')) {
     return { status: 0, body: { message: 'The API address must use HTTPS.' } };
   }
 
   try {
-    const response = await apiClient.post<unknown>(path, body);
+    const response =
+      method === 'post'
+        ? await apiClient.post<unknown>(path, body)
+        : await apiClient.get<unknown>(path, { params: query });
     const payload = response.data ?? null;
-    logCustomerCall(path, response.status, payload);
+    logCustomerCall(method.toUpperCase(), path, response.status, payload, 'http');
     return { status: response.status, body: payload };
   } catch (error) {
     const timedOut = isAxiosError(error) && (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT');
+    const category = timedOut ? 'timeout' : isAxiosError(error) ? 'network' : 'unknown';
     const message = timedOut ? 'The request timed out. Please try again.' : 'Unable to connect. Please try again.';
-    logCustomerCall(path, 0, { transport: isAxiosError(error) ? error.code ?? 'network' : 'unknown', message });
+    logCustomerCall(method.toUpperCase(), path, 0, { category, message }, category);
     return { status: 0, body: { message } };
   }
+}
+
+export async function postJson(path: string, body: unknown): Promise<ApiPostResult> {
+  return requestJson('post', path, body);
+}
+
+/** Not used for OTP. Send, resend, and verify are POST only. */
+export async function getJson(path: string, query: Record<string, string>): Promise<ApiPostResult> {
+  return requestJson('get', path, undefined, query);
 }

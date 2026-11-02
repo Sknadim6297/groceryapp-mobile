@@ -1,5 +1,5 @@
 import { router, usePathname, type Href } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -7,9 +7,12 @@ import { DrawerHeader } from '@/components/navigation/drawer/DrawerHeader';
 import { DrawerItem } from '@/components/navigation/drawer/DrawerItem';
 import { type AppIconName } from '@/components/ui/AppIcon';
 import { colors } from '@/constants/theme';
-import { useAuthFlow } from '@/context/AuthFlowContext';
-import { useProfileDraft } from '@/context/ProfileDraftContext';
-import { formatIndiaMobileDisplay, isValidIndiaMobile } from '@/utils/phoneValidation';
+import { useAuthSession } from '@/context/AuthSessionContext';
+import { useCustomerAccount } from '@/context/CustomerAccountContext';
+import { useRememberedCustomer } from '@/context/RememberedCustomerContext';
+import { displayCustomer } from '@/services/rememberedCustomer';
+import { profileRoutes } from '@/navigation/profileRoutes';
+import { registeredDisplayName, registeredDisplayPhone } from '@/utils/registeredIdentity';
 
 type MenuItem = {
   label: string;
@@ -27,7 +30,7 @@ const items: MenuItem[] = [
   { label: 'Order Received', icon: 'check', href: '/orders' },
   { label: 'Track Order', icon: 'truck', href: '/track' },
   { label: 'Track Delivery Boy', icon: 'profile', href: '/track' },
-  { label: 'Profile', icon: 'profile', href: '/profile' },
+  { label: 'Profile', icon: 'profile', href: profileRoutes.profile },
   { label: 'Order Details', icon: 'box', href: '/orders' },
 ];
 
@@ -45,22 +48,22 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const pathname = usePathname();
-  const { fullName } = useProfileDraft();
-  const { nationalNumber } = useAuthFlow();
+  const { session } = useAuthSession();
+  const { account } = useCustomerAccount();
+  const { customer: remembered } = useRememberedCustomer();
   const panelWidth = Math.min(300, Math.max(240, Math.round(width * 0.78)));
-  const translateX = useRef(new Animated.Value(-panelWidth)).current;
-  const backdrop = useRef(new Animated.Value(0)).current;
-  const [mounted, setMounted] = useState(false);
+  const [translateX] = useState(() => new Animated.Value(-panelWidth));
+  const [backdrop] = useState(() => new Animated.Value(0));
+  const [mounted, setMounted] = useState(visible);
   const [linksOpen, setLinksOpen] = useState(false);
   const nativeDriver = Platform.OS !== 'web';
-  const name = fullName.trim() || 'Your account';
-  const phone = isValidIndiaMobile(nationalNumber) ? `+91 ${formatIndiaMobileDisplay(nationalNumber)}` : 'No phone number yet';
+  const identity = displayCustomer(session, account, remembered);
+  const name = registeredDisplayName(identity);
+  const phone = registeredDisplayPhone(identity);
 
-  useEffect(() => {
-    if (visible) {
-      setMounted(true);
-    }
-  }, [visible]);
+  if (visible && !mounted) {
+    setMounted(true);
+  }
 
   useEffect(() => {
     if (!mounted) {

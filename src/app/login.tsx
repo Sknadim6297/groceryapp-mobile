@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { Redirect, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import {
@@ -21,17 +21,25 @@ import { BrandLogo } from '@/components/ui/BrandLogo';
 import { useToast } from '@/components/ui/AppToast';
 import { colors, fonts } from '@/constants/theme';
 import { useAuthFlow } from '@/context/AuthFlowContext';
+import { useAuthSession } from '@/context/AuthSessionContext';
+import { useRememberedCustomer } from '@/context/RememberedCustomerContext';
 import { sendCustomerOtp } from '@/services/customerAuth';
-import { isDevOtpEnabled, issueDevTestOtp } from '@/services/devOtp';
+import { canUseDevelopmentHome, isDevOtpEnabled, issueDevTestOtp } from '@/services/devOtp';
 import { screenAfterCustomerCall } from '@/types/customerApi';
+import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
 import { getIndiaMobileError, isValidIndiaMobile } from '@/utils/phoneValidation';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
+  const keyboardCover = useKeyboardOverlap();
+  const keyboardOverlap = Platform.OS === 'android' ? keyboardCover : 0;
   const { width } = useWindowDimensions();
   const compact = width < 360;
-  const { nationalNumber, setNationalNumber } = useAuthFlow();
-  const [mobile, setMobile] = useState(nationalNumber);
+  const { nationalNumber, setNationalNumber, setStanding, setOtpDispatched } = useAuthFlow();
+  const { hydrated, session, devSession } = useAuthSession();
+  const { hydrated: rememberedHydrated, customer: remembered } = useRememberedCustomer();
+  const [typedMobile, setTypedMobile] = useState<string | null>(nationalNumber.length > 0 ? nationalNumber : null);
+  const mobile = typedMobile ?? (rememberedHydrated ? (remembered?.mobile ?? nationalNumber) : nationalNumber);
   const [touched, setTouched] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -43,7 +51,7 @@ export default function LoginScreen() {
     : null;
 
   function onChangeMobile(next: string) {
-    setMobile(next);
+    setTypedMobile(next);
     setNationalNumber(next);
     setNotice(null);
   }
@@ -71,26 +79,30 @@ export default function LoginScreen() {
     let holdLoading = false;
     try {
       if (isDevOtpEnabled()) {
-        const issued = issueDevTestOtp(mobile);
+        const issued = issueDevTestOtp(mobile, 'unregistered');
         if (!issued) {
-          showToast('error', 'Development test OTP is unavailable.');
+          showToast('error', 'Enter a valid 10-digit mobile number.');
           return;
         }
-        showToast('info', 'Development test code ready. Type it on the next screen.');
+        showToast('info', 'Development OTP is ready. It was not sent by SMS.');
         holdLoading = true;
+        setNationalNumber(mobile);
+        setStanding('unregistered');
+        setOtpDispatched(true);
         setTimeout(() => {
           router.push('/otp');
           setSending(false);
         }, 60);
         return;
       }
-
       const result = await sendCustomerOtp(mobile);
       showToast(result.tone, result.message);
       const screen = screenAfterCustomerCall(result, 'send');
       if (screen === 'complete-profile' || screen === 'otp') {
         holdLoading = true;
         setNationalNumber(mobile);
+        setStanding(screen === 'otp' ? 'registered' : 'unregistered');
+        setOtpDispatched(screen === 'otp');
         setTimeout(() => {
           router.push(screen === 'otp' ? '/otp' : '/complete-profile');
           setSending(false);
@@ -106,6 +118,14 @@ export default function LoginScreen() {
   }
 
   const ready = isValidIndiaMobile(mobile);
+
+  if (!hydrated) {
+    return null;
+  }
+
+  if (session || canUseDevelopmentHome(devSession)) {
+    return <Redirect href="/home" />;
+  }
 
   return (
     <View style={styles.screen}>
@@ -131,7 +151,10 @@ export default function LoginScreen() {
           <ScrollView
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
-            contentContainerStyle={[styles.sheetContent, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+            contentContainerStyle={[
+              styles.sheetContent,
+              { paddingBottom: Math.max(insets.bottom, 12) + 8 + keyboardOverlap },
+            ]}>
             <Text accessibilityRole="header" maxFontSizeMultiplier={1.2} style={styles.title}>
               Enter your number
             </Text>

@@ -4,13 +4,15 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-na
 import { CategoryCard } from '@/components/home/CategoryCard';
 import { SectionHeader } from '@/components/home/SectionHeader';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
-import { colors, fonts } from '@/constants/theme';
+import { colors, fonts, homeLayout } from '@/constants/theme';
 import { mockCategories } from '@/data/mockCategories';
 import { previewCategoryGroups } from '@/data/previewImageCatalog';
 
 export function CategoryGrid() {
   const { width } = useWindowDimensions();
-  const compact = width < 360;
+  const content = Math.min(width, homeLayout.maxWidth);
+  const columns = content < 360 ? 2 : content < 460 ? 3 : 4;
+  const compact = content < 360;
   const groups = previewCategoryGroups();
   const categories = mockCategories.filter((category) => category.id !== 'masala');
 
@@ -22,7 +24,7 @@ export function CategoryGrid() {
             <SectionHeader title={group.title} />
             <View style={[styles.grid, compact && styles.gridCompact]}>
               {group.categories.map((category) => (
-                <View key={category.id} style={styles.cell}>
+                <View key={category.id} style={[styles.cell, { width: `${100 / columns}%` }]}>
                   <CategoryCard category={category} compact={compact} largeImage />
                 </View>
               ))}
@@ -36,12 +38,12 @@ export function CategoryGrid() {
   return (
     <View style={[styles.grid, compact && styles.gridCompact]}>
       {categories.map((category) => (
-        <View key={category.id} style={styles.cell}>
+        <View key={category.id} style={[styles.cell, { width: `${100 / columns}%` }]}>
           <CategoryCard category={category} compact={compact} largeImage={UI_PREVIEW_MODE} />
         </View>
       ))}
       {UI_PREVIEW_MODE ? null : (
-      <View style={styles.cell}>
+      <View style={[styles.cell, { width: `${100 / columns}%` }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="More categories"
@@ -80,7 +82,6 @@ const styles = StyleSheet.create({
     paddingTop: 4,
   },
   cell: {
-    width: '25%',
     padding: 4,
   },
   more: {

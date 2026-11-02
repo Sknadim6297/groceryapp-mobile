@@ -14,14 +14,20 @@ import { PopularPicks } from '@/components/home/PopularPicks';
 import { ProductSection } from '@/components/home/ProductSection';
 import { StoreRow } from '@/components/home/StoreRow';
 import { colors, fonts, homeLayout } from '@/constants/theme';
+import { useAuthSession } from '@/context/AuthSessionContext';
 import { useCustomerAccount } from '@/context/CustomerAccountContext';
+import { useRememberedCustomer } from '@/context/RememberedCustomerContext';
+import { displayCustomer } from '@/services/rememberedCustomer';
 import { boughtAgain, recentProducts, recommendedProducts, spotlightProducts, topSelling } from '@/data/homeFeed';
 import { previewDryFruitProducts } from '@/data/previewImageCatalog';
 
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const contentWidth = Math.min(width, homeLayout.maxWidth);
+  const { session } = useAuthSession();
   const { account } = useCustomerAccount();
+  const { customer: remembered } = useRememberedCustomer();
+  const identity = displayCustomer(session, account, remembered);
   const linkedProducts = previewDryFruitProducts();
 
   return (
@@ -36,29 +42,29 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}>
         <View style={[styles.column, { width: contentWidth }]}>
           <DeliveryHeader />
-          {account ? (
+          {identity ? (
             <Text style={styles.greeting} accessibilityRole="header">
-              Hi, {account.name}
+              Hi, {identity.name}
             </Text>
           ) : null}
           <FreeCashPromoBanner />
           <DailyEssentials />
           <SavingsBanner />
           <ProductSection title="Recommended for you" products={recommendedProducts} columns={2} />
-          <ProductSection title="Recently viewed" products={recentProducts} columns={3} showHeart />
+          <ProductSection title="Recently viewed" products={recentProducts} columns={2} showHeart />
           <OfferRow />
-          <ProductSection title="In the spotlight" products={spotlightProducts} columns={3} />
+          <ProductSection title="In the spotlight" products={spotlightProducts} columns={2} />
           <MinutesBanner />
           <ExploreMore />
           <PopularPicks />
           {linkedProducts.length > 0 ? (
-            <ProductSection title="Dry Fruits & Cereals" products={linkedProducts} columns={3} />
+            <ProductSection title="Dry Fruits & Cereals" products={linkedProducts} columns={2} />
           ) : null}
           <CategoryGrid />
           <StoreRow />
           <BrandCarousel />
           <FreeDeliveryBanner />
-          <ProductSection title="Recently bought" subtitle="Buy again, quickly" products={boughtAgain} columns={3} icon="refresh" />
+          <ProductSection title="Recently bought" subtitle="Buy again, quickly" products={boughtAgain} columns={2} icon="refresh" />
           <FruitsBanner />
           <ProductSection title="Top selling today" products={topSelling} columns={4} />
           <NewUserOffers />

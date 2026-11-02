@@ -1,4 +1,4 @@
-import { router, useNavigation } from 'expo-router';
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import {
@@ -17,6 +17,7 @@ import { AppIcon } from '@/components/ui/AppIcon';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { colors, fonts } from '@/constants/theme';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
+import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
 import { formatDeliveryAddress, referenceLocations } from '@/data/referenceLocations';
 import { readCurrentLocation } from '@/services/location/locationService';
 
@@ -29,7 +30,8 @@ const statusCopy: Record<string, string> = {
 
 export default function LocationScreen() {
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation();
+  const keyboardCover = useKeyboardOverlap();
+  const keyboardOverlap = Platform.OS === 'android' ? keyboardCover : 0;
   const { selection, setSelection, confirmSelection, revisingProfile, setRevisingProfile } = useDeliveryLocation();
   const [detecting, setDetecting] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
@@ -43,11 +45,10 @@ export default function LocationScreen() {
         );
 
   useEffect(() => {
-    const removable = navigation as { addListener: (event: 'beforeRemove', callback: () => void) => () => void };
-    return removable.addListener('beforeRemove', () => {
+    return () => {
       setRevisingProfile(false);
-    });
-  }, [navigation, setRevisingProfile]);
+    };
+  }, [setRevisingProfile]);
 
   async function detectCurrentLocation() {
     if (detecting) {
@@ -102,7 +103,10 @@ export default function LocationScreen() {
           keyboardDismissMode="on-drag"
           contentContainerStyle={[
             styles.scroll,
-            { paddingTop: insets.top + 16, paddingBottom: Math.max(insets.bottom, 12) + (selection ? 96 : 24) },
+            {
+              paddingTop: insets.top + 16,
+              paddingBottom: Math.max(insets.bottom, 12) + (selection ? 96 : 24) + keyboardOverlap,
+            },
           ]}>
           <View style={styles.column}>
             <Text accessibilityRole="header" maxFontSizeMultiplier={1.2} style={styles.title}>
@@ -186,7 +190,14 @@ export default function LocationScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
       {selection ? (
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <View
+          style={[
+            styles.footer,
+            {
+              bottom: keyboardOverlap,
+              paddingBottom: keyboardOverlap > 0 ? 12 : Math.max(insets.bottom, 12),
+            },
+          ]}>
           <View style={styles.footerInner}>
             <PrimaryButton label="Continue" onPress={continueNext} accessibilityLabel="Continue with this address" />
             <Text style={styles.disclaimer}>Delivery availability is not confirmed until the store service checks this address.</Text>

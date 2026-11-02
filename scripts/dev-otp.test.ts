@@ -1,12 +1,18 @@
 import {
   DEV_OTP_TTL_MS,
+  canUseDevelopmentHome,
+  clearDevTestSession,
   issueDevTestOtp,
+  loadDevTestSession,
+  parseDevTestSession,
   peekDevTestOtp,
   readDevTestSession,
   resetDevTestOtpForTests,
+  saveDevTestSession,
   setDevMockCustomerStatus,
   verifyDevTestOtp,
 } from '../src/services/devOtp';
+import { canEnterTemporaryUi, parseTemporaryUiLogin } from '../src/services/temporaryUiLogin';
 
 const mobile = '9000000001';
 const fixed = () => '482915';
@@ -88,5 +94,36 @@ if (oldCode.ok || oldCode.reason !== 'wrong' || !newCode.ok) {
   throw new Error('only the resent code should match');
 }
 
-reset();
-console.log('development otp fixtures passed');
+async function main() {
+  reset();
+  const saved = await saveDevTestSession({ kind: 'development-test', mobile, destination: 'home' }, true);
+  const restarted = await loadDevTestSession(true);
+  if (!saved || restarted?.kind !== 'development-test' || restarted.destination !== 'home' || restarted.mobile !== mobile) {
+    throw new Error('a development login should survive a restart only as a development-test record');
+  }
+  if (canUseDevelopmentHome(restarted, false) || !canUseDevelopmentHome(restarted, true)) {
+    throw new Error('development Home access must stay inside a development build');
+  }
+  if (parseTemporaryUiLogin(JSON.stringify(restarted)) || canEnterTemporaryUi(null)) {
+    throw new Error('a development login must not become a real customer session');
+  }
+  if (parseDevTestSession(JSON.stringify({ basis: 'temporary-ui', mobile, customerId: '2017', name: 'Asha' }))) {
+    throw new Error('a real customer record must not be read as a development login');
+  }
+  const production = await loadDevTestSession(false);
+  if (production !== null || (await loadDevTestSession(true)) !== null) {
+    throw new Error('production mode must clear a saved development login');
+  }
+
+  reset();
+  await saveDevTestSession({ kind: 'development-test', mobile, destination: 'complete-profile' }, true);
+  await clearDevTestSession();
+  if ((await loadDevTestSession(true)) !== null || readDevTestSession(true) !== null) {
+    throw new Error('logout must clear the development login');
+  }
+
+  reset();
+  console.log('development otp fixtures passed');
+}
+
+void main();

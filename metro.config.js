@@ -5,6 +5,9 @@ const projectRoot = __dirname;
 const config = getDefaultConfig(projectRoot);
 const assetPrefix = '@/assets/';
 
+// Node on Windows fails with EMFILE when Metro transforms on every CPU core at once.
+config.maxWorkers = 2;
+
 const shipPreviewUrls =
   process.env.EXPO_PUBLIC_UI_PREVIEW === 'ui-preview' || process.env.NODE_ENV !== 'production';
 

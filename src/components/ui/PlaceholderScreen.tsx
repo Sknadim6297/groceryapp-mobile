@@ -13,7 +13,7 @@ type PlaceholderScreenProps = {
 
 export function PlaceholderScreen({ title, message, detail, withHeader = false }: PlaceholderScreenProps) {
   return (
-    <ScreenContainer edges={withHeader ? ['left', 'right'] : ['top', 'left', 'right']}>
+    <ScreenContainer edges={withHeader ? ['left', 'right', 'bottom'] : ['top', 'left', 'right']}>
       <View style={styles.body}>
         <BrandLogo height={64} />
         <Text accessibilityRole="header" style={styles.title}>
