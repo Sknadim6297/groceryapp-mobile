@@ -1,11 +1,11 @@
 import { Image } from 'expo-image';
-import { SymbolView } from 'expo-symbols';
 import { Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ExternalLink } from '@/components/external-link';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { AppIcon } from '@/components/ui/AppIcon';
 import { Collapsible } from '@/components/ui/collapsible';
 import { WebBadge } from '@/components/web-badge';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
@@ -48,11 +48,7 @@ export default function TabTwoScreen() {
             <Pressable style={({ pressed }) => pressed && styles.pressed}>
               <ThemedView type="backgroundElement" style={styles.linkButton}>
                 <ThemedText type="link">Expo documentation</ThemedText>
-                <SymbolView
-                  tintColor={theme.text}
-                  name={{ ios: 'arrow.up.right.square', android: 'link', web: 'link' }}
-                  size={12}
-                />
+                <AppIcon name="link" color={theme.text} size={18} />
               </ThemedView>
             </Pressable>
           </ExternalLink>

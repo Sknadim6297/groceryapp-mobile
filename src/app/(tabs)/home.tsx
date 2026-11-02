@@ -1,13 +1,28 @@
 import { StatusBar } from 'expo-status-bar';
 import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
+import { BrandCarousel } from '@/components/home/BrandCarousel';
+import { CategoryGrid } from '@/components/home/CategoryGrid';
+import { DailyEssentials } from '@/components/home/DailyEssentials';
 import { DeliveryHeader } from '@/components/home/DeliveryHeader';
+import { ExploreMore } from '@/components/home/ExploreMore';
+import { FreeCashPromoBanner } from '@/components/home/FreeCashPromoBanner';
+import { FreeDeliveryBanner, FruitsBanner, MinutesBanner, SavingsBanner } from '@/components/home/HomeBanners';
+import { NewUserOffers } from '@/components/home/NewUserOffers';
+import { OfferRow } from '@/components/home/OfferRow';
+import { PopularPicks } from '@/components/home/PopularPicks';
+import { ProductSection } from '@/components/home/ProductSection';
+import { StoreRow } from '@/components/home/StoreRow';
 import { colors, fonts, homeLayout } from '@/constants/theme';
-import { LIVE_CATALOGUE_CONNECTED } from '@/constants/liveData';
+import { useCustomerAccount } from '@/context/CustomerAccountContext';
+import { boughtAgain, recentProducts, recommendedProducts, spotlightProducts, topSelling } from '@/data/homeFeed';
+import { previewDryFruitProducts } from '@/data/previewImageCatalog';
 
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const contentWidth = Math.min(width, homeLayout.maxWidth);
+  const { account } = useCustomerAccount();
+  const linkedProducts = previewDryFruitProducts();
 
   return (
     <View style={styles.screen}>
@@ -21,15 +36,32 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}>
         <View style={[styles.column, { width: contentWidth }]}>
           <DeliveryHeader />
-          {LIVE_CATALOGUE_CONNECTED ? null : (
-            <View style={styles.unavailable}>
-              <Text style={styles.unavailableTitle}>Catalogue unavailable</Text>
-              <Text style={styles.unavailableBody}>
-                Products, prices, and offers are not shown until the store service confirms them. Nothing here is a live
-                price or a delivery promise.
-              </Text>
-            </View>
-          )}
+          {account ? (
+            <Text style={styles.greeting} accessibilityRole="header">
+              Hi, {account.name}
+            </Text>
+          ) : null}
+          <FreeCashPromoBanner />
+          <DailyEssentials />
+          <SavingsBanner />
+          <ProductSection title="Recommended for you" products={recommendedProducts} columns={2} />
+          <ProductSection title="Recently viewed" products={recentProducts} columns={3} showHeart />
+          <OfferRow />
+          <ProductSection title="In the spotlight" products={spotlightProducts} columns={3} />
+          <MinutesBanner />
+          <ExploreMore />
+          <PopularPicks />
+          {linkedProducts.length > 0 ? (
+            <ProductSection title="Dry Fruits & Cereals" products={linkedProducts} columns={3} />
+          ) : null}
+          <CategoryGrid />
+          <StoreRow />
+          <BrandCarousel />
+          <FreeDeliveryBanner />
+          <ProductSection title="Recently bought" subtitle="Buy again, quickly" products={boughtAgain} columns={3} icon="refresh" />
+          <FruitsBanner />
+          <ProductSection title="Top selling today" products={topSelling} columns={4} />
+          <NewUserOffers />
         </View>
       </ScrollView>
     </View>
@@ -53,24 +85,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.softBackground,
     flexGrow: 1,
   },
-  unavailable: {
+  greeting: {
     marginHorizontal: 16,
     marginTop: 16,
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: colors.white,
-    gap: 6,
-  },
-  unavailableTitle: {
     fontFamily: fonts.bold,
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: 22,
+    lineHeight: 28,
     color: colors.text,
-  },
-  unavailableBody: {
-    fontFamily: fonts.regular,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textSecondary,
   },
 });

@@ -1,7 +1,9 @@
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -11,20 +13,43 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { OtpIllustration } from '@/components/auth/OtpIllustration';
+import { DevOtpPanel } from '@/components/auth/DevOtpPanel';
 import { OtpInput } from '@/components/auth/OtpInput';
-import { OtpResend } from '@/components/auth/OtpResend';
 import { AppIcon } from '@/components/ui/AppIcon';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 import { useToast } from '@/components/ui/AppToast';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { colors, fonts } from '@/constants/theme';
 import { useAuthFlow } from '@/context/AuthFlowContext';
 import { resendCustomerOtp, verifyCustomerOtp } from '@/services/customerAuth';
+import {
+  isDevOtpEnabled,
+  issueDevTestOtp,
+  peekDevTestOtp,
+  readDevTestSession,
+  setDevMockCustomerStatus,
+  verifyDevTestOtp,
+  type DevMockCustomerStatus,
+  type DevOtpFailure,
+} from '@/services/devOtp';
 import { screenAfterCustomerCall } from '@/types/customerApi';
 import { INDIA_CALLING_CODE, OTP_LENGTH } from '@/types/auth';
 import { formatIndiaMobileDisplay, isValidIndiaMobile } from '@/utils/phoneValidation';
+
+function devOtpFailureMessage(reason: DevOtpFailure): string {
+  if (reason === 'expired') {
+    return 'That development test code expired. Tap Resend OTP.';
+  }
+  if (reason === 'used') {
+    return 'That development test code was already used. Tap Resend OTP.';
+  }
+  if (reason === 'wrong') {
+    return 'That development test code does not match.';
+  }
+  return 'Development test OTP is unavailable.';
+}
 
 export default function OtpScreen() {
   const insets = useSafeAreaInsets();
@@ -36,8 +61,11 @@ export default function OtpScreen() {
   const [resendMessage, setResendMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { showToast } = useToast();
+  const devMode = isDevOtpEnabled();
+  const [, refreshDevOtp] = useState(0);
   const ready = isValidIndiaMobile(nationalNumber);
   const complete = code.length === OTP_LENGTH;
+  const devOtp = devMode && ready ? peekDevTestOtp(nationalNumber) : null;
 
   useEffect(() => {
     if (ready) {
@@ -73,15 +101,43 @@ export default function OtpScreen() {
 
     setBusy(true);
     setVerifyMessage(null);
-    const result = await verifyCustomerOtp(nationalNumber, code);
-    setBusy(false);
-    showToast(result.tone, result.message);
-    setVerifyMessage(result.message);
-    if (screenAfterCustomerCall(result, 'verify') !== 'home') {
-      return;
-    }
+    let holdLoading = false;
+    try {
+      if (devMode) {
+        const result = verifyDevTestOtp(nationalNumber, code);
+        refreshDevOtp((value) => value + 1);
+        if (!result.ok || readDevTestSession()?.kind !== 'development-test') {
+          const message = devOtpFailureMessage(result.ok ? 'disabled' : result.reason);
+          showToast('error', message);
+          setVerifyMessage(message);
+          return;
+        }
+        showToast('success', 'Development test code matched. This is not a real account.');
+        holdLoading = true;
+        setTimeout(() => {
+          router.replace(result.destination === 'home' ? '/home' : '/complete-profile');
+          setBusy(false);
+        }, 60);
+        return;
+      }
 
-    router.replace('/home');
+      const result = await verifyCustomerOtp(nationalNumber, code);
+      showToast(result.tone, result.message);
+      setVerifyMessage(result.message);
+      const screen = screenAfterCustomerCall(result, 'verify');
+      if (screen === 'complete-profile' || screen === 'home') {
+        holdLoading = true;
+        setTimeout(() => {
+          router.replace(screen === 'home' ? '/home' : '/complete-profile');
+          setBusy(false);
+        }, 60);
+        return;
+      }
+    } finally {
+      if (!holdLoading) {
+        setBusy(false);
+      }
+    }
   }
 
   async function onResend() {
@@ -94,10 +150,26 @@ export default function OtpScreen() {
     }
 
     setBusy(true);
-    const result = await resendCustomerOtp(nationalNumber);
-    setBusy(false);
-    setResendMessage(result.message);
-    showToast(result.tone, result.message);
+    try {
+      if (devMode) {
+        const issued = issueDevTestOtp(nationalNumber, devOtp?.mockStatus ?? 'unregistered');
+        refreshDevOtp((value) => value + 1);
+        setCode('');
+        setVerifyMessage(null);
+        const message = issued
+          ? 'A new development test code is shown above.'
+          : 'Development test OTP is unavailable.';
+        setResendMessage(message);
+        showToast(issued ? 'info' : 'error', message);
+        return;
+      }
+
+      const result = await resendCustomerOtp(nationalNumber);
+      setResendMessage(result.message);
+      showToast(result.tone, result.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (!ready) {
@@ -109,120 +181,99 @@ export default function OtpScreen() {
   return (
     <View style={styles.screen}>
       <StatusBar style="dark" />
-      <View pointerEvents="none" style={styles.blobRight} />
-      <View pointerEvents="none" style={styles.blobLeft} />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          contentContainerStyle={[
-            styles.scroll,
-            {
-              paddingTop: insets.top + 8,
-              paddingBottom: Math.max(insets.bottom, 16) + 12,
-            },
-          ]}>
-          <View style={styles.column}>
-            <View style={styles.nav}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Go back"
-                onPress={goBack}
-                style={({ pressed }) => [styles.back, pressed && styles.pressed]}
-                testID="otp-back">
-                <AppIcon name="back" color={colors.text} size={18} />
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Help"
-                onPress={() => router.push('/help')}
-                style={({ pressed }) => [styles.help, pressed && styles.pressed]}
-                testID="otp-help">
-                <Text style={styles.helpLabel}>Help</Text>
-              </Pressable>
+        <View style={[styles.hero, { paddingTop: insets.top + 8 }]}>
+          <View style={styles.heroTop}>
+            <View style={styles.logoBadge}>
+              <BrandLogo height={compact ? 44 : 52} />
             </View>
+          </View>
+          <Text maxFontSizeMultiplier={1.25} style={[styles.heroLine, compact && styles.heroLineCompact]}>
+            Fresh groceries, delivered{'\n'}to your door.
+          </Text>
+          <View style={styles.artRow} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <Image source={require('@/assets/images/home/produce.jpg')} style={[styles.art, styles.artSide]} contentFit="cover" />
+            <Image source={require('@/assets/images/onboarding/welcome-hero.jpg')} style={styles.artMain} contentFit="cover" />
+            <Image source={require('@/assets/images/home/carrots.jpg')} style={[styles.art, styles.artSide]} contentFit="cover" />
+          </View>
+        </View>
 
-            <View style={styles.hero}>
-              <View style={styles.copy}>
-                <Text
-                  accessibilityRole="header"
-                  maxFontSizeMultiplier={1.15}
-                  style={[styles.title, compact && styles.titleCompact]}>
-                  Verify with{'\n'}
-                  <Text style={styles.titleAccent}>OTP</Text>
-                </Text>
-                <Text maxFontSizeMultiplier={1.25} style={styles.subtitle}>
-                  Enter the 6-digit code for
-                </Text>
-              </View>
-              {compact ? null : <OtpIllustration size={92} />}
-            </View>
-
-            <View style={styles.summary}>
-              <AppIcon name="phone" color={colors.text} size={16} />
-              <Text
-                style={styles.summaryNumber}
-                accessibilityLabel={`Mobile number ${displayedNumber}`}>
-                {displayedNumber}
+        <Animated.View entering={FadeInDown.duration(380)} style={styles.sheet}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={[styles.sheetContent, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+            <Text accessibilityRole="header" maxFontSizeMultiplier={1.2} style={styles.title}>
+              Enter verification code
+            </Text>
+            <View style={styles.sentRow}>
+              <Text maxFontSizeMultiplier={1.2} style={styles.sent} accessibilityLabel={`Sent to ${displayedNumber}`}>
+                Sent to {displayedNumber}
               </Text>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Edit mobile number"
                 onPress={goBack}
                 hitSlop={8}
+                testID="otp-back"
                 style={({ pressed }) => [styles.edit, pressed && styles.pressed]}>
-                <AppIcon name="pencil" color={colors.primaryInk} size={16} />
+                <AppIcon name="pencil" color={colors.primaryInk} size={22} />
               </Pressable>
             </View>
-
-            <View style={styles.form}>
-              <Text style={styles.pending}>
-                Enter the 6-digit code for this number. A code is checked only after the server confirms it.
-              </Text>
-              <OtpInput
-                value={code}
-                invalid={verifyMessage !== null && !complete}
-                onChange={(next) => {
-                  setCode(next);
-                  setVerifyMessage(null);
+            {devMode && devOtp ? (
+              <DevOtpPanel
+                otp={devOtp}
+                onStatus={(status: DevMockCustomerStatus) => {
+                  setDevMockCustomerStatus(nationalNumber, status);
+                  refreshDevOtp((value) => value + 1);
                 }}
               />
-              <OtpResend
-                detail={resendMessage}
-                actionLabel="Resend OTP"
+            ) : null}
+            <OtpInput
+              value={code}
+              invalid={verifyMessage !== null && !complete}
+              onChange={(next) => {
+                setCode(next);
+                setVerifyMessage(null);
+              }}
+            />
+            {verifyMessage || resendMessage ? (
+              <Text accessibilityRole="alert" accessibilityLiveRegion="polite" maxFontSizeMultiplier={1.15} numberOfLines={2} style={styles.message}>
+                {verifyMessage ?? resendMessage}
+              </Text>
+            ) : null}
+            <View style={styles.spacer} />
+            <View style={styles.actions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Resend SMS"
+                accessibilityState={{ disabled: busy, busy }}
                 disabled={busy}
                 onPress={() => {
                   void onResend();
                 }}
-              />
-              {verifyMessage ? (
-                <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.verifyMessage}>
-                  {verifyMessage}
-                </Text>
-              ) : null}
-              <PrimaryButton
-                label="Verify & Continue"
+                style={({ pressed }) => [styles.action, styles.actionReady, pressed && styles.pressed]}>
+                <Text style={styles.actionLabel}>Resend SMS</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Verify and continue"
+                accessibilityState={{ disabled: !complete || busy, busy }}
+                disabled={!complete || busy}
                 onPress={() => {
                   void onVerify();
                 }}
-                disabled={!complete}
-                loading={busy}
-                accessibilityLabel="Verify and continue"
                 testID="verify-otp"
-              />
-              <Text maxFontSizeMultiplier={1.3} style={styles.legal}>
-                By continuing, you agree to our{' '}
-                <Text accessibilityRole="link" style={styles.link} onPress={() => router.push('/terms')}>
-                  Terms & Conditions
-                </Text>{' '}
-                and{' '}
-                <Text accessibilityRole="link" style={styles.link} onPress={() => router.push('/privacy')}>
-                  Privacy Policy
-                </Text>
-              </Text>
+                style={({ pressed }) => [styles.action, complete && styles.actionReady, pressed && styles.pressed]}>
+                {busy ? (
+                  <ActivityIndicator color={colors.text} />
+                ) : (
+                  <Text style={[styles.actionLabel, !complete && styles.actionLabelOff]}>Verify</Text>
+                )}
+              </Pressable>
             </View>
-          </View>
-        </ScrollView>
+          </ScrollView>
+        </Animated.View>
       </KeyboardAvoidingView>
     </View>
   );
@@ -231,155 +282,144 @@ export default function OtpScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.white,
-    overflow: 'hidden',
+    backgroundColor: colors.brightYellow,
   },
   flex: {
     flex: 1,
   },
-  scroll: {
-    flexGrow: 1,
-    alignItems: 'center',
+  hero: {
+    paddingHorizontal: 16,
+    paddingBottom: 78,
   },
-  column: {
-    width: '100%',
-    maxWidth: 480,
+  heroTop: {
+    minHeight: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoBadge: {
+    backgroundColor: colors.white,
+    borderRadius: 18,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  heroLine: {
+    marginTop: 12,
+    fontFamily: fonts.bold,
+    fontSize: 22,
+    lineHeight: 28,
+    letterSpacing: -0.3,
+    color: colors.text,
+    textAlign: 'center',
+  },
+  heroLineCompact: {
+    fontSize: 18,
+    lineHeight: 24,
+  },
+  artRow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: -28,
+    height: 92,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 10,
+    zIndex: 2,
+  },
+  art: {
+    width: 86,
+    height: 72,
+    borderRadius: 16,
+    borderWidth: 3,
+    borderColor: colors.white,
+    backgroundColor: colors.white,
+  },
+  artSide: {
+    marginBottom: 6,
+  },
+  artMain: {
+    width: 108,
+    height: 84,
+    borderRadius: 18,
+    borderWidth: 3,
+    borderColor: colors.white,
+    backgroundColor: colors.white,
+  },
+  sheet: {
+    flex: 1,
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    zIndex: 1,
+  },
+  sheetContent: {
     flexGrow: 1,
     paddingHorizontal: 20,
+    paddingTop: 48,
+    gap: 16,
   },
-  blobRight: {
-    position: 'absolute',
-    top: -30,
-    right: -50,
-    width: 150,
-    height: 170,
-    borderRadius: 85,
-    backgroundColor: colors.welcomeSoft,
+  title: {
+    fontFamily: fonts.bold,
+    fontSize: 24,
+    lineHeight: 30,
+    color: colors.text,
   },
-  blobLeft: {
-    position: 'absolute',
-    top: 36,
-    left: -80,
-    width: 120,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: colors.welcomeSoft,
-  },
-  nav: {
+  sentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
   },
-  back: {
+  sent: {
+    flexShrink: 1,
+    fontFamily: fonts.regular,
+    fontSize: 15,
+    lineHeight: 21,
+    color: colors.textSecondary,
+  },
+  edit: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: colors.welcomeSoft,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  help: {
-    minHeight: 40,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  helpLabel: {
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    lineHeight: 18,
-    color: colors.text,
   },
   pressed: {
     opacity: 0.75,
   },
-  hero: {
-    marginTop: 28,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  copy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  title: {
-    fontFamily: fonts.bold,
-    fontSize: 34,
-    lineHeight: 40,
-    letterSpacing: -0.4,
-    color: colors.text,
-  },
-  titleCompact: {
-    fontSize: 30,
-    lineHeight: 36,
-  },
-  titleAccent: {
-    color: colors.primaryDark,
-  },
-  subtitle: {
-    marginTop: 10,
-    fontFamily: fonts.regular,
-    fontSize: 15,
-    lineHeight: 21,
-    color: colors.welcomeMuted,
-  },
-  summary: {
-    marginTop: 16,
-    alignSelf: 'flex-start',
-    maxWidth: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.welcomeSoft,
-    borderRadius: 22,
-    paddingVertical: 8,
-    paddingLeft: 12,
-    paddingRight: 8,
-  },
-  summaryNumber: {
-    flexShrink: 1,
-    fontFamily: fonts.semibold,
+  message: {
+    fontFamily: fonts.medium,
     fontSize: 14,
     lineHeight: 20,
     color: colors.text,
   },
-  edit: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  spacer: {
+    flexGrow: 1,
+    minHeight: 24,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  action: {
+    flex: 1,
+    minHeight: 54,
+    borderRadius: 28,
+    backgroundColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 12,
   },
-  form: {
-    marginTop: 28,
-    gap: 16,
+  actionReady: {
+    backgroundColor: colors.primary,
   },
-  pending: {
-    fontFamily: fonts.medium,
-    fontSize: 14,
-    lineHeight: 20,
+  actionLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    lineHeight: 22,
     color: colors.text,
   },
-  verifyMessage: {
-    fontFamily: fonts.medium,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.text,
-  },
-  legal: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    lineHeight: 18,
-    color: colors.welcomeMuted,
-    textAlign: 'center',
-  },
-  link: {
-    fontFamily: fonts.semibold,
-    color: colors.primaryInk,
+  actionLabelOff: {
+    color: colors.textSecondary,
   },
 });

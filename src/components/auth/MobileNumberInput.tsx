@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { AppIcon } from '@/components/ui/AppIcon';
 import { colors, fonts } from '@/constants/theme';
 import { INDIA_CALLING_CODE } from '@/types/auth';
 import { sanitizeIndiaMobile } from '@/utils/phoneValidation';
@@ -16,7 +17,7 @@ export function MobileNumberInput({ value, onChange, error, onBlur }: MobileNumb
   const [focused, setFocused] = useState(false);
 
   return (
-    <View>
+    <View style={styles.wrap}>
       <View
         style={[
           styles.field,
@@ -27,6 +28,7 @@ export function MobileNumberInput({ value, onChange, error, onBlur }: MobileNumb
         <Text style={styles.code} accessibilityLabel={`Country code ${INDIA_CALLING_CODE}`}>
           {INDIA_CALLING_CODE}
         </Text>
+        <AppIcon name="chevronDown" color={colors.textSecondary} size={16} />
         <View style={styles.divider} />
         <TextInput
           value={value}
@@ -36,8 +38,7 @@ export function MobileNumberInput({ value, onChange, error, onBlur }: MobileNumb
             setFocused(false);
             onBlur?.();
           }}
-          placeholder="Enter mobile number"
-          placeholderTextColor={colors.welcomeMuted}
+          placeholder=""
           keyboardType="phone-pad"
           inputMode="numeric"
           maxLength={10}
@@ -48,10 +49,13 @@ export function MobileNumberInput({ value, onChange, error, onBlur }: MobileNumb
           accessibilityLabel="Mobile number"
           accessibilityHint="10 digit Indian mobile number"
           style={styles.input}
-          cursorColor={colors.primaryDark}
+          cursorColor={colors.primaryInk}
           selectionColor={colors.primaryDark}
           testID="mobile-input"
         />
+      </View>
+      <View pointerEvents="none" style={styles.float}>
+        <Text style={[styles.floatLabel, error ? styles.floatError : null]}>Mobile Number</Text>
       </View>
       {error ? (
         <Text accessibilityRole="alert" style={styles.error}>
@@ -75,19 +79,38 @@ function IndiaFlag() {
 }
 
 const styles = StyleSheet.create({
+  wrap: {
+    marginTop: 10,
+  },
   field: {
-    minHeight: 54,
+    minHeight: 56,
     borderRadius: 14,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
     backgroundColor: colors.white,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
-    gap: 10,
+    gap: 8,
   },
   focused: {
-    borderColor: colors.primaryDark,
+    borderColor: colors.primaryInk,
+  },
+  float: {
+    position: 'absolute',
+    top: -9,
+    left: 16,
+    backgroundColor: colors.white,
+    paddingHorizontal: 6,
+  },
+  floatLabel: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.primaryInk,
+  },
+  floatError: {
+    color: colors.danger,
   },
   invalid: {
     borderColor: colors.danger,

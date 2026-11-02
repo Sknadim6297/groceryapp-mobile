@@ -1,12 +1,19 @@
-import { Image } from 'expo-image';
 import { router, useNavigation } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { LocationOptionCard } from '@/components/location/LocationOptionCard';
-import { AppIcon, type AppIconName } from '@/components/ui/AppIcon';
+import { AppIcon } from '@/components/ui/AppIcon';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { colors, fonts } from '@/constants/theme';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
@@ -20,20 +27,20 @@ const statusCopy: Record<string, string> = {
   unavailable: 'A street address could not be read. Enter the address manually.',
 };
 
-const savedIcons: Record<string, AppIconName> = {
-  home: 'home',
-  work: 'briefcase',
-  charbagh: 'stores',
-};
-
 export default function LocationScreen() {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const compact = width < 360;
   const navigation = useNavigation();
   const { selection, setSelection, confirmSelection, revisingProfile, setRevisingProfile } = useDeliveryLocation();
   const [detecting, setDetecting] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const trimmed = query.trim().toLowerCase();
+  const matches =
+    trimmed.length === 0
+      ? []
+      : referenceLocations.filter((place) =>
+          `${place.label} ${formatDeliveryAddress(place)}`.toLowerCase().includes(trimmed),
+        );
 
   useEffect(() => {
     const removable = navigation as { addListener: (event: 'beforeRemove', callback: () => void) => () => void };
@@ -89,117 +96,103 @@ export default function LocationScreen() {
   return (
     <View style={styles.screen}>
       <StatusBar style="dark" />
-      <View pointerEvents="none" style={styles.blob} />
-      <ScrollView
-        contentContainerStyle={[
-          styles.scroll,
-          { paddingTop: insets.top + 8, paddingBottom: Math.max(insets.bottom, 12) + 96 },
-        ]}
-        showsVerticalScrollIndicator={false}>
-        <View style={styles.column}>
-          <View style={styles.nav}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={[
+            styles.scroll,
+            { paddingTop: insets.top + 16, paddingBottom: Math.max(insets.bottom, 12) + (selection ? 96 : 24) },
+          ]}>
+          <View style={styles.column}>
+            <Text accessibilityRole="header" maxFontSizeMultiplier={1.2} style={styles.title}>
+              Enter your area or apartment name
+            </Text>
+            <View style={styles.search}>
+              <AppIcon name="search" color={colors.textSecondary} size={24} />
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Try a locality or apartment"
+                placeholderTextColor={colors.textSecondary}
+                accessibilityLabel="Search for an area or apartment"
+                autoCorrect={false}
+                style={styles.searchInput}
+              />
+            </View>
+
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Go back"
-              onPress={() => (router.canGoBack() ? router.back() : router.replace('/otp'))}
-              style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
-              <AppIcon name="back" color={colors.text} size={18} />
-              </Pressable>
-            <View style={styles.navSpacer} />
-          </View>
-
-          <View style={styles.hero}>
-            <View style={styles.copy}>
-              <Text
-                accessibilityRole="header"
-                maxFontSizeMultiplier={1.2}
-                style={[styles.title, compact && styles.titleCompact]}>
-                {"What's your\n"}
-                <Text style={styles.accent}>{"location?"}</Text>
-              </Text>
-              <Text maxFontSizeMultiplier={1.25} style={styles.subtitle}>
-                We need your location to show available stores and products
-              </Text>
-            </View>
-            {compact ? null : (
-              <Image
-                source={require('@/assets/images/onboarding/location-illustration.jpg')}
-                style={styles.art}
-                contentFit="contain"
-                accessible={false}
-              />
-            )}
-          </View>
-
-          <View style={styles.actions}>
-            <LocationOptionCard
-              icon="stores"
-              title="Use current location"
-              subtitle={
-                selection?.source === 'gps'
-                  ? formatDeliveryAddress(selection)
-                  : 'Find nearby stores around you'
-              }
-              selected={selection?.id === 'gps'}
-              busy={detecting}
+              accessibilityLabel="Use my current location"
+              accessibilityState={{ busy: detecting }}
+              disabled={detecting}
               onPress={() => {
                 void detectCurrentLocation();
               }}
-            />
-            <LocationOptionCard
-              icon="search"
-              title="Search location manually"
-              subtitle={
-                selection?.source === 'manual'
-                  ? formatDeliveryAddress(selection)
-                  : 'Enter your area, street or landmark'
-              }
-              selected={selection?.source === 'manual'}
+              style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+              <AppIcon name="stores" color={colors.primaryInk} size={24} />
+              <Text style={styles.rowLabel}>{detecting ? 'Finding your location…' : 'Use my current location'}</Text>
+              <AppIcon name="chevron" color={colors.textSecondary} size={24} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add new address"
               onPress={() => router.push('/location-manual')}
-            />
-          </View>
+              style={({ pressed }) => [styles.row, styles.rowLast, pressed && styles.pressed]}>
+              <AppIcon name="plus" color={colors.primaryInk} size={24} />
+              <Text style={styles.rowLabel}>Add new address</Text>
+            </Pressable>
 
-          {status === 'approximate' ? (
-            <Text style={styles.note}>This location is approximate. Check the address before continuing.</Text>
-          ) : null}
-          {status === 'preview' ? (
-            <Text style={styles.note}>UI preview does not request location permission.</Text>
-          ) : null}
-          {status && status !== 'approximate' && status !== 'preview' ? (
-            <Text accessibilityRole="alert" style={styles.error}>
-              {statusCopy[status]}
-            </Text>
-          ) : null}
+            {status === 'approximate' ? (
+              <Text style={styles.note}>This location is approximate. Check the address before continuing.</Text>
+            ) : null}
+            {status === 'preview' ? (
+              <Text style={styles.note}>UI preview does not request location permission.</Text>
+            ) : null}
+            {status && status !== 'approximate' && status !== 'preview' ? (
+              <Text accessibilityRole="alert" style={styles.error}>
+                {statusCopy[status]}
+              </Text>
+            ) : null}
 
-          <Text style={styles.section}>Recent Locations</Text>
-          <View style={styles.actions}>
-            {referenceLocations.map((place) => (
-              <LocationOptionCard
+            {matches.length > 0 ? <Text style={styles.section}>Suggested areas</Text> : null}
+            {trimmed.length > 0 && matches.length === 0 ? (
+              <Text style={styles.note}>No matching area. Add a new address instead.</Text>
+            ) : null}
+            {matches.map((place) => (
+              <Pressable
                 key={place.id}
-                icon={savedIcons[place.id] ?? 'stores'}
-                title={place.label}
-                subtitle={formatDeliveryAddress(place)}
-                selected={selection?.id === place.id}
+                accessibilityRole="button"
+                accessibilityLabel={`${place.label}, ${formatDeliveryAddress(place)}`}
+                accessibilityState={{ selected: selection?.id === place.id }}
                 onPress={() => {
                   setStatus(null);
                   setSelection(place);
                 }}
-              />
+                style={({ pressed }) => [styles.result, selection?.id === place.id && styles.resultSelected, pressed && styles.pressed]}>
+                <Text style={styles.resultTitle}>{place.label}</Text>
+                <Text style={styles.resultDetail}>{formatDeliveryAddress(place)}</Text>
+              </Pressable>
             ))}
+
+            {selection ? (
+              <View style={styles.selected}>
+                <Text style={styles.section}>Selected address</Text>
+                <Text style={styles.resultTitle}>{selection.label}</Text>
+                <Text style={styles.resultDetail}>{formatDeliveryAddress(selection)}</Text>
+              </View>
+            ) : null}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+      {selection ? (
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          <View style={styles.footerInner}>
+            <PrimaryButton label="Continue" onPress={continueNext} accessibilityLabel="Continue with this address" />
+            <Text style={styles.disclaimer}>Delivery availability is not confirmed until the store service checks this address.</Text>
           </View>
         </View>
-      </ScrollView>
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        <View style={styles.footerInner}>
-          <PrimaryButton
-            label="Continue"
-            onPress={continueNext}
-            disabled={!selection}
-            accessibilityLabel="Continue to profile"
-          />
-          <Text style={styles.disclaimer}>Delivery availability is not confirmed until the store service checks this address.</Text>
-        </View>
-      </View>
+      ) : null}
     </View>
   );
 }
@@ -207,17 +200,10 @@ export default function LocationScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.cream,
-    overflow: 'hidden',
+    backgroundColor: colors.white,
   },
-  blob: {
-    position: 'absolute',
-    top: -20,
-    right: -30,
-    width: 140,
-    height: 120,
-    borderRadius: 70,
-    backgroundColor: colors.welcomeSoft,
+  flex: {
+    flex: 1,
   },
   scroll: {
     alignItems: 'center',
@@ -227,99 +213,95 @@ const styles = StyleSheet.create({
     maxWidth: 480,
     paddingHorizontal: 20,
   },
-  nav: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 8,
+  title: {
+    fontFamily: fonts.bold,
+    fontSize: 18,
+    lineHeight: 24,
+    color: colors.text,
   },
-  navSpacer: {
-    width: 40,
-    height: 40,
-  },
-  back: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.welcomeSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  skip: {
-    minHeight: 36,
-    paddingHorizontal: 12,
-    borderRadius: 18,
-    backgroundColor: colors.white,
+  search: {
+    marginTop: 16,
+    minHeight: 48,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 8,
   },
-  skipLabel: {
-    fontFamily: fonts.semibold,
-    fontSize: 13,
-    lineHeight: 18,
+  searchInput: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: fonts.regular,
+    fontSize: 15,
     color: colors.text,
+    paddingVertical: 10,
+  },
+  row: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  rowLast: {
+    borderBottomWidth: 0,
+  },
+  rowLabel: {
+    flex: 1,
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+    lineHeight: 20,
+    color: colors.primaryInk,
   },
   pressed: {
     opacity: 0.75,
   },
-  hero: {
-    marginTop: 22,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  copy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  title: {
-    fontFamily: fonts.bold,
-    fontSize: 32,
-    lineHeight: 38,
-    letterSpacing: -0.4,
-    color: colors.text,
-  },
-  titleCompact: {
-    fontSize: 28,
-    lineHeight: 34,
-  },
-  accent: {
-    color: colors.primaryDark,
-  },
-  subtitle: {
-    marginTop: 8,
-    fontFamily: fonts.regular,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textSecondary,
-  },
-  art: {
-    width: 108,
-    height: 96,
-  },
-  actions: {
-    marginTop: 18,
-    gap: 12,
-  },
   section: {
-    marginTop: 22,
-    marginBottom: 4,
+    marginTop: 18,
+    marginBottom: 8,
     fontFamily: fonts.medium,
-    fontSize: 14,
+    fontSize: 13,
     lineHeight: 18,
     color: colors.textSecondary,
   },
+  result: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  resultSelected: {
+    backgroundColor: colors.softYellow,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+  },
+  resultTitle: {
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+    lineHeight: 20,
+    color: colors.text,
+  },
+  resultDetail: {
+    marginTop: 2,
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+  selected: {
+    marginTop: 8,
+  },
   note: {
-    marginTop: 10,
+    marginTop: 12,
     fontFamily: fonts.regular,
     fontSize: 13,
     lineHeight: 18,
     color: colors.text,
   },
   error: {
-    marginTop: 10,
+    marginTop: 12,
     fontFamily: fonts.medium,
     fontSize: 13,
     lineHeight: 18,
@@ -332,7 +314,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     paddingTop: 8,
-    backgroundColor: colors.cream,
+    backgroundColor: colors.white,
   },
   footerInner: {
     width: '100%',

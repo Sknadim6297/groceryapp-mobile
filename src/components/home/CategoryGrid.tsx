@@ -11,7 +11,7 @@ import { previewCategoryGroups } from '@/data/previewImageCatalog';
 export function CategoryGrid() {
   const { width } = useWindowDimensions();
   const compact = width < 360;
-  const groups = UI_PREVIEW_MODE ? previewCategoryGroups() : [];
+  const groups = previewCategoryGroups();
   const categories = mockCategories.filter((category) => category.id !== 'masala');
 
   if (groups.length > 0) {
@@ -65,6 +65,8 @@ export function CategoryGrid() {
 const styles = StyleSheet.create({
   groups: {
     gap: 18,
+    paddingHorizontal: 12,
+    paddingTop: 8,
   },
   group: {
     gap: 8,

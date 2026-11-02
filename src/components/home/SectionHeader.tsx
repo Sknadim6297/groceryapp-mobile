@@ -17,7 +17,7 @@ export function SectionHeader({ title, subtitle, showHeart, icon }: SectionHeade
     <View style={styles.row}>
       <View style={styles.copy}>
         <View style={styles.titleRow}>
-          {icon ? <SoftIcon name={icon} size={22} /> : null}
+          {icon ? <SoftIcon name={icon} size={24} /> : null}
           <Text accessibilityRole="header" style={styles.title}>
             {title}
           </Text>
@@ -32,7 +32,7 @@ export function SectionHeader({ title, subtitle, showHeart, icon }: SectionHeade
         onPress={() => router.push('/shop')}
         style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
         <Text style={styles.actionLabel}>View all</Text>
-        <AppIcon name="chevron" color={colors.textSecondary} size={14} />
+        <AppIcon name="chevron" color={colors.textSecondary} size={20} />
       </Pressable>
     </View>
   );
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   action: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 28,
+    minHeight: 44,
     flexShrink: 0,
   },
   actionLabel: {

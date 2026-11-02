@@ -48,7 +48,7 @@ export default function LocationManualScreen() {
               accessibilityLabel="Go back"
               onPress={() => (router.canGoBack() ? router.back() : router.replace('/location'))}
               style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
-              <AppIcon name="back" color={colors.text} size={18} />
+              <AppIcon name="back" color={colors.text} size={24} />
             </Pressable>
             <Text accessibilityRole="header" style={styles.title}>
               Enter location manually
@@ -82,9 +82,9 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   back: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.welcomeSoft,
     alignItems: 'center',
     justifyContent: 'center',

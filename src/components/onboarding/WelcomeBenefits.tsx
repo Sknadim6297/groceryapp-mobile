@@ -23,7 +23,7 @@ export function WelcomeBenefits({ compact }: WelcomeBenefitsProps) {
           accessibilityRole="text"
           accessibilityLabel={`${benefit.title}, ${benefit.detail}`}>
           <View style={styles.badge}>
-            <AppIcon name={benefit.icon} color={colors.text} size={15} />
+            <AppIcon name={benefit.icon} color={colors.primaryInk} size={18} />
           </View>
           <Text
             maxFontSizeMultiplier={1.15}
@@ -43,40 +43,46 @@ export function WelcomeBenefits({ compact }: WelcomeBenefitsProps) {
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginTop: 18,
+    alignItems: 'stretch',
+    marginTop: 16,
     gap: 8,
   },
   item: {
     flex: 1,
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
+    backgroundColor: colors.white,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingTop: 12,
+    paddingBottom: 10,
+    paddingHorizontal: 6,
   },
   badge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: colors.welcomeSoft,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.softYellow,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 2,
   },
   title: {
     fontFamily: fonts.bold,
-    fontSize: 12,
+    fontSize: 13,
     lineHeight: 16,
     color: colors.text,
     textAlign: 'center',
   },
   titleCompact: {
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 15,
   },
   detail: {
-    fontFamily: fonts.regular,
-    fontSize: 11,
-    lineHeight: 14,
-    color: colors.welcomeMuted,
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.textSecondary,
     textAlign: 'center',
   },
 });

@@ -1,4 +1,4 @@
-import { Image, type ImageSource, type ImageStyle } from 'expo-image';
+import { Image, type ImageContentFit, type ImageSource, type ImageStyle } from 'expo-image';
 import { useState } from 'react';
 import { StyleSheet, View, type StyleProp } from 'react-native';
 
@@ -6,9 +6,10 @@ type CatalogImageProps = {
   source: ImageSource;
   style: StyleProp<ImageStyle>;
   label?: string;
+  contentFit?: ImageContentFit;
 };
 
-export function CatalogImage({ source, style, label }: CatalogImageProps) {
+export function CatalogImage({ source, style, label, contentFit = 'contain' }: CatalogImageProps) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const remote = isRemote(source);
@@ -27,7 +28,7 @@ export function CatalogImage({ source, style, label }: CatalogImageProps) {
     <Image
       source={source}
       style={[style, remote && !loaded ? styles.loading : null]}
-      contentFit="contain"
+      contentFit={contentFit}
       cachePolicy="memory-disk"
       recyclingKey={remote ? source.uri : undefined}
       transition={120}

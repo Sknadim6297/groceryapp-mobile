@@ -4,7 +4,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CatalogImage } from '@/components/home/CatalogImage';
 import { SectionHeader } from '@/components/home/SectionHeader';
 import { AppIcon } from '@/components/ui/AppIcon';
-import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts } from '@/constants/theme';
 import { dailyEssentials } from '@/data/homeFeed';
 import { previewDailyEssentialOverride } from '@/data/previewImageCatalog';
@@ -15,7 +14,7 @@ export function DailyEssentials() {
       <SectionHeader title="Daily essentials" subtitle="Everything you need, every day" />
       <View style={styles.grid}>
         {dailyEssentials.map((item) => {
-          const override = UI_PREVIEW_MODE ? previewDailyEssentialOverride(item.id) : undefined;
+          const override = previewDailyEssentialOverride(item.id);
           const name = override?.name ?? item.name;
           return (
           <View key={item.id} style={styles.cell}>
@@ -34,7 +33,7 @@ export function DailyEssentials() {
                 {name}
               </Text>
               <View style={styles.arrow}>
-                <AppIcon name="arrow" color={colors.text} size={12} />
+                <AppIcon name="arrow" color={colors.text} size={16} />
               </View>
             </View>
           </Pressable>
@@ -96,9 +95,9 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   arrow: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',

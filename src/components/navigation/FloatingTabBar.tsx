@@ -46,7 +46,7 @@ export function FloatingTabBar({ state, descriptors, navigateToTab, insets }: Fl
                 <AppIcon
                   name={focused ? tab.activeIcon : tab.icon}
                   color={focused ? colors.primaryInk : colors.text}
-                  size={18}
+                  size={28}
                 />
                 <Text numberOfLines={1} style={[styles.label, focused && styles.labelActive]}>
                   {label}
@@ -84,6 +84,7 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },

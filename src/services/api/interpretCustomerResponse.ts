@@ -1,10 +1,13 @@
-import type { AuthTone, CustomerApiResult } from '@/types/customerApi';
+import type { CustomerApiResult, RegisteredCustomer } from '@/types/customerApi';
 
-const MESSAGE_KEYS = ['Message', 'message', 'error', 'Error', 'error_description'] as const;
+const MESSAGE_KEYS = ['Message', 'message', 'ExceptionMessage', 'error_description', 'title'] as const;
 const FAILURE_STATUS = /^(false|fail|failed|error|invalid|expired|unsuccessful)$/i;
 const NOT_REGISTERED = /customer is not registered/i;
 const ALREADY_REGISTERED = /already registered|duplicate mobile|mobile number already/i;
-const OTP_PROBLEM = /invalid otp|incorrect otp|otp expired|otp is expired|expired otp/i;
+const OTP_PROBLEM = /invalid otp|incorrect otp|otp expired|otp is expired|expired otp|already used/i;
+const OTP_DISPATCHED = /otp (has been |is |was )?sent|verification code (has been |is |was )?sent|code (has been |is |was )?sent/i;
+const OTP_VERIFIED = /otp (has been |is |was )?(verified|matched|validated)|verified successfully|verification successful|login successful/i;
+const REGISTERED = /customer registered successfully/i;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -20,16 +23,64 @@ function firstRecord(body: unknown): Record<string, unknown> | null {
   return asRecord(body);
 }
 
+function readableText(value: string): string | null {
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || /<!doctype html|<html[\s>]/i.test(trimmed)) {
+    return null;
+  }
+  return trimmed.slice(0, 180);
+}
+
+function normalizeBody(body: unknown): unknown {
+  if (typeof body !== 'string') {
+    return body;
+  }
+  const trimmed = body.trim();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    return body;
+  }
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return body;
+  }
+}
+
 function readMessage(body: unknown): string | null {
+  if (typeof body === 'string') {
+    return readableText(body);
+  }
+
   const record = firstRecord(body);
   if (!record) {
-    return typeof body === 'string' && body.trim().length > 0 ? body.trim().slice(0, 180) : null;
+    return null;
   }
 
   for (const key of MESSAGE_KEYS) {
     const value = record[key];
-    if (typeof value === 'string' && value.trim().length > 0) {
-      return value.trim().slice(0, 180);
+    if (typeof value === 'string') {
+      const text = readableText(value);
+      if (text) {
+        return text;
+      }
+    }
+  }
+
+  for (const key of ['error', 'Error']) {
+    const value = record[key];
+    if (typeof value === 'string') {
+      const text = readableText(value);
+      if (text) {
+        return text;
+      }
+    }
+    const nested = asRecord(value);
+    const nestedMessage = nested?.message ?? nested?.Message;
+    if (typeof nestedMessage === 'string') {
+      const text = readableText(nestedMessage);
+      if (text) {
+        return text;
+      }
     }
   }
 
@@ -62,11 +113,49 @@ function explicitFailure(body: unknown): boolean {
 }
 
 /**
- * HTTP 200 is not treated as success. The help pages describe the response only as
- * "Collection of Object" and do not publish a success or session sample.
+ * HTTP 200 is not enough. Failures from this API also arrive as HTTP 200 with Status "Failed".
+ * A step is accepted only when the message says the code was sent or verified.
  */
+function textField(value: unknown): string | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value.trim();
+  }
+  return null;
+}
+
+/** Reads the customer record the register endpoint returns with a confirmed account. */
+export function readRegisteredCustomer(body: unknown): RegisteredCustomer | null {
+  const record = firstRecord(normalizeBody(body));
+  if (!record) {
+    return null;
+  }
+  const customerId = textField(record.CustomerId ?? record.customerId);
+  const name = textField(record.Name ?? record.name);
+  const mobile = textField(record.Mobile ?? record.mobile);
+  if (!customerId || !name || !mobile) {
+    return null;
+  }
+  return {
+    customerId,
+    name,
+    mobile,
+    companyMobile: textField(record.CompanyMobile ?? record.companyMobile),
+  };
+}
+
+function statusFallback(status: number, fallback: string): string {
+  if (status >= 400 && status < 600) {
+    return `The server could not complete the request (HTTP ${status}).`;
+  }
+  return fallback;
+}
+
 export function interpretCustomerResponse(status: number, body: unknown, fallback: string): CustomerApiResult {
-  const serverMessage = readMessage(body);
+  const normalized = normalizeBody(body);
+  const serverMessage = readMessage(normalized);
 
   if (serverMessage && NOT_REGISTERED.test(serverMessage)) {
     return {
@@ -104,21 +193,52 @@ export function interpretCustomerResponse(status: number, body: unknown, fallbac
     };
   }
 
-  if (status < 200 || status >= 300 || explicitFailure(body)) {
+  if (status < 200 || status >= 300 || explicitFailure(normalized)) {
     return {
       tone: 'error',
-      message: serverMessage ?? fallback,
+      message: serverMessage ?? statusFallback(status, fallback),
       confirmed: false,
       next: 'stay',
     };
   }
 
-  const tone: AuthTone = 'warning';
+  const registered = readRegisteredCustomer(normalized);
+  if (serverMessage && REGISTERED.test(serverMessage) && registered) {
+    return {
+      tone: 'success',
+      message: `Welcome, ${registered.name}.`,
+      confirmed: true,
+      next: 'home',
+      customer: registered,
+    };
+  }
+
+  const dispatched = Boolean(serverMessage && OTP_DISPATCHED.test(serverMessage));
+  const verified = Boolean(serverMessage && OTP_VERIFIED.test(serverMessage));
+
+  if (dispatched) {
+    return {
+      tone: 'success',
+      message: 'OTP sent successfully',
+      confirmed: true,
+      next: 'otp',
+    };
+  }
+
+  if (verified) {
+    return {
+      tone: 'success',
+      message: serverMessage ?? 'Verified.',
+      confirmed: true,
+      next: 'home',
+    };
+  }
+
   return {
-    tone,
+    tone: 'warning',
     message: serverMessage
       ? serverMessage
-      : 'The server replied, but the API help page does not confirm this step.',
+      : "Couldn't confirm that. Please try again.",
     confirmed: false,
     next: 'stay',
   };

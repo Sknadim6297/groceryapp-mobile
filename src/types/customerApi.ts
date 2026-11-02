@@ -25,36 +25,53 @@ export type CustomerRegistrationRequest = {
   Pincode?: string;
 };
 
+/** Customer fields returned by a confirmed registration. This is not a login token. */
+export type RegisteredCustomer = {
+  customerId: string;
+  name: string;
+  mobile: string;
+  companyMobile: string | null;
+};
+
 export type AuthTone = 'success' | 'error' | 'warning' | 'info';
 
-export type CustomerAuthNext = 'stay' | 'register';
+export type CustomerAuthNext = 'stay' | 'register' | 'otp' | 'home';
 
 export type CustomerApiResult = {
   tone: AuthTone;
   message: string;
   /**
-   * True only when the published contract says this response completes authentication.
-   * The help pages do not publish that contract, so this stays false.
+   * True when this response accepts the current step.
+   * HTTP 200 alone does not set this. A failure status does not set this.
    */
-  confirmed: false;
-  /** `register` only when the server text says the customer is not registered. */
+  confirmed: boolean;
+  /**
+   * `register` when the server says the customer is not registered.
+   * `otp` when a code was sent.
+   * `home` when this step is accepted for an existing customer or a finished registration.
+   */
   next: CustomerAuthNext;
+  /** Present only when registration returned a customer id and name. */
+  customer?: RegisteredCustomer;
 };
 
 export type AuthScreen = 'stay' | 'complete-profile' | 'otp' | 'home';
 
-/** Shared by the login screen and the fixture tests. HTTP 200 never opens Home. */
+/**
+ * Login always asks for the 6-digit code before Home.
+ * A new customer opens registration. An accepted code opens Home.
+ */
 export function screenAfterCustomerCall(
   result: CustomerApiResult,
   step: 'send' | 'verify' | 'register',
 ): AuthScreen {
-  if (step === 'send' && result.next === 'register') {
+  if (result.next === 'register' && step !== 'register') {
     return 'complete-profile';
   }
-  if (result.confirmed && step === 'send') {
+  if (step === 'send' && result.next === 'otp') {
     return 'otp';
   }
-  if (result.confirmed && step === 'verify') {
+  if ((step === 'verify' || step === 'register') && result.next === 'home') {
     return 'home';
   }
   return 'stay';

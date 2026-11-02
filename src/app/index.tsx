@@ -1,46 +1,52 @@
+import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useEffect, useState } from 'react';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
 
-import { GroceryHero } from '@/components/onboarding/GroceryHero';
-import { WelcomeBenefits } from '@/components/onboarding/WelcomeBenefits';
-import { WelcomeBrand } from '@/components/onboarding/WelcomeBrand';
-import { WelcomeFooter } from '@/components/onboarding/WelcomeFooter';
-import { WelcomeHeadline } from '@/components/onboarding/WelcomeHeadline';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 import { colors } from '@/constants/theme';
 
-const FOOTER_BODY = 132;
+const SPLASH_MS = 1100;
 
-export default function WelcomeScreen() {
-  const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const compact = width < 360;
-  const contentWidth = Math.min(width, 480);
-  const footerSpace = FOOTER_BODY + Math.max(insets.bottom, 12);
+const preload = [
+  require('@/assets/images/onboarding/welcome-hero.jpg'),
+  require('@/assets/images/home/produce.jpg'),
+  require('@/assets/images/home/carrots.jpg'),
+];
+
+export default function SplashScreen() {
+  const [opacity] = useState(() => new Animated.Value(0));
+  const [scale] = useState(() => new Animated.Value(0.84));
+  const [shift] = useState(() => new Animated.Value(14));
+
+  useEffect(() => {
+    const motion = Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 780, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(scale, { toValue: 1, duration: 780, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(shift, { toValue: 0, duration: 780, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]);
+    motion.start();
+    const timer = setTimeout(() => {
+      router.replace('/intro');
+    }, SPLASH_MS);
+    return () => {
+      clearTimeout(timer);
+      motion.stop();
+    };
+  }, [opacity, scale, shift]);
 
   return (
     <View style={styles.screen}>
       <StatusBar style="dark" />
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingTop: insets.top + 8, paddingBottom: footerSpace + 12 },
-        ]}
-        bounces={false}
-        showsVerticalScrollIndicator={false}>
-        <View style={[styles.column, { width: contentWidth }]}>
-          <WelcomeBrand />
-          <WelcomeHeadline compact={compact} />
-          <GroceryHero />
-          <WelcomeBenefits compact={compact} />
-        </View>
-      </ScrollView>
-      <View style={styles.footer}>
-        <View style={styles.footerInner}>
-          <WelcomeFooter />
-        </View>
+      <View pointerEvents="none" style={styles.preload}>
+        {preload.map((source) => (
+          <Image key={String(source)} source={source} style={styles.preloadImage} />
+        ))}
       </View>
+      <Animated.View style={{ opacity, transform: [{ scale }, { translateY: shift }] }}>
+        <BrandLogo height={120} />
+      </Animated.View>
     </View>
   );
 }
@@ -49,27 +55,17 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.cream,
-    overflow: 'hidden',
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  column: {
-    paddingHorizontal: 20,
-  },
-  footer: {
+  preload: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
+    width: 1,
+    height: 1,
+    opacity: 0,
   },
-  footerInner: {
-    width: '100%',
-    maxWidth: 480,
+  preloadImage: {
+    width: 1,
+    height: 1,
   },
 });

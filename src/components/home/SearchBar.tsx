@@ -10,7 +10,7 @@ export function SearchBar() {
 
   return (
     <View style={styles.field}>
-      <AppIcon name="search" color={colors.textSecondary} size={20} weight="light" />
+      <AppIcon name="search" color={colors.textSecondary} size={24} />
       <TextInput
         value={query}
         onChangeText={setQuery}
@@ -36,7 +36,7 @@ export function SearchBar() {
         selectionColor={colors.primaryDark}
       />
       <View accessibilityRole="image" accessibilityLabel="Scan icon">
-        <AppIcon name="scan" color={colors.text} size={18} />
+        <AppIcon name="scan" color={colors.text} size={24} />
       </View>
     </View>
   );

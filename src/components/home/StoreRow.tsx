@@ -1,10 +1,9 @@
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CatalogImage } from '@/components/home/CatalogImage';
 import { SectionHeader } from '@/components/home/SectionHeader';
 import { AppIcon, type AppIconName } from '@/components/ui/AppIcon';
-import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts } from '@/constants/theme';
 import { previewStoreCards } from '@/data/previewImageCatalog';
 
@@ -16,27 +15,37 @@ const stores: { id: string; name: string; detail: string; eta: string; icon: App
 ];
 
 export function StoreRow() {
-  const previewStores = UI_PREVIEW_MODE ? previewStoreCards() : [];
+  const previewStores = previewStoreCards();
 
   return (
     <View style={styles.section}>
       <SectionHeader title={previewStores.length > 0 ? 'Featured Stores' : 'Shop by Store'} />
       {previewStores.length > 0 ? (
-        <View style={styles.row}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.previewRow}>
           {previewStores.map((store) => (
             <Pressable
               key={store.id}
               accessibilityRole="button"
               accessibilityLabel={`${store.name}. Preview store image. Not a live supplier.`}
               onPress={() => router.push('/stores')}
-              style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
-              <CatalogImage source={{ uri: store.url }} style={styles.photo} label={store.name} />
+              style={({ pressed }) => [styles.previewCard, pressed && styles.pressed]}>
+              <View style={styles.photoFrame}>
+                <CatalogImage
+                  source={{ uri: store.url }}
+                  style={styles.photo}
+                  label={store.name}
+                  contentFit="cover"
+                />
+              </View>
               <Text numberOfLines={2} style={styles.name}>
                 {store.name}
               </Text>
             </Pressable>
           ))}
-        </View>
+        </ScrollView>
       ) : (
       <View style={styles.row}>
         {stores.map((store) => (
@@ -81,6 +90,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
+  previewRow: {
+    gap: 10,
+    paddingRight: 4,
+  },
+  previewCard: {
+    width: 148,
+    alignItems: 'center',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    padding: 8,
+    gap: 8,
+  },
+  photoFrame: {
+    width: '100%',
+    height: 92,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: colors.softBackground,
+  },
   card: {
     flex: 1,
     minWidth: 0,
@@ -110,7 +140,7 @@ const styles = StyleSheet.create({
   },
   photo: {
     width: '100%',
-    height: 64,
+    height: '100%',
   },
   name: {
     fontFamily: fonts.semibold,

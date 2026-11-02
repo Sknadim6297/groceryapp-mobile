@@ -30,12 +30,12 @@ export function DrawerItem({
       aria-selected={active}
       onPress={onPress}
       style={({ pressed }) => [styles.row, nested && styles.nested, active && styles.active, pressed && styles.pressed]}>
-      <AppIcon name={icon} color={active ? colors.primaryInk : colors.text} size={18} />
+      <AppIcon name={icon} color={active ? colors.primaryInk : colors.text} size={24} />
       <Text numberOfLines={1} style={[styles.label, active && styles.labelActive]}>
         {label}
       </Text>
       {showChevron ? (
-        <AppIcon name={expanded ? 'chevronDown' : 'chevron'} color={colors.textSecondary} size={16} />
+        <AppIcon name={expanded ? 'chevronDown' : 'chevron'} color={colors.textSecondary} size={24} />
       ) : (
         <View style={styles.spacer} />
       )}

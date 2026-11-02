@@ -61,7 +61,7 @@ export function ReviewCartScreen() {
           hitSlop={8}
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))}
           style={({ pressed }) => [styles.headerIcon, pressed && styles.pressed]}>
-          <AppIcon name="back" color={colors.text} size={22} />
+          <AppIcon name="back" color={colors.text} size={24} />
         </Pressable>
         <View style={styles.headerCopy}>
           <Text style={styles.headerTitle}>Review Cart</Text>
@@ -73,7 +73,7 @@ export function ReviewCartScreen() {
           hitSlop={8}
           onPress={() => router.push('/profile')}
           style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}>
-          <AppIcon name="profile" color={colors.white} size={18} />
+          <AppIcon name="profile" color={colors.white} size={24} />
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -82,7 +82,7 @@ export function ReviewCartScreen() {
           hitSlop={8}
           onPress={() => setMenuOpen(true)}
           style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}>
-          <AppIcon name="menu" color={colors.white} size={18} />
+          <AppIcon name="menu" color={colors.white} size={24} />
         </Pressable>
       </View>
 
@@ -155,19 +155,19 @@ export function ReviewCartScreen() {
                       <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={`Decrease ${line.product.name}`}
-                        hitSlop={6}
+                        hitSlop={10}
                         onPress={() => setQuantity(line.id, line.quantity - 1)}
                         style={styles.stepButton}>
-                        <AppIcon name="minus" color={colors.text} size={14} />
+                        <AppIcon name="minus" color={colors.text} size={18} />
                       </Pressable>
                       <Text style={styles.stepCount}>{line.quantity}</Text>
                       <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={`Increase ${line.product.name}`}
-                        hitSlop={6}
+                        hitSlop={10}
                         onPress={() => setQuantity(line.id, line.quantity + 1)}
                         style={styles.stepButton}>
-                        <AppIcon name="plus" color={colors.text} size={14} />
+                        <AppIcon name="plus" color={colors.text} size={18} />
                       </Pressable>
                     </View>
                   </View>
@@ -324,15 +324,15 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   headerIcon: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerAction: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.iconSurface,

@@ -42,17 +42,19 @@ export default function ProductDetailScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Decrease ${product.name}`}
+            hitSlop={8}
             onPress={() => setQuantity(product.id, quantity - 1)}
             style={styles.step}>
-            <AppIcon name="minus" color={colors.text} size={16} />
+            <AppIcon name="minus" color={colors.text} size={20} />
           </Pressable>
           <Text style={styles.count}>{quantity}</Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Increase ${product.name}`}
+            hitSlop={8}
             onPress={() => (quantity === 0 ? add(product.id) : setQuantity(product.id, quantity + 1))}
             style={styles.step}>
-            <AppIcon name="plus" color={colors.text} size={16} />
+            <AppIcon name="plus" color={colors.text} size={20} />
           </Pressable>
         </View>
         <Pressable

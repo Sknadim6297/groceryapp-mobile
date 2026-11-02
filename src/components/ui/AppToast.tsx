@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Animated, Pressable, StyleSheet, Text } from 'react-native';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppIcon, type AppIconName } from '@/components/ui/AppIcon';
@@ -17,6 +17,8 @@ type ToastContextValue = {
 };
 
 const ToastContext = createContext<ToastContextValue | null>(null);
+const VISIBLE_MS = 2800;
+const MAX_CHARS = 88;
 
 const toneStyle: Record<AuthTone, { icon: AppIconName; ink: string; wash: string }> = {
   success: { icon: 'check', ink: colors.success, wash: '#F0FDF4' },
@@ -27,69 +29,100 @@ const toneStyle: Record<AuthTone, { icon: AppIconName; ink: string; wash: string
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const insets = useSafeAreaInsets();
-  const [toast, setToast] = useState<ToastItem | null>(null);
-  const [shift] = useState(() => new Animated.Value(-16));
-  const [opacity] = useState(() => new Animated.Value(0));
-  const [hideTimer, setHideTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  const nextId = useRef(0);
 
-  const hide = useCallback(() => {
-    Animated.parallel([
-      Animated.timing(opacity, { toValue: 0, duration: 180, useNativeDriver: true }),
-      Animated.timing(shift, { toValue: -16, duration: 180, useNativeDriver: true }),
-    ]).start(({ finished }) => {
-      if (finished) {
-        setToast(null);
-      }
-    });
-  }, [opacity, shift]);
+  const dismiss = useCallback((id: number) => {
+    const timer = timers.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      timers.current.delete(id);
+    }
+    setToasts((current) => current.filter((item) => item.id !== id));
+  }, []);
 
   const showToast = useCallback(
     (tone: AuthTone, message: string) => {
-      if (hideTimer) {
-        clearTimeout(hideTimer);
+      const compact = message.replace(/\s+/g, ' ').trim();
+      const text = compact.length > MAX_CHARS ? `${compact.slice(0, MAX_CHARS - 1).trimEnd()}…` : compact;
+      if (text.length === 0) {
+        return;
       }
-      setToast({ id: Date.now(), tone, message });
-      shift.setValue(-16);
-      opacity.setValue(0);
-      Animated.parallel([
-        Animated.timing(opacity, { toValue: 1, duration: 220, useNativeDriver: true }),
-        Animated.timing(shift, { toValue: 0, duration: 220, useNativeDriver: true }),
-      ]).start();
-      setHideTimer(setTimeout(hide, 3200));
+      const id = nextId.current + 1;
+      nextId.current = id;
+      timers.current.forEach((timer) => {
+        clearTimeout(timer);
+      });
+      timers.current.clear();
+      setToasts([{ id, tone, message: text }]);
+      timers.current.set(
+        id,
+        setTimeout(() => {
+          dismiss(id);
+        }, VISIBLE_MS),
+      );
     },
-    [hide, hideTimer, opacity, shift],
+    [dismiss],
   );
 
   useEffect(
     () => () => {
-      if (hideTimer) {
-        clearTimeout(hideTimer);
-      }
+      timers.current.forEach((timer) => {
+        clearTimeout(timer);
+      });
+      timers.current.clear();
     },
-    [hideTimer],
+    [],
   );
 
   const value = useMemo(() => ({ showToast }), [showToast]);
-  const look = toast ? toneStyle[toast.tone] : toneStyle.info;
 
   return (
     <ToastContext.Provider value={value}>
       {children}
-      {toast ? (
-        <Animated.View
-          pointerEvents="box-none"
-          style={[styles.host, { top: Math.max(insets.top, 12) + 8, opacity, transform: [{ translateY: shift }] }]}>
-          <Pressable
-            accessibilityRole="alert"
-            accessibilityLabel={toast.message}
-            onPress={hide}
-            style={[styles.card, { backgroundColor: look.wash, borderColor: look.ink }]}>
-            <AppIcon name={look.icon} color={look.ink} size={16} />
-            <Text style={styles.message}>{toast.message}</Text>
-          </Pressable>
-        </Animated.View>
-      ) : null}
+      <View
+        pointerEvents="box-none"
+        collapsable={false}
+        style={[styles.overlay, { paddingTop: Math.max(insets.top, 12) + 8 }]}>
+        {toasts.map((toast) => (
+          <ToastCard key={toast.id} toast={toast} onDismiss={dismiss} />
+        ))}
+      </View>
     </ToastContext.Provider>
+  );
+}
+
+function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: number) => void }) {
+  const look = toneStyle[toast.tone];
+  const [shift] = useState(() => new Animated.Value(-12));
+  const [opacity] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    const animation = Animated.parallel([
+      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
+      Animated.timing(shift, { toValue: 0, duration: 180, useNativeDriver: true }),
+    ]);
+    animation.start();
+    return () => {
+      animation.stop();
+    };
+  }, [opacity, shift]);
+
+  return (
+    <Animated.View pointerEvents="box-none" style={{ opacity, transform: [{ translateY: shift }] }}>
+      <Pressable
+        accessibilityRole="alert"
+        accessibilityLiveRegion="polite"
+        accessibilityLabel={toast.message}
+        onPress={() => onDismiss(toast.id)}
+        style={[styles.card, { backgroundColor: look.wash, borderColor: look.ink }]}>
+        <AppIcon name={look.icon} color={look.ink} size={16} />
+        <Text maxFontSizeMultiplier={1.1} numberOfLines={2} style={styles.message}>
+          {toast.message}
+        </Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -102,35 +135,30 @@ export function useToast(): ToastContextValue {
 }
 
 const styles = StyleSheet.create({
-  host: {
-    position: 'absolute',
+  overlay: {
+    position: Platform.OS === 'web' ? 'fixed' : 'absolute',
+    top: 0,
     left: 16,
     right: 16,
-    zIndex: 50,
+    zIndex: 1000,
+    elevation: 1000,
     alignItems: 'center',
   },
   card: {
-    maxWidth: 420,
-    width: '100%',
-    minHeight: 48,
-    borderRadius: 14,
+    maxWidth: 320,
+    borderRadius: 20,
     borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    shadowColor: colors.text,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    gap: 8,
   },
   message: {
-    flex: 1,
+    flexShrink: 1,
     fontFamily: fonts.medium,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
     color: colors.text,
   },
 });

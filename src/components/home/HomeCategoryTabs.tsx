@@ -53,7 +53,7 @@ export function HomeCategoryTabs() {
                   </View>
                 ) : null}
                 <View style={[styles.chip, width < 360 && styles.chipCompact, active && styles.chipActive]}>
-                  <SoftIcon name={tab.icon} size={width < 360 ? 20 : 22} />
+                  <SoftIcon name={tab.icon} size={24} />
                 </View>
               </View>
               <Text numberOfLines={1} style={[styles.label, width < 360 && styles.labelCompact]}>

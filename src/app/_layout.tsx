@@ -12,6 +12,8 @@ import { useEffect } from 'react';
 import { colors, fonts } from '@/constants/theme';
 import { ToastProvider } from '@/components/ui/AppToast';
 import { AuthFlowProvider } from '@/context/AuthFlowContext';
+import { CustomerAccountProvider } from '@/context/CustomerAccountContext';
+import { rejectDevTestSessionOutsideDevelopment } from '@/services/devOtp';
 import { DeliveryLocationProvider } from '@/context/DeliveryLocationContext';
 import { MockCartProvider } from '@/context/MockCartContext';
 import { PreviewSessionProvider } from '@/context/PreviewSessionContext';
@@ -51,6 +53,10 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    rejectDevTestSessionOutsideDevelopment();
+  }, []);
+
+  useEffect(() => {
     if (loaded || error) {
       SplashScreen.hideAsync();
     }
@@ -64,6 +70,7 @@ export default function RootLayout() {
     <ThemeProvider value={navigationTheme}>
       <ToastProvider>
       <AuthFlowProvider>
+      <CustomerAccountProvider>
         <DeliveryLocationProvider>
         <ProfileDraftProvider>
         <MockCartProvider>
@@ -73,12 +80,13 @@ export default function RootLayout() {
             headerShown: false,
             contentStyle: { backgroundColor: colors.background },
           }}>
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="login" options={{ headerShown: false }} />
-        <Stack.Screen name="otp" options={{ headerShown: false }} />
-        <Stack.Screen name="location" options={{ headerShown: false }} />
-        <Stack.Screen name="location-manual" options={{ headerShown: false }} />
-        <Stack.Screen name="complete-profile" options={{ headerShown: false }} />
+        <Stack.Screen name="index" options={{ headerShown: false, animation: 'none' }} />
+        <Stack.Screen name="intro" options={{ headerShown: false, animation: 'fade' }} />
+        <Stack.Screen name="login" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="otp" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="location" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="location-manual" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="complete-profile" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="help" options={{ ...headerOptions, title: 'Help' }} />
         <Stack.Screen name="terms" options={{ ...headerOptions, title: 'Terms & Conditions' }} />
         <Stack.Screen name="privacy" options={{ ...headerOptions, title: 'Privacy Policy' }} />
@@ -95,6 +103,7 @@ export default function RootLayout() {
         </MockCartProvider>
         </ProfileDraftProvider>
         </DeliveryLocationProvider>
+      </CustomerAccountProvider>
       </AuthFlowProvider>
       </ToastProvider>
     </ThemeProvider>

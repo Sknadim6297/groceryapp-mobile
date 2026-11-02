@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CatalogImage } from '@/components/home/CatalogImage';
 import { colors, fonts } from '@/constants/theme';
@@ -24,11 +24,9 @@ export function CategoryCard({ category, compact, largeImage = false }: Category
       }
       style={({ pressed }) => [styles.card, compact && styles.cardCompact, pressed && styles.pressed]}
       testID={`category-${category.id}`}>
-      <CatalogImage
-        source={category.image}
-        label={category.name}
-        style={largeImage ? styles.imageLarge : [styles.image, compact && styles.imageCompact]}
-      />
+      <View style={largeImage ? styles.frameLarge : [styles.frame, compact && styles.frameCompact]}>
+        <CatalogImage source={category.image} label={category.name} style={styles.imageFill} />
+      </View>
       <Text numberOfLines={2} maxFontSizeMultiplier={1.15} style={[styles.label, compact && styles.labelCompact]}>
         {category.name}
       </Text>
@@ -42,11 +40,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    alignItems: 'center',
+    alignItems: 'stretch',
     paddingHorizontal: 6,
     paddingTop: 8,
     paddingBottom: 8,
-    minHeight: 124,
     shadowColor: '#171717',
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -54,7 +51,6 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   cardCompact: {
-    minHeight: 112,
     borderRadius: 14,
     paddingTop: 6,
     paddingBottom: 6,
@@ -62,16 +58,21 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.82,
   },
-  image: {
+  frame: {
+    alignSelf: 'center',
     width: '78%',
     aspectRatio: 1,
   },
-  imageCompact: {
+  frameCompact: {
     width: '72%',
   },
-  imageLarge: {
+  frameLarge: {
     width: '100%',
-    height: 84,
+    aspectRatio: 1,
+  },
+  imageFill: {
+    width: '100%',
+    height: '100%',
   },
   label: {
     width: '100%',

@@ -30,25 +30,25 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: fonts.interBold,
-    fontSize: 34,
+    fontSize: 32,
     lineHeight: 38,
-    letterSpacing: -0.7,
+    letterSpacing: -0.6,
     color: colors.text,
   },
   titleCompact: {
     fontSize: 28,
-    lineHeight: 32,
+    lineHeight: 34,
     letterSpacing: -0.4,
   },
   accent: {
-    color: colors.primaryDark,
+    color: colors.primaryInk,
   },
   support: {
-    marginTop: 10,
+    marginTop: 8,
     fontFamily: fonts.interRegular,
     fontSize: 15,
-    lineHeight: 21,
-    color: colors.welcomeMuted,
+    lineHeight: 22,
+    color: colors.textSecondary,
   },
   supportCompact: {
     fontSize: 14,

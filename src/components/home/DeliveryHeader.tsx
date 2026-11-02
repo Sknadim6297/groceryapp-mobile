@@ -24,7 +24,7 @@ export function DeliveryHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const title = UI_PREVIEW_MODE ? 'Deliver in 10 mins' : 'Deliver to';
   const address = confirmed ? formatDeliveryAddress(confirmed) : SELECT_LOCATION;
-  const etaIcon = UI_PREVIEW_MODE ? previewDeliveryIconUrl() : '';
+  const etaIcon = previewDeliveryIconUrl();
 
   return (
     <View style={[styles.header, { paddingTop: insets.top + (compact ? 6 : 8) }]}>
@@ -55,7 +55,7 @@ export function DeliveryHeader() {
               <Text numberOfLines={1} style={styles.address}>
                 {address}
               </Text>
-              <AppIcon name="chevronDown" color={colors.text} size={14} weight="light" />
+              <AppIcon name="chevronDown" color={colors.text} size={20} />
             </View>
           </View>
         </Pressable>
@@ -64,16 +64,16 @@ export function DeliveryHeader() {
             accessibilityRole="button"
             accessibilityLabel="Profile"
             onPress={() => router.push('/profile')}
-            style={({ pressed }) => [styles.action, compact && styles.actionCompact, pressed && styles.pressed]}>
-            <AppIcon name="profile" color={colors.white} size={compact ? 16 : 18} />
+            style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
+            <AppIcon name="profile" color={colors.white} size={24} />
           </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Menu"
             accessibilityState={{ expanded: menuOpen }}
             onPress={() => setMenuOpen(true)}
-            style={({ pressed }) => [styles.action, compact && styles.actionCompact, pressed && styles.pressed]}>
-            <AppIcon name="menu" color={colors.white} size={compact ? 16 : 18} />
+            style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
+            <AppIcon name="menu" color={colors.white} size={24} />
           </Pressable>
         </View>
       </View>
@@ -149,17 +149,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   action: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#6B3E26',
-  },
-  actionCompact: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
   },
   pressed: {
     opacity: 0.75,

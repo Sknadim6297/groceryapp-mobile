@@ -41,7 +41,7 @@ export function OrderTrackingScreen() {
           hitSlop={8}
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))}
           style={({ pressed }) => [styles.headerIcon, pressed && styles.pressed]}>
-          <AppIcon name="close" color={colors.text} size={20} />
+          <AppIcon name="close" color={colors.text} size={24} />
         </Pressable>
         <View style={styles.headerCopy}>
           {state.kind === 'ready' ? (
@@ -70,7 +70,7 @@ export function OrderTrackingScreen() {
           hitSlop={8}
           onPress={() => setMenuOpen(true)}
           style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}>
-          <AppIcon name="menu" color={colors.white} size={18} />
+          <AppIcon name="menu" color={colors.white} size={24} />
         </Pressable>
       </View>
 
@@ -147,7 +147,7 @@ function ActiveOrder({
           {itemsOpen ? <ItemList items={order.items} /> : null}
           <View style={styles.statusRow}>
             <View style={styles.statusIcon}>
-              <SoftIcon name="box" size={22} />
+              <SoftIcon name="box" size={24} />
             </View>
             <View style={styles.statusCopy}>
               <Text style={styles.cardTitle}>{copy.title}</Text>
@@ -179,7 +179,7 @@ function ActiveOrder({
                   accessibilityLabel={`Call ${order.partner.name}`}
                   onPress={() => void Linking.openURL(`tel:${phone}`)}
                   style={styles.call}>
-                  <AppIcon name="phone" color={colors.white} size={16} />
+                  <AppIcon name="phone" color={colors.white} size={24} />
                 </Pressable>
               ) : null}
             </View>
@@ -295,15 +295,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   headerIcon: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerAction: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.iconSurface,
@@ -488,9 +488,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   call: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.iconSurface,
     alignItems: 'center',
     justifyContent: 'center',

@@ -42,12 +42,7 @@ export function HomeFloatingNav({ onBuyAgain }: HomeFloatingNavProps) {
             style={styles.tab}>
             <View style={[styles.item, active && styles.itemActive, compact && styles.itemCompact]}>
               <View>
-                <AppIcon
-                  name={tab.icon}
-                  color={active ? '#FFFFFF' : INK}
-                  size={compact ? 16 : 18}
-                  weight="light"
-                />
+                <AppIcon name={tab.icon} color={active ? '#FFFFFF' : INK} size={28} />
                 {count > 0 ? (
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>{count > 9 ? '9+' : count}</Text>

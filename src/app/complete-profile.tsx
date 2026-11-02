@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,16 +14,20 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppIcon } from '@/components/ui/AppIcon';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 import { useToast } from '@/components/ui/AppToast';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { colors, fonts } from '@/constants/theme';
+import { formatDeliveryAddress } from '@/data/referenceLocations';
 import { useAuthFlow } from '@/context/AuthFlowContext';
+import { useCustomerAccount } from '@/context/CustomerAccountContext';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useProfileDraft } from '@/context/ProfileDraftContext';
 import { buildCustomerRegistration, registerCustomer } from '@/services/customerAuth';
+import { screenAfterCustomerCall } from '@/types/customerApi';
 import { isValidEmail } from '@/utils/profileValidation';
 import { isValidIndiaMobile } from '@/utils/phoneValidation';
 
@@ -31,6 +36,7 @@ export default function CompleteProfileScreen() {
   const { width } = useWindowDimensions();
   const compact = width < 360;
   const { nationalNumber } = useAuthFlow();
+  const { setAccount } = useCustomerAccount();
   const { confirmed, setRevisingProfile } = useDeliveryLocation();
   const draft = useProfileDraft();
   const { showToast } = useToast();
@@ -102,12 +108,29 @@ export default function CompleteProfileScreen() {
 
     setSubmitting(true);
     setNotice(null);
-    const result = await registerCustomer(registration.body);
-    setSubmitting(false);
-    showToast(result.tone, result.message);
-    setNotice(result.message);
-    if (result.tone !== 'error') {
-      setRegistrationSent(true);
+    let holdLoading = false;
+    try {
+      const result = await registerCustomer(registration.body);
+      showToast(result.tone, result.message);
+      setNotice(result.message);
+      if (screenAfterCustomerCall(result, 'register') === 'home') {
+        if (result.customer) {
+          setAccount(result.customer);
+        }
+        holdLoading = true;
+        setTimeout(() => {
+          router.replace('/home');
+          setSubmitting(false);
+        }, 60);
+        return;
+      }
+      if (result.tone !== 'error') {
+        setRegistrationSent(true);
+      }
+    } finally {
+      if (!holdLoading) {
+        setSubmitting(false);
+      }
     }
   }
 
@@ -115,123 +138,139 @@ export default function CompleteProfileScreen() {
     return null;
   }
 
+  const address = confirmed ? formatDeliveryAddress(confirmed) : '';
+
   return (
     <View style={styles.screen}>
       <StatusBar style="dark" />
-      <View pointerEvents="none" style={styles.blob} />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          contentContainerStyle={[
-            styles.scroll,
-            { paddingTop: insets.top + 8, paddingBottom: Math.max(insets.bottom, 16) + 16 },
-          ]}
-          showsVerticalScrollIndicator={false}>
-          <View style={styles.column}>
-            <View style={styles.nav}>
+        <View style={[styles.hero, { paddingTop: insets.top + 8 }]}>
+          <View style={styles.heroTop}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              onPress={goBack}
+              style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
+              <AppIcon name="back" color={colors.text} size={24} />
+            </Pressable>
+            <View style={styles.logoBadge}>
+              <BrandLogo height={compact ? 44 : 52} />
+            </View>
+            <View style={styles.heroSide} />
+          </View>
+          <Text maxFontSizeMultiplier={1.25} style={[styles.heroLine, compact && styles.heroLineCompact]}>
+            Fresh groceries, delivered{'\n'}to your door.
+          </Text>
+          <View style={styles.artRow} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            <Image source={require('@/assets/images/home/produce.jpg')} style={[styles.art, styles.artSide]} contentFit="cover" />
+            <Image source={require('@/assets/images/onboarding/welcome-hero.jpg')} style={styles.artMain} contentFit="cover" />
+            <Image source={require('@/assets/images/home/carrots.jpg')} style={[styles.art, styles.artSide]} contentFit="cover" />
+          </View>
+        </View>
+
+        <Animated.View entering={FadeInDown.duration(380)} style={styles.sheet}>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={[styles.sheetContent, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}
+            showsVerticalScrollIndicator={false}>
+            <Text accessibilityRole="header" maxFontSizeMultiplier={1.2} style={styles.title}>
+              Personal information
+            </Text>
+            <Text maxFontSizeMultiplier={1.2} style={styles.subtitle}>
+              Add your name, email, and delivery address.
+            </Text>
+
+            <Field label="Full name" error={nameError}>
+              <View style={[styles.inputRow, nameError ? styles.inputInvalid : null]}>
+                <TextInput
+                  value={draft.fullName}
+                  onChangeText={(next) => {
+                    draft.setFullName(next);
+                    setNameError(null);
+                    setNotice(null);
+                  }}
+                  placeholder="Enter your full name"
+                  placeholderTextColor={colors.textSecondary}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  accessibilityLabel="Full name"
+                  style={styles.input}
+                />
+                {draft.fullName.length > 0 ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear full name"
+                    onPress={() => {
+                      draft.setFullName('');
+                      setNameError(null);
+                    }}
+                    hitSlop={8}>
+                    <AppIcon name="close" color={colors.textSecondary} size={16} />
+                  </Pressable>
+                ) : null}
+              </View>
+            </Field>
+
+            <Field label="Email" error={emailError}>
+              <View style={[styles.inputRow, emailError ? styles.inputInvalid : null]}>
+                <TextInput
+                  value={draft.email}
+                  onChangeText={(next) => {
+                    draft.setEmail(next);
+                    setEmailError(null);
+                    setNotice(null);
+                  }}
+                  placeholder="Enter your email"
+                  placeholderTextColor={colors.textSecondary}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  accessibilityLabel="Email address"
+                  style={styles.input}
+                />
+              </View>
+            </Field>
+
+            <Field label="Delivery address" error={null}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Go back"
-                onPress={goBack}
-                style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
-                <AppIcon name="back" color={colors.text} size={18} />
+                accessibilityLabel={address.length > 0 ? `Delivery address ${address}` : 'Add a delivery address'}
+                onPress={() => {
+                  setRevisingProfile(true);
+                  router.push('/location');
+                }}
+                style={({ pressed }) => [styles.inputRow, pressed && styles.pressed]}>
+                <Text numberOfLines={2} style={[styles.address, address.length === 0 && styles.addressEmpty]}>
+                  {address.length > 0 ? address : 'Add a delivery address'}
+                </Text>
+                <AppIcon name="chevron" color={colors.primaryInk} size={18} />
               </Pressable>
-              <View style={styles.skipSpacer} />
-            </View>
+            </Field>
 
-            <View style={styles.hero}>
-              <View style={styles.copy}>
-                <Text
-                  accessibilityRole="header"
-                  maxFontSizeMultiplier={1.2}
-                  style={[styles.title, compact && styles.titleCompact]}>
-                  Complete{'\n'}
-                  <Text style={styles.accent}>your profile</Text>
-                </Text>
-                <Text maxFontSizeMultiplier={1.25} style={styles.subtitle}>
-                  Just a few details to get a better shopping experience
-                </Text>
-              </View>
-              {compact ? null : (
-                <Image
-                  source={require('@/assets/images/onboarding/profile-illustration.jpg')}
-                  style={styles.art}
-                  contentFit="contain"
-                  accessible={false}
-                />
-              )}
-            </View>
-
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={styles.badge}>
-                  <AppIcon name="profile" color={colors.primaryInk} size={18} />
-                </View>
-                <View style={styles.cardCopy}>
-                  <Text style={styles.cardTitle}>Personal Information</Text>
-                  <Text style={styles.cardSubtitle}>Tell us about yourself</Text>
-                </View>
-              </View>
-
-              <Field label="Full Name" error={nameError}>
-                <View style={styles.inputRow}>
-                  <AppIcon name="profile" color={colors.textSecondary} size={18} />
-                  <TextInput
-                    value={draft.fullName}
-                    onChangeText={(next) => {
-                      draft.setFullName(next);
-                      setNameError(null);
-                      setNotice(null);
-                    }}
-                    placeholder="Enter your full name"
-                    placeholderTextColor={colors.textSecondary}
-                    autoCapitalize="words"
-                    autoCorrect={false}
-                    accessibilityLabel="Full name"
-                    style={styles.input}
-                  />
-                </View>
-              </Field>
-
-              <Field label="Email Address" error={emailError}>
-                <View style={styles.inputRow}>
-                  <AppIcon name="mail" color={colors.textSecondary} size={18} />
-                  <TextInput
-                    value={draft.email}
-                    onChangeText={(next) => {
-                      draft.setEmail(next);
-                      setEmailError(null);
-                      setNotice(null);
-                    }}
-                    placeholder="Enter your email"
-                    placeholderTextColor={colors.textSecondary}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    accessibilityLabel="Email address"
-                    style={styles.input}
-                  />
-                </View>
-              </Field>
-            </View>
-
-            <PrimaryButton
-              label="Complete Profile"
-              onPress={() => {
-                void completeProfile();
-              }}
-              disabled={!canSubmit}
-              loading={submitting}
-              accessibilityLabel="Complete profile"
-            />
             {notice ? (
-              <Text accessibilityRole="alert" style={styles.notice}>
+              <Text accessibilityRole="alert" maxFontSizeMultiplier={1.15} numberOfLines={2} style={styles.notice}>
                 {notice}
               </Text>
             ) : null}
-          </View>
-        </ScrollView>
+            <View style={styles.spacer} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Continue"
+              accessibilityState={{ disabled: !canSubmit || submitting, busy: submitting }}
+              disabled={!canSubmit || submitting}
+              onPress={() => {
+                void completeProfile();
+              }}
+              style={({ pressed }) => [styles.continue, canSubmit && styles.continueReady, pressed && styles.pressed]}>
+              {submitting ? (
+                <ActivityIndicator color={colors.text} />
+              ) : (
+                <Text style={[styles.continueLabel, canSubmit && styles.continueLabelReady]}>Continue</Text>
+              )}
+            </Pressable>
+          </ScrollView>
+        </Animated.View>
       </KeyboardAvoidingView>
     </View>
   );
@@ -254,135 +293,106 @@ function Field({ label, error, children }: { label: string; error: string | null
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.cream,
-    overflow: 'hidden',
+    backgroundColor: colors.brightYellow,
   },
   flex: {
     flex: 1,
   },
-  blob: {
-    position: 'absolute',
-    top: -10,
-    right: -20,
-    width: 150,
-    height: 120,
-    borderRadius: 70,
-    backgroundColor: colors.welcomeSoft,
+  hero: {
+    paddingHorizontal: 16,
+    paddingBottom: 78,
   },
-  scroll: {
-    alignItems: 'center',
-  },
-  column: {
-    width: '100%',
-    maxWidth: 480,
-    paddingHorizontal: 20,
-    gap: 14,
-  },
-  nav: {
+  heroTop: {
+    minHeight: 64,
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
+  },
+  heroSide: {
+    width: 44,
   },
   back: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.welcomeSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  skip: {
-    minHeight: 36,
-    paddingHorizontal: 12,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  skipSpacer: {
-    width: 64,
+  logoBadge: {
+    backgroundColor: colors.white,
+    borderRadius: 18,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
   },
-  skipLabel: {
-    fontFamily: fonts.semibold,
-    fontSize: 13,
-    lineHeight: 18,
+  heroLine: {
+    marginTop: 12,
+    fontFamily: fonts.bold,
+    fontSize: 22,
+    lineHeight: 28,
+    letterSpacing: -0.3,
     color: colors.text,
+    textAlign: 'center',
   },
-  pressed: {
-    opacity: 0.75,
+  heroLineCompact: {
+    fontSize: 18,
+    lineHeight: 24,
   },
-  hero: {
+  artRow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: -28,
+    height: 92,
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 10,
+    zIndex: 2,
   },
-  copy: {
+  art: {
+    width: 86,
+    height: 72,
+    borderRadius: 16,
+    borderWidth: 3,
+    borderColor: colors.white,
+    backgroundColor: colors.white,
+  },
+  artSide: {
+    marginBottom: 6,
+  },
+  artMain: {
+    width: 108,
+    height: 84,
+    borderRadius: 18,
+    borderWidth: 3,
+    borderColor: colors.white,
+    backgroundColor: colors.white,
+  },
+  sheet: {
     flex: 1,
-    minWidth: 0,
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    zIndex: 1,
+  },
+  sheetContent: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingTop: 48,
+    gap: 14,
   },
   title: {
     fontFamily: fonts.bold,
-    fontSize: 32,
-    lineHeight: 38,
-    letterSpacing: -0.4,
+    fontSize: 24,
+    lineHeight: 30,
     color: colors.text,
-  },
-  titleCompact: {
-    fontSize: 28,
-    lineHeight: 34,
-  },
-  accent: {
-    color: colors.primaryDark,
   },
   subtitle: {
-    marginTop: 8,
+    marginTop: -6,
     fontFamily: fonts.regular,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textSecondary,
-  },
-  art: {
-    width: 112,
-    height: 102,
-  },
-  card: {
-    backgroundColor: colors.white,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 14,
-    gap: 12,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  badge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.welcomeSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  cardTitle: {
-    fontFamily: fonts.semibold,
-    fontSize: 16,
+    fontSize: 15,
     lineHeight: 21,
-    color: colors.text,
-  },
-  cardSubtitle: {
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    lineHeight: 18,
     color: colors.textSecondary,
   },
   field: {
@@ -395,23 +405,36 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   inputRow: {
-    minHeight: 48,
-    borderRadius: 12,
-    borderWidth: 1,
+    minHeight: 54,
+    borderRadius: 16,
+    borderWidth: 1.5,
     borderColor: colors.border,
     backgroundColor: colors.white,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+  inputInvalid: {
+    borderColor: colors.danger,
   },
   input: {
     flex: 1,
     minWidth: 0,
     fontFamily: fonts.medium,
-    fontSize: 15,
+    fontSize: 16,
     color: colors.text,
-    paddingVertical: 10,
+    paddingVertical: 12,
+  },
+  address: {
+    flex: 1,
+    fontFamily: fonts.medium,
+    fontSize: 15,
+    lineHeight: 20,
+    color: colors.text,
+  },
+  addressEmpty: {
+    color: colors.textSecondary,
   },
   error: {
     fontFamily: fonts.medium,
@@ -420,10 +443,35 @@ const styles = StyleSheet.create({
     color: colors.danger,
   },
   notice: {
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    lineHeight: 18,
+    fontFamily: fonts.medium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.text,
+  },
+  spacer: {
+    flexGrow: 1,
+    minHeight: 20,
+  },
+  continue: {
+    minHeight: 54,
+    borderRadius: 28,
+    backgroundColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  continueReady: {
+    backgroundColor: colors.primary,
+  },
+  continueLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 17,
+    lineHeight: 22,
     color: colors.textSecondary,
-    textAlign: 'center',
+  },
+  continueLabelReady: {
+    color: colors.text,
+  },
+  pressed: {
+    opacity: 0.82,
   },
 });

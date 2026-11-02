@@ -1,39 +1,33 @@
-import { Image, type ImageSource } from 'expo-image';
+import { AppIcon, type AppIconName } from '@/components/ui/AppIcon';
+import { colors } from '@/constants/theme';
 
 const icons = {
-  home: require('@/assets/images/icons3d/home.png') as ImageSource,
-  shop: require('@/assets/images/icons3d/shop.png') as ImageSource,
-  basket: require('@/assets/images/icons3d/basket.png') as ImageSource,
-  profile: require('@/assets/images/icons3d/profile.png') as ImageSource,
-  grid: require('@/assets/images/icons3d/grid.png') as ImageSource,
-  leaf: require('@/assets/images/icons3d/leaf.png') as ImageSource,
-  diya: require('@/assets/images/icons3d/diya.png') as ImageSource,
-  plug: require('@/assets/images/icons3d/plug.png') as ImageSource,
-  plant: require('@/assets/images/icons3d/plant.png') as ImageSource,
-  gift: require('@/assets/images/icons3d/gift.png') as ImageSource,
-  coupon: require('@/assets/images/icons3d/coupon.png') as ImageSource,
-  crown: require('@/assets/images/icons3d/crown.png') as ImageSource,
-  calendar: require('@/assets/images/icons3d/calendar.png') as ImageSource,
-  heart: require('@/assets/images/icons3d/heart.png') as ImageSource,
-  box: require('@/assets/images/icons3d/box.png') as ImageSource,
-  refresh: require('@/assets/images/icons3d/refresh.png') as ImageSource,
-} as const;
+  home: 'home',
+  shop: 'shop',
+  basket: 'basket',
+  profile: 'profile',
+  grid: 'grid',
+  leaf: 'leaf',
+  diya: 'flame',
+  plug: 'plug',
+  plant: 'plant',
+  gift: 'gift',
+  coupon: 'ticket',
+  crown: 'crown',
+  calendar: 'calendar',
+  heart: 'heart',
+  box: 'box',
+  refresh: 'refresh',
+} as const satisfies Record<string, AppIconName>;
 
 export type SoftIconName = keyof typeof icons;
 
 type SoftIconProps = {
   name: SoftIconName;
   size?: number;
+  color?: string;
 };
 
-export function SoftIcon({ name, size = 24 }: SoftIconProps) {
-  return (
-    <Image
-      source={icons[name]}
-      style={{ width: size, height: size }}
-      contentFit="contain"
-      cachePolicy="memory-disk"
-      accessible={false}
-    />
-  );
+export function SoftIcon({ name, size = 24, color = colors.text }: SoftIconProps) {
+  return <AppIcon name={icons[name]} color={color} size={size} />;
 }

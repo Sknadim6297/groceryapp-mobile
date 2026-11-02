@@ -25,10 +25,10 @@ export function ProductCard({ product, compact, tile = false }: ProductCardProps
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={saved ? `Remove ${product.name} from saved items` : `Save ${product.name}`}
-          hitSlop={6}
+          hitSlop={12}
           onPress={() => setSaved((current) => !current)}
           style={styles.tileHeart}>
-          <AppIcon name={saved ? 'heartFill' : 'heart'} color={saved ? colors.danger : '#CBD5E1'} size={14} />
+          <AppIcon name={saved ? 'heartFill' : 'heart'} color={saved ? colors.danger : '#CBD5E1'} size={20} />
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={`Open ${product.name}`} onPress={() => router.push({ pathname: '/product/[id]', params: { id: product.id } })}>
           <Text numberOfLines={2} style={[styles.tileName, compact && styles.tileNameCompact]}>
@@ -53,9 +53,10 @@ export function ProductCard({ product, compact, tile = false }: ProductCardProps
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Add ${product.name} to the demo cart`}
+            hitSlop={10}
             onPress={() => add(product.id)}
             style={({ pressed }) => [styles.tileAdd, pressed && styles.pressed]}>
-            <AppIcon name="plus" color={colors.text} size={14} />
+            <AppIcon name="plus" color={colors.text} size={18} />
           </Pressable>
         </View>
       </View>
@@ -85,17 +86,18 @@ export function ProductCard({ product, compact, tile = false }: ProductCardProps
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={saved ? `Remove ${product.name} from saved items` : `Save ${product.name}`}
-        hitSlop={6}
+        hitSlop={12}
         onPress={() => setSaved((current) => !current)}
         style={styles.heart}>
-        <AppIcon name={saved ? 'heartFill' : 'heart'} color={saved ? colors.danger : '#CBD5E1'} size={16} />
+        <AppIcon name={saved ? 'heartFill' : 'heart'} color={saved ? colors.danger : '#CBD5E1'} size={22} />
       </Pressable>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Add ${product.name} to the demo cart`}
+        hitSlop={10}
         onPress={() => add(product.id)}
         style={({ pressed }) => [styles.add, pressed && styles.pressed]}>
-        <AppIcon name="plus" color={colors.text} size={16} />
+        <AppIcon name="plus" color={colors.text} size={18} />
       </Pressable>
     </View>
   );
