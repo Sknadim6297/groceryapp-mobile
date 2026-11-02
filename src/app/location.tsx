@@ -16,12 +16,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { colors, fonts } from '@/constants/theme';
+import { useAuthFlow } from '@/context/AuthFlowContext';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
 import { formatDeliveryAddress, referenceLocations } from '@/data/referenceLocations';
 import { locationContinueTarget } from '@/navigation/locationFlow';
-import { canUseDevelopmentHome } from '@/services/devOtp';
+import { canUseDevelopmentHome, isDevOtpEnabled } from '@/services/devOtp';
 import { readCurrentLocation } from '@/services/location/locationService';
 
 const statusCopy: Record<string, string> = {
@@ -36,6 +37,7 @@ export default function LocationScreen() {
   const keyboardCover = useKeyboardOverlap();
   const keyboardOverlap = Platform.OS === 'android' ? keyboardCover : 0;
   const { selection, setSelection, confirmSelection, locationIntent } = useDeliveryLocation();
+  const { standing } = useAuthFlow();
   const { session, devSession } = useAuthSession();
   const leaving = useRef(false);
   const [detecting, setDetecting] = useState(false);
@@ -77,13 +79,23 @@ export default function LocationScreen() {
 
     leaving.current = true;
     confirmSelection();
+    const signedIn = Boolean(session) || canUseDevelopmentHome(devSession);
+    const onboarding =
+      locationIntent === 'registration' ||
+      standing === 'unregistered' ||
+      (isDevOtpEnabled() && devSession?.destination === 'complete-profile');
     const target = locationContinueTarget({
       intent: locationIntent,
       canGoBack: router.canGoBack(),
-      signedIn: Boolean(session) || canUseDevelopmentHome(devSession),
+      signedIn,
+      onboarding,
     });
     if (target === 'back') {
       router.back();
+      return;
+    }
+    if (target === '/complete-profile') {
+      router.navigate('/complete-profile');
       return;
     }
     router.replace(target);

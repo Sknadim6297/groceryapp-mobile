@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { Redirect, router } from 'expo-router';
+import { Redirect, router, useIsFocused } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import {
@@ -36,6 +36,7 @@ export default function LoginScreen() {
   const { width } = useWindowDimensions();
   const compact = width < 360;
   const { nationalNumber, setNationalNumber, setStanding, setOtpDispatched } = useAuthFlow();
+  const focused = useIsFocused();
   const { hydrated, session, devSession } = useAuthSession();
   const { hydrated: rememberedHydrated, customer: remembered } = useRememberedCustomer();
   const [typedMobile, setTypedMobile] = useState<string | null>(nationalNumber.length > 0 ? nationalNumber : null);
@@ -123,7 +124,7 @@ export default function LoginScreen() {
     return null;
   }
 
-  if (session || canUseDevelopmentHome(devSession)) {
+  if (focused && (session || canUseDevelopmentHome(devSession))) {
     return <Redirect href="/home" />;
   }
 

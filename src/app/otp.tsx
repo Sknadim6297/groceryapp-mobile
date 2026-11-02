@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -61,6 +61,7 @@ export default function OtpScreen() {
   const { width } = useWindowDimensions();
   const compact = width < 360;
   const { nationalNumber, setStanding, otpDispatched, setOtpDispatched } = useAuthFlow();
+  const focused = useIsFocused();
   const { hydrated, session, devSession, signIn, keepDevelopmentLogin } = useAuthSession();
   const { setAccount } = useCustomerAccount();
   const [code, setCode] = useState('');
@@ -74,7 +75,7 @@ export default function OtpScreen() {
   const leaving = useRef(false);
 
   useEffect(() => {
-    if (!hydrated || leaving.current) {
+    if (!focused || !hydrated || leaving.current) {
       return;
     }
     if (session || canUseDevelopmentHome(devSession)) {
@@ -86,7 +87,7 @@ export default function OtpScreen() {
     }
 
     router.replace('/login');
-  }, [devSession, hydrated, otpDispatched, ready, session]);
+  }, [devSession, focused, hydrated, otpDispatched, ready, session]);
 
   function goBack() {
     if (router.canGoBack()) {

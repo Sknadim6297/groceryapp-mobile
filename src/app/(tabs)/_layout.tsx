@@ -1,4 +1,4 @@
-import { Redirect } from 'expo-router';
+import { Redirect, useIsFocused } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
 
 import { FloatingTabBar } from '@/components/navigation/FloatingTabBar';
@@ -6,11 +6,12 @@ import { useAuthSession } from '@/context/AuthSessionContext';
 import { canUseDevelopmentHome } from '@/services/devOtp';
 
 export default function TabLayout() {
+  const focused = useIsFocused();
   const { hydrated, session, devSession } = useAuthSession();
   if (!hydrated) {
     return null;
   }
-  if (!session && !canUseDevelopmentHome(devSession)) {
+  if (focused && !session && !canUseDevelopmentHome(devSession)) {
     return <Redirect href="/login" />;
   }
 

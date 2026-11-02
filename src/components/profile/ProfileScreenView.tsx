@@ -1,5 +1,5 @@
 import Constants from 'expo-constants';
-import { Redirect, router } from 'expo-router';
+import { Redirect, router, useIsFocused } from 'expo-router';
 import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -49,6 +49,7 @@ function orderSummary(order: CustomerOrder): string {
 }
 
 export function ProfileScreenView() {
+  const focused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { hydrated, session, devSession, clearAuthSession } = useAuthSession();
   const { customer: remembered, clearRememberedCustomer } = useRememberedCustomer();
@@ -66,6 +67,9 @@ export function ProfileScreenView() {
 
   const developmentHome = canUseDevelopmentHome(devSession);
   if (!session && !developmentHome) {
+    if (!focused) {
+      return null;
+    }
     return <Redirect href={profileRoutes.login} />;
   }
 

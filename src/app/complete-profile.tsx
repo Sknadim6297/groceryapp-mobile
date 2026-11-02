@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, useIsFocused } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, type ReactNode } from 'react';
 import {
@@ -43,6 +43,7 @@ export default function CompleteProfileScreen() {
   const { width } = useWindowDimensions();
   const compact = width < 360;
   const { nationalNumber, standing, setStanding, setOtpDispatched } = useAuthFlow();
+  const focused = useIsFocused();
   const { hydrated, session, devSession } = useAuthSession();
   const { account, setAccount } = useCustomerAccount();
   const { confirmed, beginLocationEdit } = useDeliveryLocation();
@@ -66,12 +67,12 @@ export default function CompleteProfileScreen() {
   const profileReady = signedIn || finishingRegistration || (mobileReady && standing !== 'unknown');
 
   useEffect(() => {
-    if (!hydrated || profileReady) {
+    if (!focused || !hydrated || profileReady) {
       return;
     }
 
     router.replace('/login');
-  }, [hydrated, profileReady]);
+  }, [focused, hydrated, profileReady]);
 
   function leaveSignedIn() {
     if (router.canGoBack()) {
