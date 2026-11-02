@@ -10,6 +10,11 @@ export const mockProducts: DemoProduct[] = [
     compareAt: 68,
     discountLabel: '20% OFF',
     image: require('@/assets/images/home/product-bananas.jpg'),
+    images: [
+      require('@/assets/images/home/product-bananas.jpg'),
+      require('@/assets/images/home/fresh-fruits.jpg'),
+      require('@/assets/images/home/produce.jpg'),
+    ],
   },
   {
     id: 'toned-milk',
@@ -19,5 +24,10 @@ export const mockProducts: DemoProduct[] = [
     compareAt: 62,
     discountLabel: '10% OFF',
     image: require('@/assets/images/home/product-milk.jpg'),
+    images: [
+      require('@/assets/images/home/product-milk.jpg'),
+      require('@/assets/images/home/dairy-eggs.jpg'),
+      require('@/assets/images/home/dairy.jpg'),
+    ],
   },
 ];

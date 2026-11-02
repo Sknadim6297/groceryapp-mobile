@@ -97,6 +97,31 @@ export function shopShelfById(id: string | undefined): ShopShelf | undefined {
   return listShopShelves(id).find((shelf) => shelf.id === id);
 }
 
+/** Other items from the same shelf, then the rest of the catalogue. */
+export function relatedCatalogProducts(productId: string, limit = 4): { shelfId: string | null; shelfName: string | null; products: DemoProduct[] } {
+  const shelves = listShopShelves();
+  const shelf = shelves.find((item) => item.products.some((product) => product.id === productId));
+  const picked = (shelf?.products ?? []).filter((product) => product.id !== productId);
+
+  if (picked.length < limit) {
+    for (const product of listCatalogProducts()) {
+      if (product.id === productId || picked.some((item) => item.id === product.id)) {
+        continue;
+      }
+      picked.push(product);
+      if (picked.length >= limit) {
+        break;
+      }
+    }
+  }
+
+  return {
+    shelfId: shelf?.id ?? null,
+    shelfName: shelf?.name ?? null,
+    products: picked.slice(0, limit),
+  };
+}
+
 function rank(id: string): number {
   if (id === 'more') {
     return 1000;

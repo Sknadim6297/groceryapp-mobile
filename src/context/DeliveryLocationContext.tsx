@@ -1,13 +1,14 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
+import type { LocationIntent } from '@/navigation/locationFlow';
 import type { DeliveryLocation } from '@/types/location';
 
 type DeliveryLocationContextValue = {
   selection: DeliveryLocation | null;
   confirmed: DeliveryLocation | null;
-  revisingProfile: boolean;
+  locationIntent: LocationIntent;
   setSelection: (location: DeliveryLocation | null) => void;
-  setRevisingProfile: (value: boolean) => void;
+  beginLocationEdit: (intent: LocationIntent) => void;
   confirmSelection: () => void;
   clearDelivery: () => void;
 };
@@ -17,25 +18,29 @@ const DeliveryLocationContext = createContext<DeliveryLocationContextValue | nul
 export function DeliveryLocationProvider({ children }: { children: ReactNode }) {
   const [selection, setSelection] = useState<DeliveryLocation | null>(null);
   const [confirmed, setConfirmed] = useState<DeliveryLocation | null>(null);
-  const [revisingProfile, setRevisingProfile] = useState(false);
+  const [locationIntent, setLocationIntent] = useState<LocationIntent>('change');
   const clearDelivery = useCallback(() => {
     setSelection(null);
     setConfirmed(null);
-    setRevisingProfile(false);
+    setLocationIntent('change');
   }, []);
+  const beginLocationEdit = useCallback((intent: LocationIntent) => {
+    setLocationIntent(intent);
+  }, []);
+  const confirmSelection = useCallback(() => {
+    setConfirmed(selection);
+  }, [selection]);
   const value = useMemo(
     () => ({
       selection,
       confirmed,
-      revisingProfile,
+      locationIntent,
       setSelection,
-      setRevisingProfile,
-      confirmSelection: () => {
-        setConfirmed(selection);
-      },
+      beginLocationEdit,
+      confirmSelection,
       clearDelivery,
     }),
-    [selection, confirmed, revisingProfile, clearDelivery],
+    [selection, confirmed, locationIntent, beginLocationEdit, confirmSelection, clearDelivery],
   );
 
   return <DeliveryLocationContext.Provider value={value}>{children}</DeliveryLocationContext.Provider>;

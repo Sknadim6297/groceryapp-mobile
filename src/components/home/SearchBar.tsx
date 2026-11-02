@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, TextInput, View } from 'react-native';
 
+import { SearchSuggestions } from '@/components/home/SearchSuggestions';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { colors, fonts } from '@/constants/theme';
 
@@ -9,7 +10,8 @@ export function SearchBar() {
   const [query, setQuery] = useState('');
 
   return (
-    <View style={styles.field}>
+    <View>
+      <View style={styles.field}>
       <AppIcon name="search" color={colors.textSecondary} size={24} />
       <TextInput
         value={query}
@@ -38,6 +40,8 @@ export function SearchBar() {
       <View accessibilityRole="image" accessibilityLabel="Scan icon">
         <AppIcon name="scan" color={colors.text} size={24} />
       </View>
+      </View>
+      <SearchSuggestions query={query} />
     </View>
   );
 }

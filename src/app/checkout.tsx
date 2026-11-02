@@ -15,7 +15,7 @@ import { buildCartBill, formatRupee } from '@/utils/cartBill';
 
 export default function CheckoutScreen() {
   const { quantities } = useMockCart();
-  const { confirmed } = useDeliveryLocation();
+  const { confirmed, beginLocationEdit } = useDeliveryLocation();
   const { couponId } = usePreviewSession();
   const lines = Object.entries(quantities)
     .map(([id, quantity]) => {
@@ -50,7 +50,13 @@ export default function CheckoutScreen() {
       <View style={styles.card}>
         <Text style={styles.heading}>Delivery</Text>
         <Text style={styles.body}>{address}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Change address" onPress={() => router.push('/location')}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Change address"
+          onPress={() => {
+            beginLocationEdit('change');
+            router.push('/location');
+          }}>
           <Text style={styles.link}>Change address</Text>
         </Pressable>
       </View>

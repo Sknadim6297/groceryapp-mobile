@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CatalogImage } from '@/components/home/CatalogImage';
 import { ProductCard } from '@/components/home/ProductCard';
+import { SearchSuggestions } from '@/components/home/SearchSuggestions';
+import type { SearchSuggestion } from '@/data/searchSuggestions';
 import { SideMenu } from '@/components/home/SideMenu';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { colors, fonts, homeLayout } from '@/constants/theme';
@@ -78,11 +80,18 @@ export default function ShopScreen() {
     shelves[0];
   const needle = query.trim().toLowerCase();
   const products = useMemo(() => {
-    if (!active) {
-      return [];
+    if (needle.length === 0) {
+      return active?.products ?? [];
     }
-    return needle.length === 0 ? active.products : active.products.filter((product) => matches(product, needle));
-  }, [active, needle]);
+    const seen = new Set<string>();
+    return shelves.flatMap((shelf) => shelf.products).filter((product) => {
+      if (seen.has(product.id) || !matches(product, needle)) {
+        return false;
+      }
+      seen.add(product.id);
+      return true;
+    });
+  }, [active, needle, shelves]);
 
   useEffect(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
@@ -93,6 +102,19 @@ export default function ShopScreen() {
       searchRef.current?.focus();
     }
   }, [searchOpen]);
+
+  function pickSuggestion(item: SearchSuggestion) {
+    if (item.kind === 'product' && item.productId) {
+      router.push({ pathname: '/product/[id]', params: { id: item.productId } });
+      return;
+    }
+    if (item.kind === 'category' && item.categoryId) {
+      setDraftQuery('');
+      selectShelf(item.categoryId);
+      return;
+    }
+    setDraftQuery(item.title);
+  }
 
   function selectShelf(id: string) {
     setOverrideId(id);
@@ -173,6 +195,9 @@ export default function ShopScreen() {
               </Pressable>
             ) : null}
           </View>
+        ) : null}
+        {searchOpen && needle.length > 0 ? (
+          <SearchSuggestions query={query} onPick={pickSuggestion} style={styles.suggestions} />
         ) : null}
 
         {shelves.length === 0 || !active ? (
@@ -299,6 +324,11 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.72,
+  },
+  suggestions: {
+    marginHorizontal: 12,
+    marginTop: 0,
+    marginBottom: 8,
   },
   searchRow: {
     minHeight: 44,

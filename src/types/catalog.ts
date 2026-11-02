@@ -13,5 +13,8 @@ export type DemoProduct = {
   price: number;
   compareAt?: number;
   discountLabel?: string;
+  /** Card photo. Also the first gallery image. */
   image: ImageSource;
+  /** Two or more photos for the product page. */
+  images: ImageSource[];
 };

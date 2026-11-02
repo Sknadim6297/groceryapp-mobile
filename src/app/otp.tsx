@@ -28,6 +28,7 @@ import { useCustomerAccount } from '@/context/CustomerAccountContext';
 import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
 import { resendCustomerOtp, verifyCustomerOtp } from '@/services/customerAuth';
 import {
+  canUseDevelopmentHome,
   isDevOtpEnabled,
   issueDevTestOtp,
   peekDevTestOtp,
@@ -60,7 +61,7 @@ export default function OtpScreen() {
   const { width } = useWindowDimensions();
   const compact = width < 360;
   const { nationalNumber, setStanding, otpDispatched, setOtpDispatched } = useAuthFlow();
-  const { signIn, keepDevelopmentLogin } = useAuthSession();
+  const { hydrated, session, devSession, signIn, keepDevelopmentLogin } = useAuthSession();
   const { setAccount } = useCustomerAccount();
   const [code, setCode] = useState('');
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
@@ -73,12 +74,19 @@ export default function OtpScreen() {
   const leaving = useRef(false);
 
   useEffect(() => {
-    if (leaving.current || (ready && otpDispatched)) {
+    if (!hydrated || leaving.current) {
+      return;
+    }
+    if (session || canUseDevelopmentHome(devSession)) {
+      router.replace('/home');
+      return;
+    }
+    if (ready && otpDispatched) {
       return;
     }
 
     router.replace('/login');
-  }, [otpDispatched, ready]);
+  }, [devSession, hydrated, otpDispatched, ready, session]);
 
   function goBack() {
     if (router.canGoBack()) {
@@ -218,7 +226,7 @@ export default function OtpScreen() {
     }
   }
 
-  if (!ready || !otpDispatched) {
+  if (!hydrated || !ready || !otpDispatched) {
     return null;
   }
 

@@ -3,6 +3,7 @@ import { Keyboard, Platform, Pressable, StyleSheet, Text, View } from 'react-nat
 
 import { AppIcon, type AppIconName } from '@/components/ui/AppIcon';
 import { colors, fonts } from '@/constants/theme';
+import { useMockCart } from '@/context/MockCartContext';
 import { profileRoutes } from '@/navigation/profileRoutes';
 
 const tabs = [
@@ -24,6 +25,7 @@ type FloatingTabBarProps = {
 };
 
 export function FloatingTabBar({ state, descriptors, navigateToTab, insets }: FloatingTabBarProps) {
+  const { totalCount } = useMockCart();
   const focusedName = state.routes[state.index]?.name;
   const [keyboardOpen, setKeyboardOpen] = useState(false);
 
@@ -60,20 +62,28 @@ export function FloatingTabBar({ state, descriptors, navigateToTab, insets }: Fl
           }
           const focused = focusedName === tab.name;
           const label = descriptors[route.key]?.options.title ?? tab.label;
+          const count = tab.name === 'cart' ? totalCount : 0;
           return (
             <Pressable
               key={tab.name}
               accessibilityRole="tab"
-              accessibilityLabel={label}
+              accessibilityLabel={count > 0 ? `${label}, ${count} items` : label}
               accessibilityState={{ selected: focused }}
               onPress={() => navigateToTab(route.key)}
               style={({ pressed }) => [styles.tab, pressed ? styles.pressed : null]}>
               <View style={[styles.item, focused ? styles.itemActive : null]}>
-                <AppIcon
-                  name={focused ? tab.activeIcon : tab.icon}
-                  color={focused ? colors.primaryInk : colors.text}
-                  size={24}
-                />
+                <View style={styles.iconSlot}>
+                  <AppIcon
+                    name={focused ? tab.activeIcon : tab.icon}
+                    color={focused ? colors.primaryInk : colors.text}
+                    size={24}
+                  />
+                  {count > 0 ? (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{count > 9 ? '9+' : String(count)}</Text>
+                    </View>
+                  ) : null}
+                </View>
                 <Text numberOfLines={1} style={[styles.label, focused ? styles.labelActive : null]}>
                   {label}
                 </Text>
@@ -126,6 +136,33 @@ const styles = StyleSheet.create({
   },
   itemActive: {
     backgroundColor: colors.softYellow,
+  },
+  iconSlot: {
+    width: 28,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badge: {
+    position: 'absolute',
+    top: -6,
+    right: -8,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 3,
+    backgroundColor: colors.danger,
+    borderWidth: 1,
+    borderColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    fontFamily: fonts.bold,
+    fontSize: 9,
+    lineHeight: 11,
+    color: colors.white,
+    includeFontPadding: false,
   },
   label: {
     fontFamily: fonts.medium,

@@ -9,6 +9,8 @@ type AuthFlowContextValue = {
   setStanding: (value: CustomerStanding) => void;
   otpDispatched: boolean;
   setOtpDispatched: (value: boolean) => void;
+  /** Sets the number and onboarding step together. Does not clear a step that was just restored. */
+  commitAuthFlow: (next: { nationalNumber: string; standing: CustomerStanding; otpDispatched: boolean }) => void;
 };
 
 const AuthFlowContext = createContext<AuthFlowContextValue | null>(null);
@@ -28,9 +30,16 @@ export function AuthFlowProvider({ children }: { children: ReactNode }) {
     setNationalNumberState(value);
   }, []);
 
+  const commitAuthFlow = useCallback((next: { nationalNumber: string; standing: CustomerStanding; otpDispatched: boolean }) => {
+    numberRef.current = next.nationalNumber;
+    setNationalNumberState(next.nationalNumber);
+    setStanding(next.standing);
+    setOtpDispatched(next.otpDispatched);
+  }, []);
+
   const value = useMemo(
-    () => ({ nationalNumber, setNationalNumber, standing, setStanding, otpDispatched, setOtpDispatched }),
-    [nationalNumber, otpDispatched, setNationalNumber, standing],
+    () => ({ nationalNumber, setNationalNumber, standing, setStanding, otpDispatched, setOtpDispatched, commitAuthFlow }),
+    [commitAuthFlow, nationalNumber, otpDispatched, setNationalNumber, standing],
   );
 
   return <AuthFlowContext.Provider value={value}>{children}</AuthFlowContext.Provider>;

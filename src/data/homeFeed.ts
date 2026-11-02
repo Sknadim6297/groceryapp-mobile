@@ -21,6 +21,12 @@ const peppers = require('@/assets/images/home/cutouts/peppers.png') as ImageSour
 const coriander = require('@/assets/images/home/coriander.jpg') as ImageSource;
 const curd = require('@/assets/images/home/curd.jpg') as ImageSource;
 const personal = require('@/assets/images/home/personal.jpg') as ImageSource;
+const bottles = require('@/assets/images/home/household.jpg') as ImageSource;
+const freshFruits = require('@/assets/images/home/fresh-fruits.jpg') as ImageSource;
+const market = require('@/assets/images/home/produce.jpg') as ImageSource;
+const dairy = require('@/assets/images/home/dairy.jpg') as ImageSource;
+const spices = require('@/assets/images/home/masala.jpg') as ImageSource;
+const cerealBowl = require('@/assets/images/home/cereal.jpg') as ImageSource;
 
 /** Display catalogue only. Prices are not live offers. */
 export const dailyEssentials: { id: string; name: string; image: ImageSource }[] = [
@@ -33,33 +39,33 @@ export const dailyEssentials: { id: string; name: string; image: ImageSource }[]
 ];
 
 export const recommendedProducts: DemoProduct[] = [
-  { id: 'eggs', name: 'FarmFresh Eggs', unit: '12 pcs', price: 72, compareAt: 90, discountLabel: '20% OFF', image: eggs },
-  { id: 'tomatoes', name: 'Organic Tomatoes', unit: '500 g', price: 28, compareAt: 40, discountLabel: '30% OFF', image: tomatoes },
-  { id: 'potatoes', name: 'Premium Potatoes', unit: '1 kg', price: 32, compareAt: 40, discountLabel: '20% OFF', image: potatoes },
-  { id: 'cooking-oil', name: 'SunPure Cooking Oil', unit: '1 L', price: 110, compareAt: 135, discountLabel: '18% OFF', image: oil },
+  { id: 'eggs', name: 'FarmFresh Eggs', unit: '12 pcs', price: 72, compareAt: 90, discountLabel: '20% OFF', image: eggs, images: [eggs, dairy] },
+  { id: 'tomatoes', name: 'Organic Tomatoes', unit: '500 g', price: 28, compareAt: 40, discountLabel: '30% OFF', image: tomatoes, images: [tomatoes, freshFruits, market] },
+  { id: 'potatoes', name: 'Premium Potatoes', unit: '1 kg', price: 32, compareAt: 40, discountLabel: '20% OFF', image: potatoes, images: [potatoes, market] },
+  { id: 'cooking-oil', name: 'SunPure Cooking Oil', unit: '1 L', price: 110, compareAt: 135, discountLabel: '18% OFF', image: oil, images: [oil, spices] },
 ];
 
 export const spotlightProducts: DemoProduct[] = [
-  { id: 'sunflower-oil', name: 'GoldPress Sunflower Oil', unit: '1 L', price: 135, compareAt: 165, discountLabel: '18% OFF', image: oil },
-  { id: 'basmati', name: 'Harvest Basmati Rice', unit: '5 kg', price: 549, compareAt: 649, discountLabel: '15% OFF', image: grains },
-  { id: 'toothpaste', name: 'MintFresh Toothpaste', unit: '150 g', price: 99, compareAt: 120, discountLabel: '17% OFF', image: personal },
+  { id: 'sunflower-oil', name: 'GoldPress Sunflower Oil', unit: '1 L', price: 135, compareAt: 165, discountLabel: '18% OFF', image: oil, images: [oil, spices] },
+  { id: 'basmati', name: 'Harvest Basmati Rice', unit: '5 kg', price: 549, compareAt: 649, discountLabel: '15% OFF', image: grains, images: [grains, cerealBowl] },
+  { id: 'toothpaste', name: 'MintFresh Toothpaste', unit: '150 g', price: 99, compareAt: 120, discountLabel: '17% OFF', image: personal, images: [personal, bottles] },
 ];
 
 export const recentProducts: DemoProduct[] = [
-  { id: 'apples', name: 'Fresh Apples', unit: '1 kg', price: 124, compareAt: 149, discountLabel: '17% OFF', image: apples },
-  { id: 'recent-tomatoes', name: 'Tomatoes', unit: '1 kg', price: 32, compareAt: 40, discountLabel: '20% OFF', image: tomatoes },
-  { id: 'recent-potatoes', name: 'Potatoes', unit: '1 kg', price: 28, compareAt: 36, discountLabel: '22% OFF', image: potatoes },
+  { id: 'apples', name: 'Fresh Apples', unit: '1 kg', price: 124, compareAt: 149, discountLabel: '17% OFF', image: apples, images: [apples, freshFruits, market] },
+  { id: 'recent-tomatoes', name: 'Tomatoes', unit: '1 kg', price: 32, compareAt: 40, discountLabel: '20% OFF', image: tomatoes, images: [tomatoes, freshFruits, market] },
+  { id: 'recent-potatoes', name: 'Potatoes', unit: '1 kg', price: 28, compareAt: 36, discountLabel: '22% OFF', image: potatoes, images: [potatoes, market] },
 ];
 
 export const boughtAgain: DemoProduct[] = [
-  { id: 'coriander', name: 'Fresh Coriander', unit: '100 g', price: 12, image: coriander },
-  { id: 'curd', name: 'Natural Curd', unit: '400 g', price: 38, image: curd },
-  { id: 'bought-onions', name: 'Onions', unit: '1 kg', price: 24, image: onions },
+  { id: 'coriander', name: 'Fresh Coriander', unit: '100 g', price: 12, image: coriander, images: [coriander, market] },
+  { id: 'curd', name: 'Natural Curd', unit: '400 g', price: 38, image: curd, images: [curd, dairy] },
+  { id: 'bought-onions', name: 'Onions', unit: '1 kg', price: 24, image: onions, images: [onions, market] },
 ];
 
 export const topSelling: DemoProduct[] = [
-  { id: 'top-onions', name: 'Onions', unit: '1 kg', price: 29, compareAt: 36, discountLabel: '19% OFF', image: onions },
-  { id: 'carrots', name: 'Carrots', unit: '500 g', price: 24, compareAt: 30, discountLabel: '20% OFF', image: carrots },
-  { id: 'cauliflower', name: 'Cauliflower', unit: '1 pc', price: 42, compareAt: 50, discountLabel: '16% OFF', image: cauliflower },
-  { id: 'capsicum', name: 'Capsicum Mix', unit: '500 g', price: 59, compareAt: 78, discountLabel: '24% OFF', image: peppers },
+  { id: 'top-onions', name: 'Onions', unit: '1 kg', price: 29, compareAt: 36, discountLabel: '19% OFF', image: onions, images: [onions, market] },
+  { id: 'carrots', name: 'Carrots', unit: '500 g', price: 24, compareAt: 30, discountLabel: '20% OFF', image: carrots, images: [carrots, freshFruits] },
+  { id: 'cauliflower', name: 'Cauliflower', unit: '1 pc', price: 42, compareAt: 50, discountLabel: '16% OFF', image: cauliflower, images: [cauliflower, market] },
+  { id: 'capsicum', name: 'Capsicum Mix', unit: '500 g', price: 59, compareAt: 78, discountLabel: '24% OFF', image: peppers, images: [peppers, freshFruits] },
 ];

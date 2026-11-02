@@ -55,7 +55,7 @@ export function ProfileScreenView() {
   const { account, clearAccount } = useCustomerAccount();
   const { setNationalNumber } = useAuthFlow();
   const { clearDraft } = useProfileDraft();
-  const { clearDelivery } = useDeliveryLocation();
+  const { clearDelivery, beginLocationEdit } = useDeliveryLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const orders = readPastOrders();
@@ -148,7 +148,10 @@ export function ProfileScreenView() {
             icon="stores"
             title="Addresses"
             subtitle="View, add and edit delivery addresses"
-            onPress={() => router.push(profileRoutes.addresses)}
+            onPress={() => {
+              beginLocationEdit('change');
+              router.push(profileRoutes.addresses);
+            }}
           />
           <OptionRow
             icon="headset"

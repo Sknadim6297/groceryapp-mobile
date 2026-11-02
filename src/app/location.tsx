@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -16,9 +16,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { colors, fonts } from '@/constants/theme';
+import { useAuthSession } from '@/context/AuthSessionContext';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
 import { formatDeliveryAddress, referenceLocations } from '@/data/referenceLocations';
+import { locationContinueTarget } from '@/navigation/locationFlow';
+import { canUseDevelopmentHome } from '@/services/devOtp';
 import { readCurrentLocation } from '@/services/location/locationService';
 
 const statusCopy: Record<string, string> = {
@@ -32,7 +35,9 @@ export default function LocationScreen() {
   const insets = useSafeAreaInsets();
   const keyboardCover = useKeyboardOverlap();
   const keyboardOverlap = Platform.OS === 'android' ? keyboardCover : 0;
-  const { selection, setSelection, confirmSelection, revisingProfile, setRevisingProfile } = useDeliveryLocation();
+  const { selection, setSelection, confirmSelection, locationIntent } = useDeliveryLocation();
+  const { session, devSession } = useAuthSession();
+  const leaving = useRef(false);
   const [detecting, setDetecting] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -43,12 +48,6 @@ export default function LocationScreen() {
       : referenceLocations.filter((place) =>
           `${place.label} ${formatDeliveryAddress(place)}`.toLowerCase().includes(trimmed),
         );
-
-  useEffect(() => {
-    return () => {
-      setRevisingProfile(false);
-    };
-  }, [setRevisingProfile]);
 
   async function detectCurrentLocation() {
     if (detecting) {
@@ -72,26 +71,22 @@ export default function LocationScreen() {
   }
 
   function continueNext() {
-    const returnToProfile = () => {
-      if (!revisingProfile || !router.canGoBack()) {
-        return false;
-      }
-
-      setRevisingProfile(false);
-      router.back();
-      return true;
-    };
-
-    if (!selection) {
+    if (!selection || leaving.current) {
       return;
     }
 
+    leaving.current = true;
     confirmSelection();
-    if (returnToProfile()) {
+    const target = locationContinueTarget({
+      intent: locationIntent,
+      canGoBack: router.canGoBack(),
+      signedIn: Boolean(session) || canUseDevelopmentHome(devSession),
+    });
+    if (target === 'back') {
+      router.back();
       return;
     }
-
-    router.push('/complete-profile');
+    router.replace(target);
   }
 
   return (

@@ -20,7 +20,7 @@ const SELECT_LOCATION = 'Select delivery location';
 export function DeliveryHeader() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { confirmed } = useDeliveryLocation();
+  const { confirmed, beginLocationEdit } = useDeliveryLocation();
   const compact = width < 360;
   const [menuOpen, setMenuOpen] = useState(false);
   const title = UI_PREVIEW_MODE ? 'Deliver in 10 mins' : 'Deliver to';
@@ -37,7 +37,10 @@ export function DeliveryHeader() {
               ? `Demo estimate. Ten minutes is not a confirmed delivery time. ${address}`
               : `Delivery location. ${address}`
           }
-          onPress={() => router.push('/location')}
+          onPress={() => {
+            beginLocationEdit('change');
+            router.push('/location');
+          }}
           style={({ pressed }) => [styles.location, pressed ? styles.pressed : null]}>
           <View style={styles.copy}>
             <View style={styles.titleRow}>

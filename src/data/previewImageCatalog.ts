@@ -1,3 +1,5 @@
+import type { ImageSource } from 'expo-image';
+
 import type { Category } from '@/types/category';
 import type { DemoProduct } from '@/types/catalog';
 
@@ -207,6 +209,8 @@ export function previewStoreCards(): PreviewStoreImage[] {
   return stores;
 }
 
+const dryFruitShelf = require('@/assets/images/home/grains.jpg') as ImageSource;
+
 export function previewDryFruitProducts(): DemoProduct[] {
   return products.map((entry) => ({
     id: entry.id,
@@ -216,6 +220,7 @@ export function previewDryFruitProducts(): DemoProduct[] {
     compareAt: entry.compareAt,
     discountLabel: entry.discountLabel,
     image: { uri: entry.url },
+    images: [{ uri: entry.url }, dryFruitShelf],
   }));
 }
 

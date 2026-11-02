@@ -30,7 +30,7 @@ export function ReviewCartScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { quantities, leaveAtDoor, setQuantity, setLeaveAtDoor } = useMockCart();
   const { couponId } = usePreviewSession();
-  const { confirmed } = useDeliveryLocation();
+  const { confirmed, beginLocationEdit } = useDeliveryLocation();
 
   const lines = Object.entries(quantities).map(([id, quantity]): ReviewLine => {
     const product = findDemoProduct(id);
@@ -46,6 +46,7 @@ export function ReviewCartScreen() {
   const addressLabel = confirmed?.label ? `Delivery to ${confirmed.label.toUpperCase()}` : 'Delivery address';
 
   function openLocation() {
+    beginLocationEdit('change');
     router.push('/location');
   }
 

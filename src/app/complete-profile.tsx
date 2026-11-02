@@ -23,13 +23,14 @@ import { useToast } from '@/components/ui/AppToast';
 import { colors, fonts } from '@/constants/theme';
 import { formatDeliveryAddress } from '@/data/referenceLocations';
 import { useAuthFlow } from '@/context/AuthFlowContext';
+import { useAuthSession } from '@/context/AuthSessionContext';
 import { useCustomerAccount } from '@/context/CustomerAccountContext';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useProfileDraft } from '@/context/ProfileDraftContext';
 import { useRememberedCustomer } from '@/context/RememberedCustomerContext';
 import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
 import { buildCustomerRegistration, registerCustomer, sendCustomerOtp } from '@/services/customerAuth';
-import { isDevOtpEnabled } from '@/services/devOtp';
+import { canUseDevelopmentHome, isDevOtpEnabled } from '@/services/devOtp';
 import { registrationFollowUp, screenAfterCustomerCall } from '@/types/customerApi';
 import { isValidEmail } from '@/utils/profileValidation';
 import { formatIndiaMobileDisplay, isValidIndiaMobile } from '@/utils/phoneValidation';
@@ -42,8 +43,9 @@ export default function CompleteProfileScreen() {
   const { width } = useWindowDimensions();
   const compact = width < 360;
   const { nationalNumber, standing, setStanding, setOtpDispatched } = useAuthFlow();
+  const { hydrated, session, devSession } = useAuthSession();
   const { account, setAccount } = useCustomerAccount();
-  const { confirmed, setRevisingProfile } = useDeliveryLocation();
+  const { confirmed, beginLocationEdit } = useDeliveryLocation();
   const draft = useProfileDraft();
   const { customer: remembered } = useRememberedCustomer();
   const [nameCleared, setNameCleared] = useState(false);
@@ -59,14 +61,30 @@ export default function CompleteProfileScreen() {
   const sameAccount = account && account.mobile === nationalNumber ? account : null;
   const alreadyRegistered = standing === 'registered';
   const canSubmit = alreadyRegistered || (nameValue.trim().length > 0 && isValidEmail(draft.email));
+  const signedIn = Boolean(session) || canUseDevelopmentHome(devSession);
+  const finishingRegistration = isDevOtpEnabled() && devSession?.destination === 'complete-profile';
+  const profileReady = signedIn || finishingRegistration || (mobileReady && standing !== 'unknown');
 
   useEffect(() => {
-    if (mobileReady && standing !== 'unknown') {
+    if (!hydrated || profileReady) {
       return;
     }
 
     router.replace('/login');
-  }, [mobileReady, standing]);
+  }, [hydrated, profileReady]);
+
+  function leaveSignedIn() {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    router.replace('/home');
+  }
+
+  function openAddress() {
+    beginLocationEdit(signedIn ? 'change' : 'registration');
+    router.push('/location');
+  }
 
   function goBack() {
     if (router.canGoBack()) {
@@ -74,6 +92,7 @@ export default function CompleteProfileScreen() {
       return;
     }
 
+    beginLocationEdit('registration');
     router.replace('/location');
   }
 
@@ -99,6 +118,11 @@ export default function CompleteProfileScreen() {
 
   async function completeProfile() {
     if (submitting) {
+      return;
+    }
+
+    if (signedIn) {
+      leaveSignedIn();
       return;
     }
 
@@ -143,8 +167,7 @@ export default function CompleteProfileScreen() {
       showToast('error', registration.message);
       setNotice(registration.message);
       if (registration.message.startsWith('Select a delivery address')) {
-        setRevisingProfile(true);
-        router.push('/location');
+        openAddress();
       }
       return;
     }
@@ -171,7 +194,7 @@ export default function CompleteProfileScreen() {
     }
   }
 
-  if (!mobileReady || standing === 'unknown') {
+  if (!hydrated || !profileReady) {
     return null;
   }
 
@@ -305,10 +328,7 @@ export default function CompleteProfileScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={address.length > 0 ? `Delivery address ${address}` : 'Add a delivery address'}
-                    onPress={() => {
-                      setRevisingProfile(true);
-                      router.push('/location');
-                    }}
+                    onPress={openAddress}
                     style={({ pressed }) => [styles.inputRow, pressed && styles.pressed]}>
                     <Text numberOfLines={2} style={[styles.address, address.length === 0 && styles.addressEmpty]}>
                       {address.length > 0 ? address : 'Add a delivery address'}

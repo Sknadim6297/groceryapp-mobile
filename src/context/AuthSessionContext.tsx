@@ -37,7 +37,7 @@ type AuthSessionContextValue = {
 const AuthSessionContext = createContext<AuthSessionContextValue | null>(null);
 
 export function AuthSessionProvider({ children }: { children: ReactNode }) {
-  const { setNationalNumber, setStanding } = useAuthFlow();
+  const { commitAuthFlow } = useAuthFlow();
   const [hydrated, setHydrated] = useState(false);
   const [session, setSession] = useState<TemporaryUiLogin | null>(null);
   const [devSession, setDevSession] = useState<DevTestSession | null>(null);
@@ -52,11 +52,21 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
       const restored = await loadTemporaryUiLogin();
       const development = await loadDevTestSession();
       if (!cancelled) {
-        setSession(canEnterTemporaryUi(restored) ? restored : null);
+        const login = canEnterTemporaryUi(restored) ? restored : null;
+        setSession(login);
         setDevSession(development);
         if (development) {
-          setNationalNumber(development.mobile);
-          setStanding(development.destination === 'home' ? 'registered' : 'unregistered');
+          commitAuthFlow({
+            nationalNumber: development.mobile,
+            standing: development.destination === 'home' ? 'registered' : 'unregistered',
+            otpDispatched: true,
+          });
+        } else if (login) {
+          commitAuthFlow({
+            nationalNumber: login.mobile,
+            standing: 'registered',
+            otpDispatched: true,
+          });
         }
         setHydrated(true);
       }
@@ -65,7 +75,7 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [setNationalNumber, setStanding]);
+  }, [commitAuthFlow]);
 
   const signIn = useCallback(async (next: TemporaryUiLogin) => {
     const saved = await saveTemporaryUiLogin(next);
@@ -93,11 +103,14 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     if (!restored) {
       return false;
     }
-    setNationalNumber(restored.mobile);
-    setStanding(restored.destination === 'home' ? 'registered' : 'unregistered');
+    commitAuthFlow({
+      nationalNumber: restored.mobile,
+      standing: restored.destination === 'home' ? 'registered' : 'unregistered',
+      otpDispatched: true,
+    });
     setDevSession(restored);
     return true;
-  }, [setNationalNumber, setStanding]);
+  }, [commitAuthFlow]);
 
   const clear = useCallback(() => {
     setSession(null);
