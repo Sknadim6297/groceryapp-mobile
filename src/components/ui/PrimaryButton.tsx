@@ -1,7 +1,8 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppIcon } from '@/components/ui/AppIcon';
-import { colors, fonts } from '@/constants/theme';
+import { colors, control, fonts, radii, shadow, space } from '@/constants/theme';
+import { hapticSelection } from '@/utils/haptics';
 
 type PrimaryButtonProps = {
   label: string;
@@ -10,6 +11,7 @@ type PrimaryButtonProps = {
   loading?: boolean;
   accessibilityLabel?: string;
   testID?: string;
+  showArrow?: boolean;
 };
 
 export function PrimaryButton({
@@ -19,6 +21,7 @@ export function PrimaryButton({
   loading = false,
   accessibilityLabel,
   testID,
+  showArrow = true,
 }: PrimaryButtonProps) {
   const inactive = disabled || loading;
 
@@ -28,15 +31,22 @@ export function PrimaryButton({
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: inactive, busy: loading }}
       disabled={inactive}
-      onPress={onPress}
       testID={testID}
-      style={({ pressed }) => [styles.button, inactive && styles.inactive, pressed && !inactive && styles.pressed]}>
+      onPress={() => {
+        void hapticSelection();
+        onPress();
+      }}
+      style={({ pressed }) => [
+        styles.button,
+        inactive && styles.inactive,
+        pressed && !inactive && styles.pressed,
+      ]}>
       {loading ? (
         <ActivityIndicator color={colors.text} />
       ) : (
         <View style={styles.content}>
           <Text style={styles.label}>{label}</Text>
-          <AppIcon name="arrow" color={colors.text} size={18} />
+          {showArrow ? <AppIcon name="arrow" color={colors.text} size={18} /> : null}
         </View>
       )}
     </Pressable>
@@ -45,26 +55,30 @@ export function PrimaryButton({
 
 const styles = StyleSheet.create({
   button: {
-    minHeight: 54,
-    borderRadius: 28,
+    alignSelf: 'stretch',
+    width: '100%',
+    minHeight: control.button,
+    borderRadius: radii.pill,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: space.xl,
+    ...shadow.soft,
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: space.sm,
   },
   label: {
     fontFamily: fonts.bold,
-    fontSize: 17,
+    fontSize: 16,
     lineHeight: 22,
     color: colors.text,
   },
   pressed: {
-    opacity: 0.86,
+    opacity: 0.88,
+    transform: [{ scale: 0.98 }],
   },
   inactive: {
     opacity: 0.55,

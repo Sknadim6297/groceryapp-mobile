@@ -1,9 +1,12 @@
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { CatalogImage } from '@/components/home/CatalogImage';
-import { colors, fonts } from '@/constants/theme';
+import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
+import { colors, fonts, radii, shadow, space } from '@/constants/theme';
+import { resolveParentIdForCategory } from '@/data/subcategoryCatalog';
 import type { Category } from '@/types/category';
+import { hapticSelection } from '@/utils/haptics';
 
 type CategoryCardProps = {
   category: Category;
@@ -13,16 +16,22 @@ type CategoryCardProps = {
 
 export function CategoryCard({ category, compact, largeImage = false }: CategoryCardProps) {
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole="button"
       accessibilityLabel={category.name}
-      onPress={() =>
+      onPress={() => {
+        void hapticSelection();
+        const parentId = resolveParentIdForCategory(category.id);
+        if (parentId) {
+          router.push({ pathname: '/category/[id]', params: { id: parentId } });
+          return;
+        }
         router.push({
           pathname: '/shop',
           params: { category: category.id },
-        })
-      }
-      style={({ pressed }) => [styles.card, compact && styles.cardCompact, pressed && styles.pressed]}
+        });
+      }}
+      style={[styles.card, compact && styles.cardCompact]}
       testID={`category-${category.id}`}>
       <View style={largeImage ? styles.frameLarge : [styles.frame, compact && styles.frameCompact]}>
         <CatalogImage source={category.image} label={category.name} style={styles.imageFill} />
@@ -30,33 +39,24 @@ export function CategoryCard({ category, compact, largeImage = false }: Category
       <Text numberOfLines={2} maxFontSizeMultiplier={1.15} style={[styles.label, compact && styles.labelCompact]}>
         {category.name}
       </Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.white,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: radii.md,
     alignItems: 'stretch',
-    paddingHorizontal: 6,
-    paddingTop: 8,
-    paddingBottom: 8,
-    shadowColor: '#171717',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
+    paddingHorizontal: space.sm,
+    paddingTop: space.sm,
+    paddingBottom: space.sm,
+    ...shadow.soft,
   },
   cardCompact: {
-    borderRadius: 14,
+    borderRadius: radii.sm,
     paddingTop: 6,
     paddingBottom: 6,
-  },
-  pressed: {
-    opacity: 0.82,
   },
   frame: {
     alignSelf: 'center',
@@ -76,16 +76,16 @@ const styles = StyleSheet.create({
   },
   label: {
     width: '100%',
-    marginTop: 6,
-    minHeight: 26,
-    fontFamily: fonts.medium,
-    fontSize: 11,
-    lineHeight: 13,
+    marginTop: space.sm,
+    minHeight: 28,
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    lineHeight: 15,
     color: colors.text,
     textAlign: 'center',
   },
   labelCompact: {
-    fontSize: 10,
-    lineHeight: 12,
+    fontSize: 11,
+    lineHeight: 14,
   },
 });

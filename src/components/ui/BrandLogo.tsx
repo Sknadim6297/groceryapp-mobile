@@ -1,25 +1,23 @@
 import { Image } from 'expo-image';
 import { StyleSheet, View } from 'react-native';
 
-const logo = require('@/assets/images/brand/logo.jpg');
-
-const LOGO_ASPECT = 1448 / 1086;
+import { BRAND_LOGO_ASPECT, BRAND_NAME, brandLogo } from '@/constants/brand';
 
 type BrandLogoProps = {
   height?: number;
   radius?: number;
 };
 
-export function BrandLogo({ height = 56, radius = 0 }: BrandLogoProps) {
-  const width = Math.round(height * LOGO_ASPECT);
+export function BrandLogo({ height = 56, radius = 12 }: BrandLogoProps) {
+  const width = Math.round(height * BRAND_LOGO_ASPECT);
 
   return (
     <View style={[styles.frame, radius > 0 && { borderRadius: radius }]}>
       <Image
-        source={logo}
+        source={brandLogo}
         style={{ height, width, borderRadius: radius }}
         contentFit="contain"
-        accessibilityLabel="PhoneBook ERP"
+        accessibilityLabel={BRAND_NAME}
       />
     </View>
   );
@@ -29,6 +27,6 @@ const styles = StyleSheet.create({
   frame: {
     maxWidth: '100%',
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
   },
 });

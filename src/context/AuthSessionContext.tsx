@@ -12,6 +12,11 @@ import {
   type DevTestSession,
 } from '@/services/devOtp';
 import {
+  activateDeviceMobileVerificationStore,
+  clearMobileOtpVerification,
+  loadMobileOtpVerification,
+} from '@/services/mobileVerificationStore';
+import {
   activateDeviceTemporaryLoginStore,
   canEnterTemporaryUi,
   clearTemporaryUiLogin,
@@ -30,6 +35,8 @@ type AuthSessionContextValue = {
   /** Development-only UI login. Never a real customer session. */
   devSession: DevTestSession | null;
   signIn: (login: TemporaryUiLogin) => Promise<boolean>;
+  /** Updates the temporary UI login display name on this device only. */
+  updateSessionName: (name: string) => Promise<boolean>;
   keepDevelopmentLogin: () => Promise<boolean>;
   clearAuthSession: () => void;
 };
@@ -48,9 +55,11 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
       if (Platform.OS !== 'web') {
         await activateDeviceTemporaryLoginStore();
         await activateDeviceDevSessionStore();
+        await activateDeviceMobileVerificationStore();
       }
       const restored = await loadTemporaryUiLogin();
       const development = await loadDevTestSession();
+      const verification = await loadMobileOtpVerification();
       if (!cancelled) {
         const login = canEnterTemporaryUi(restored) ? restored : null;
         setSession(login);
@@ -60,12 +69,31 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
             nationalNumber: development.mobile,
             standing: development.destination === 'home' ? 'registered' : 'unregistered',
             otpDispatched: true,
+            mobileVerification:
+              verification && verification.mobile === development.mobile
+                ? verification
+                : development.destination === 'complete-profile'
+                  ? {
+                      mobile: development.mobile,
+                      standing: 'unregistered',
+                      source: 'development-test',
+                      credential: null,
+                    }
+                  : null,
           });
         } else if (login) {
           commitAuthFlow({
             nationalNumber: login.mobile,
             standing: 'registered',
             otpDispatched: true,
+            mobileVerification: null,
+          });
+        } else if (verification) {
+          commitAuthFlow({
+            nationalNumber: verification.mobile,
+            standing: verification.standing,
+            otpDispatched: true,
+            mobileVerification: verification,
           });
         }
         setHydrated(true);
@@ -89,6 +117,29 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     setSession(restored);
     return true;
   }, []);
+
+  const updateSessionName = useCallback(async (name: string) => {
+    const current = session;
+    if (!current || !canEnterTemporaryUi(current)) {
+      return false;
+    }
+    const next: TemporaryUiLogin = {
+      basis: 'temporary-ui',
+      mobile: current.mobile,
+      customerId: current.customerId,
+      name: name.trim(),
+    };
+    const saved = await saveTemporaryUiLogin(next);
+    if (!saved) {
+      return false;
+    }
+    const restored = await loadTemporaryUiLogin();
+    if (!canEnterTemporaryUi(restored)) {
+      return false;
+    }
+    setSession(restored);
+    return true;
+  }, [session]);
 
   const keepDevelopmentLogin = useCallback(async () => {
     const current = readDevTestSession();
@@ -118,11 +169,20 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
     void clearTemporaryUiLogin();
     void clearStoredCredential();
     void clearDevTestSession();
+    void clearMobileOtpVerification();
   }, []);
 
   const value = useMemo(
-    () => ({ hydrated, session, devSession, signIn, keepDevelopmentLogin, clearAuthSession: clear }),
-    [clear, devSession, hydrated, keepDevelopmentLogin, session, signIn],
+    () => ({
+      hydrated,
+      session,
+      devSession,
+      signIn,
+      updateSessionName,
+      keepDevelopmentLogin,
+      clearAuthSession: clear,
+    }),
+    [clear, devSession, hydrated, keepDevelopmentLogin, session, signIn, updateSessionName],
   );
 
   return <AuthSessionContext.Provider value={value}>{children}</AuthSessionContext.Provider>;

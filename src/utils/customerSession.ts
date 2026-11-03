@@ -6,6 +6,8 @@ type SignedInSession = {
   clearDraft: () => void;
   clearDelivery: () => void;
   clearDevTestSession: () => void;
+  clearSavedAddresses?: () => void;
+  clearCustomerProfile?: () => void;
 };
 
 /** Drops the server session and the remembered customer. Nothing here writes a token. */
@@ -17,4 +19,6 @@ export function clearSignedInSession(session: SignedInSession): void {
   session.clearDraft();
   session.clearDelivery();
   session.clearDevTestSession();
+  session.clearSavedAddresses?.();
+  session.clearCustomerProfile?.();
 }

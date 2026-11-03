@@ -29,6 +29,7 @@ import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
 import { resendCustomerOtp, verifyCustomerOtp } from '@/services/customerAuth';
 import {
   canUseDevelopmentHome,
+  hasDevOtpRecord,
   isDevOtpEnabled,
   issueDevTestOtp,
   peekDevTestOtp,
@@ -37,6 +38,7 @@ import {
   type DevOtpFailure,
   type DevOtpView,
 } from '@/services/devOtp';
+import { clearMobileOtpVerification, saveMobileOtpVerification } from '@/services/mobileVerificationStore';
 import { screenAfterCustomerCall } from '@/types/customerApi';
 import { INDIA_CALLING_CODE, OTP_LENGTH } from '@/types/auth';
 import { formatIndiaMobileDisplay, isValidIndiaMobile } from '@/utils/phoneValidation';
@@ -47,6 +49,9 @@ function developmentFailure(reason: DevOtpFailure): string {
   }
   if (reason === 'used') {
     return 'That development code was already used. Resend OTP creates a new one.';
+  }
+  if (reason === 'locked') {
+    return 'Too many incorrect attempts. Resend OTP creates a new development code.';
   }
   if (reason === 'disabled') {
     return 'Development OTP is not available in this build.';
@@ -60,7 +65,7 @@ export default function OtpScreen() {
   const keyboardOverlap = Platform.OS === 'android' ? keyboardCover : 0;
   const { width } = useWindowDimensions();
   const compact = width < 360;
-  const { nationalNumber, setStanding, otpDispatched, setOtpDispatched } = useAuthFlow();
+  const { nationalNumber, setStanding, otpDispatched, setOtpDispatched, setMobileVerification } = useAuthFlow();
   const focused = useIsFocused();
   const { hydrated, session, devSession, signIn, keepDevelopmentLogin } = useAuthSession();
   const { setAccount } = useCustomerAccount();
@@ -117,7 +122,12 @@ export default function OtpScreen() {
     setVerifyMessage(null);
     let holdLoading = false;
     try {
+      // Dev OTP mode: never call live verify-otp.
       if (isDevOtpEnabled()) {
+        if (!hasDevOtpRecord(nationalNumber)) {
+          showToast('error', 'No development OTP is active. Go back and request a new one.');
+          return;
+        }
         const outcome = verifyDevTestOtp(nationalNumber, code);
         if (!outcome.ok) {
           const message = developmentFailure(outcome.reason);
@@ -133,6 +143,15 @@ export default function OtpScreen() {
           showToast('warning', 'This development sign-in could not be saved on this device.');
           return;
         }
+        const verification = {
+          mobile: nationalNumber,
+          standing: (outcome.destination === 'home' ? 'registered' : 'unregistered') as 'registered' | 'unregistered',
+          source: 'development-test' as const,
+          credential: null,
+        };
+        setMobileVerification(verification);
+        void saveMobileOtpVerification(verification);
+        setStanding(verification.standing);
         holdLoading = true;
         setTimeout(() => {
           router.replace(outcome.destination === 'home' ? '/home' : '/complete-profile');
@@ -150,6 +169,9 @@ export default function OtpScreen() {
           showToast('warning', 'This sign-in could not be saved on this device.');
           return;
         }
+        setMobileVerification(null);
+        void clearMobileOtpVerification();
+        setStanding('registered');
         if (result.temporaryLogin.customerId && result.temporaryLogin.name) {
           setAccount({
             customerId: result.temporaryLogin.customerId,
@@ -168,7 +190,18 @@ export default function OtpScreen() {
       if (screen === 'complete-profile') {
         leaving.current = true;
         setStanding('unregistered');
-        setOtpDispatched(false);
+        // Keep otpDispatched true so a verified OTP-first identity is not treated as "never sent".
+        setOtpDispatched(true);
+        const verification = {
+          mobile: nationalNumber,
+          standing: 'unregistered' as const,
+          source: 'verify-otp' as const,
+          credential: result.session
+            ? { ...result.session, mobile: nationalNumber }
+            : null,
+        };
+        setMobileVerification(verification);
+        void saveMobileOtpVerification(verification);
         holdLoading = true;
         setTimeout(() => {
           router.replace('/complete-profile');
@@ -194,6 +227,7 @@ export default function OtpScreen() {
 
     setBusy(true);
     try {
+      // Dev OTP mode: never call live resend-otp.
       if (isDevOtpEnabled()) {
         const current = peekDevTestOtp(nationalNumber);
         const next = issueDevTestOtp(nationalNumber, current?.mockStatus ?? 'unregistered');
@@ -203,6 +237,7 @@ export default function OtpScreen() {
         }
         setDevOtp(next);
         setCode('');
+        setVerifyMessage(null);
         setResendMessage('A new development OTP is ready. It was not sent by SMS.');
         showToast('success', 'A new development OTP is ready. It was not sent by SMS.');
         return;
@@ -278,7 +313,7 @@ export default function OtpScreen() {
                 <AppIcon name="pencil" color={colors.primaryInk} size={22} />
               </Pressable>
             </View>
-            {devOtp && isDevOtpEnabled() ? (
+            {devOtp && isDevOtpEnabled() && hasDevOtpRecord(nationalNumber) && !devOtp.used ? (
               <DevOtpPanel
                 otp={devOtp}
                 onStatus={(status) => {

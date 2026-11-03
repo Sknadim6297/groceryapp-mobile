@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-na
 import { AppIcon } from '@/components/ui/AppIcon';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts } from '@/constants/theme';
+import { resolveParentIdForCategory } from '@/data/subcategoryCatalog';
 
 const produceImage = require('@/assets/images/home/banner-produce.jpg');
 
@@ -33,7 +34,10 @@ export function PromotionalBanner() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Shop now"
-          onPress={() => router.push({ pathname: '/shop', params: { category: 'fruits' } })}
+          onPress={() => {
+            const parentId = resolveParentIdForCategory('fruits') ?? 'groceries';
+            router.push({ pathname: '/category/[id]', params: { id: parentId } });
+          }}
           style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
           <Text style={styles.buttonLabel}>Shop Now</Text>
           <AppIcon name="arrow" color={colors.white} size={14} />

@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { SearchSuggestions } from '@/components/home/SearchSuggestions';
 import { AppIcon } from '@/components/ui/AppIcon';
@@ -37,9 +37,15 @@ export function SearchBar() {
         cursorColor={colors.primaryDark}
         selectionColor={colors.primaryDark}
       />
-      <View accessibilityRole="image" accessibilityLabel="Scan icon">
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Scan QR code"
+        hitSlop={8}
+        onPress={() => router.push('/scan-qr')}
+        style={({ pressed }) => [styles.scanBtn, pressed && styles.scanPressed]}
+        testID="home-search-scan-qr">
         <AppIcon name="scan" color={colors.text} size={24} />
-      </View>
+      </Pressable>
       </View>
       <SearchSuggestions query={query} />
     </View>
@@ -64,5 +70,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.text,
     paddingVertical: 8,
+  },
+  scanBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanPressed: {
+    opacity: 0.7,
   },
 });

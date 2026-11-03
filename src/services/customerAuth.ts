@@ -1,6 +1,7 @@
 import { CUSTOMER_API } from '@/constants/api';
 import { postJson } from '@/services/api/http';
 import { interpretCustomerResponse, safeServerMessage, sessionFieldNames } from '@/services/api/interpretCustomerResponse';
+import { isDevOtpEnabled } from '@/services/devOtp';
 import { applyTemporaryUiLogin } from '@/services/temporaryUiLogin';
 import type { CustomerApiResult, CustomerRegistrationRequest } from '@/types/customerApi';
 import type { DeliveryLocation } from '@/types/location';
@@ -12,6 +13,21 @@ import { isValidIndiaMobile } from '@/utils/phoneValidation';
 const INVALID_MOBILE: CustomerApiResult = {
   tone: 'error',
   message: 'Enter a valid 10-digit mobile number.',
+  confirmed: false,
+  next: 'stay',
+};
+
+/** Hard stop: never hit live OTP endpoints while Development OTP mode is on. */
+const DEV_OTP_NETWORK_BLOCKED: CustomerApiResult = {
+  tone: 'error',
+  message: 'Live OTP APIs are blocked while Development OTP mode is on.',
+  confirmed: false,
+  next: 'stay',
+};
+
+const DEV_REGISTER_NETWORK_BLOCKED: CustomerApiResult = {
+  tone: 'error',
+  message: 'Live registration is blocked while Development OTP mode is on. Demo onboarding only.',
   confirmed: false,
   next: 'stay',
 };
@@ -34,6 +50,9 @@ function noteSession(path: string, body: unknown) {
 }
 
 export async function sendCustomerOtp(mobile: string): Promise<CustomerApiResult> {
+  if (isDevOtpEnabled()) {
+    return DEV_OTP_NETWORK_BLOCKED;
+  }
   if (!isValidIndiaMobile(mobile)) {
     return INVALID_MOBILE;
   }
@@ -43,6 +62,9 @@ export async function sendCustomerOtp(mobile: string): Promise<CustomerApiResult
 }
 
 export async function resendCustomerOtp(mobile: string): Promise<CustomerApiResult> {
+  if (isDevOtpEnabled()) {
+    return DEV_OTP_NETWORK_BLOCKED;
+  }
   if (!isValidIndiaMobile(mobile)) {
     return INVALID_MOBILE;
   }
@@ -52,6 +74,9 @@ export async function resendCustomerOtp(mobile: string): Promise<CustomerApiResu
 }
 
 export async function verifyCustomerOtp(mobile: string, otp: string): Promise<CustomerApiResult> {
+  if (isDevOtpEnabled()) {
+    return DEV_OTP_NETWORK_BLOCKED;
+  }
   if (!isValidIndiaMobile(mobile)) {
     return INVALID_MOBILE;
   }
@@ -70,6 +95,8 @@ export function buildCustomerRegistration(input: {
   email: string;
   dateOfBirth: string | null;
   location: DeliveryLocation | null;
+  /** Server verification token from OTP-first verify-otp. Omitted when absent. */
+  mobileVerificationToken?: string;
 }): { ok: true; body: CustomerRegistrationRequest } | { ok: false; message: string } {
   const name = input.name.trim();
   const email = input.email.trim();
@@ -79,7 +106,7 @@ export function buildCustomerRegistration(input: {
   if (name.length === 0) {
     return { ok: false, message: 'Enter your full name.' };
   }
-  if (!isValidEmail(email)) {
+  if (email.length > 0 && !isValidEmail(email)) {
     return { ok: false, message: 'Enter a valid email address.' };
   }
   if (!input.location) {
@@ -113,11 +140,18 @@ export function buildCustomerRegistration(input: {
   if (input.location.postalCode?.trim()) {
     body.Pincode = input.location.postalCode.trim();
   }
+  const token = input.mobileVerificationToken?.trim();
+  if (token) {
+    body.MobileVerificationToken = token;
+  }
 
   return { ok: true, body };
 }
 
 export async function registerCustomer(body: CustomerRegistrationRequest): Promise<CustomerApiResult> {
+  if (isDevOtpEnabled()) {
+    return DEV_REGISTER_NETWORK_BLOCKED;
+  }
   const response = await postJson(CUSTOMER_API.register, body);
   return interpretCustomerResponse(response.status, response.body, 'The server did not confirm registration.');
 }

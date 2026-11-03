@@ -24,7 +24,8 @@ import { useAuthFlow } from '@/context/AuthFlowContext';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useRememberedCustomer } from '@/context/RememberedCustomerContext';
 import { sendCustomerOtp } from '@/services/customerAuth';
-import { canUseDevelopmentHome, isDevOtpEnabled, issueDevTestOtp } from '@/services/devOtp';
+import { canUseDevelopmentHome, clearDevTestOtp, isDevOtpEnabled, issueDevTestOtp } from '@/services/devOtp';
+import { clearMobileOtpVerification } from '@/services/mobileVerificationStore';
 import { screenAfterCustomerCall } from '@/types/customerApi';
 import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
 import { getIndiaMobileError, isValidIndiaMobile } from '@/utils/phoneValidation';
@@ -35,7 +36,7 @@ export default function LoginScreen() {
   const keyboardOverlap = Platform.OS === 'android' ? keyboardCover : 0;
   const { width } = useWindowDimensions();
   const compact = width < 360;
-  const { nationalNumber, setNationalNumber, setStanding, setOtpDispatched } = useAuthFlow();
+  const { nationalNumber, setNationalNumber, setStanding, setOtpDispatched, setMobileVerification } = useAuthFlow();
   const focused = useIsFocused();
   const { hydrated, session, devSession } = useAuthSession();
   const { hydrated: rememberedHydrated, customer: remembered } = useRememberedCustomer();
@@ -79,37 +80,61 @@ export default function LoginScreen() {
     setNotice(null);
     let holdLoading = false;
     try {
+      // Explicit Dev OTP mode: never call live send-otp / never send SMS.
       if (isDevOtpEnabled()) {
         const issued = issueDevTestOtp(mobile, 'unregistered');
         if (!issued) {
           showToast('error', 'Enter a valid 10-digit mobile number.');
           return;
         }
-        showToast('info', 'Development OTP is ready. It was not sent by SMS.');
         holdLoading = true;
         setNationalNumber(mobile);
         setStanding('unregistered');
         setOtpDispatched(true);
+        setMobileVerification(null);
+        void clearMobileOtpVerification();
+        showToast('info', 'Development OTP ready — Demo / Development only. No SMS was sent.');
         setTimeout(() => {
           router.push('/otp');
           setSending(false);
         }, 60);
         return;
       }
+
+      // Production / normal development without Dev OTP flag: live send-otp contract.
+      clearDevTestOtp(mobile);
       const result = await sendCustomerOtp(mobile);
       showToast(result.tone, result.message);
       const screen = screenAfterCustomerCall(result, 'send');
-      if (screen === 'complete-profile' || screen === 'otp') {
+
+      if (screen === 'otp') {
         holdLoading = true;
         setNationalNumber(mobile);
-        setStanding(screen === 'otp' ? 'registered' : 'unregistered');
-        setOtpDispatched(screen === 'otp');
+        setStanding('registered');
+        setOtpDispatched(true);
+        setMobileVerification(null);
+        void clearMobileOtpVerification();
         setTimeout(() => {
-          router.push(screen === 'otp' ? '/otp' : '/complete-profile');
+          router.push('/otp');
           setSending(false);
         }, 60);
         return;
       }
+
+      if (screen === 'complete-profile') {
+        holdLoading = true;
+        setNationalNumber(mobile);
+        setStanding('unregistered');
+        setOtpDispatched(false);
+        setMobileVerification(null);
+        void clearMobileOtpVerification();
+        setTimeout(() => {
+          router.push('/complete-profile');
+          setSending(false);
+        }, 60);
+        return;
+      }
+
       setNotice(result.message);
     } finally {
       if (!holdLoading) {

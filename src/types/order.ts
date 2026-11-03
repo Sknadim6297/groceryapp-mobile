@@ -21,6 +21,8 @@ export type DeliveryPartner = {
   name: string;
   status: string;
   phone?: string;
+  /** Demo-only rating caption, e.g. "4.8 (1,246)". Never a live rating feed. */
+  ratingLabel?: string;
 };
 
 export type OrderOffer = {
@@ -39,6 +41,13 @@ export type CustomerOrder = {
   placedAtLabel: string;
   status: OrderStatus;
   statusDetail?: string;
+  /** Payable total in INR when the order API publishes it. Never invent this client-side. */
+  totalAmount?: number;
+  /**
+   * Human-readable timestamps per status when the order API publishes them.
+   * Missing keys stay blank on the My Orders timeline.
+   */
+  statusAt?: Partial<Record<OrderStatus, string>>;
   eta?: OrderEta;
   addressTitle: string;
   addressLine: string;
@@ -52,3 +61,12 @@ export type ActiveOrderState =
   | { kind: 'empty' }
   | { kind: 'error'; message: string }
   | { kind: 'ready'; order: CustomerOrder };
+
+/**
+ * Frontend demo / preview session order.
+ * `total` and `paymentLabel` are UI-only fields and are never sent to a payment API.
+ */
+export type SimulatedOrder = CustomerOrder & {
+  total: number;
+  paymentLabel: string;
+};

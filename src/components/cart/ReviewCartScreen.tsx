@@ -7,16 +7,20 @@ import { CatalogImage } from '@/components/home/CatalogImage';
 import { SideMenu } from '@/components/home/SideMenu';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { SoftIcon } from '@/components/ui/SoftIcon';
+import { BRAND_NAME } from '@/constants/brand';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts } from '@/constants/theme';
+import { addressesSelectHref, locationRoutes } from '@/navigation/locationRoutes';
 import { profileRoutes } from '@/navigation/profileRoutes';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useMockCart } from '@/context/MockCartContext';
 import { usePreviewSession } from '@/context/PreviewSessionContext';
+import { useSavedAddresses } from '@/context/SavedAddressesContext';
 import { findDemoProduct } from '@/data/findDemoProduct';
-import { previewCouponById } from '@/data/previewCoupons';
+import { computeDemoCouponDiscount, demoCouponById, isCouponExpired } from '@/data/demoCoupons';
 import { formatDeliveryAddress } from '@/data/referenceLocations';
 import type { DemoProduct } from '@/types/catalog';
+import { isCompleteDeliveryLocation } from '@/utils/deliveryAddress';
 import { buildCartBill, formatRupee, type CartLine } from '@/utils/cartBill';
 
 type KnownLine = { id: string; quantity: number; product: DemoProduct };
@@ -31,6 +35,7 @@ export function ReviewCartScreen() {
   const { quantities, leaveAtDoor, setQuantity, setLeaveAtDoor } = useMockCart();
   const { couponId } = usePreviewSession();
   const { confirmed, beginLocationEdit } = useDeliveryLocation();
+  const { addresses, hydrated } = useSavedAddresses();
 
   const lines = Object.entries(quantities).map(([id, quantity]): ReviewLine => {
     const product = findDemoProduct(id);
@@ -39,15 +44,22 @@ export function ReviewCartScreen() {
   const known = lines.filter((line): line is KnownLine => line.product !== null);
   const missing = lines.filter((line): line is MissingLine => line.product === null);
   const bill = buildCartBill(known.map((line) => ({ product: line.product, quantity: line.quantity }) satisfies CartLine));
-  const coupon = UI_PREVIEW_MODE ? previewCouponById(couponId) : undefined;
-  const couponOff = coupon && bill.subtotal >= coupon.minimum ? coupon.amount : 0;
+  const foundCoupon = UI_PREVIEW_MODE ? demoCouponById(couponId) : undefined;
+  const coupon = foundCoupon && !isCouponExpired(foundCoupon) ? foundCoupon : undefined;
+  const couponOff = coupon ? computeDemoCouponDiscount(coupon, bill.itemTotal) : 0;
   const payable = Math.max(0, bill.subtotal - couponOff);
-  const address = confirmed ? formatDeliveryAddress(confirmed) : 'Select delivery location';
-  const addressLabel = confirmed?.label ? `Delivery to ${confirmed.label.toUpperCase()}` : 'Delivery address';
+  const hasComplete = isCompleteDeliveryLocation(confirmed);
+  const address = hasComplete && confirmed ? formatDeliveryAddress(confirmed) : 'Select delivery location';
+  const addressLabel = hasComplete && confirmed?.label ? `Delivery to ${confirmed.label.toUpperCase()}` : 'Delivery address';
 
   function openLocation() {
-    beginLocationEdit('change');
-    router.push('/location');
+    if (hydrated && addresses.length > 0) {
+      router.push(addressesSelectHref());
+      return;
+    }
+    // Change-location only — Set Location must return to Cart, not reopen search.
+    beginLocationEdit('change', { returnTo: '/cart' });
+    router.push(locationRoutes.search);
   }
 
   function showBill() {
@@ -67,7 +79,7 @@ export function ReviewCartScreen() {
         </Pressable>
         <View style={styles.headerCopy}>
           <Text style={styles.headerTitle}>Review Cart</Text>
-          <Text style={styles.headerSubtitle}>GroceryApp</Text>
+          <Text style={styles.headerSubtitle}>{BRAND_NAME}</Text>
         </View>
         <Pressable
           accessibilityRole="button"
@@ -315,7 +327,7 @@ function PolicyCard({ icon, text }: { icon: 'clock' | 'shield'; text: string }) 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.softBackground,
+    backgroundColor: colors.warmBackground,
   },
   header: {
     backgroundColor: colors.brightYellow,

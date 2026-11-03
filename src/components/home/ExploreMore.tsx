@@ -1,15 +1,16 @@
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { SoftIcon, type SoftIconName } from '@/components/ui/SoftIcon';
 import { colors, fonts } from '@/constants/theme';
+import { profileRoutes } from '@/navigation/profileRoutes';
 
-const items: { id: string; label: string; icon: SoftIconName; tint: string }[] = [
-  { id: 'coupons', label: 'Coupons & Offers', icon: 'coupon', tint: '#FEE2E2' },
-  { id: 'membership', label: 'Membership & Savings', icon: 'crown', tint: '#FEF3C7' },
-  { id: 'subscribe', label: 'Subscribe & Save', icon: 'calendar', tint: '#E0F2FE' },
-  { id: 'wishlist', label: 'My Wishlist', icon: 'heart', tint: '#FCE7F3' },
-  { id: 'bulk', label: 'Bulk Order', icon: 'box', tint: '#FFEDD5' },
+const items: { id: string; label: string; icon: SoftIconName; tint: string; href: Href }[] = [
+  { id: 'coupons', label: 'Coupons & Offers', icon: 'coupon', tint: '#FEE2E2', href: '/coupons' },
+  { id: 'membership', label: 'Membership & Savings', icon: 'crown', tint: '#FEF3C7', href: '/shop' },
+  { id: 'subscribe', label: 'Subscribe & Save', icon: 'calendar', tint: '#E0F2FE', href: '/shop' },
+  { id: 'wishlist', label: 'My Wishlist', icon: 'heart', tint: '#FCE7F3', href: profileRoutes.wishlist },
+  { id: 'bulk', label: 'Bulk Order', icon: 'box', tint: '#FFEDD5', href: '/shop' },
 ];
 
 export function ExploreMore() {
@@ -24,7 +25,7 @@ export function ExploreMore() {
             key={item.id}
             accessibilityRole="button"
             accessibilityLabel={item.label}
-            onPress={() => router.push('/shop')}
+            onPress={() => router.push(item.href)}
             style={({ pressed }) => [styles.item, pressed && styles.pressed]}>
             <View style={[styles.icon, { backgroundColor: item.tint }]}>
               <SoftIcon name={item.icon} size={28} />

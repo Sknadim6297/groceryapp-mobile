@@ -225,6 +225,40 @@ if (!body.ok || 'CompanyMobile' in body.body || 'WhatsApp' in body.body || 'GSTI
   throw new Error('registration body invented fields');
 }
 
+const withoutEmail = buildCustomerRegistration({
+  mobile: '6000000000',
+  name: 'Asha',
+  email: '',
+  dateOfBirth: null,
+  location: {
+    id: 'home',
+    label: 'Home',
+    addressLine1: '12 Market Road',
+    city: 'Lucknow',
+    source: 'manual',
+  },
+});
+if (!withoutEmail.ok || withoutEmail.body.Email !== '') {
+  throw new Error('registration must allow an empty optional email');
+}
+
+const badEmail = buildCustomerRegistration({
+  mobile: '6000000000',
+  name: 'Asha',
+  email: 'not-an-email',
+  dateOfBirth: null,
+  location: {
+    id: 'home',
+    label: 'Home',
+    addressLine1: '12 Market Road',
+    city: 'Lucknow',
+    source: 'manual',
+  },
+});
+if (badEmail.ok) {
+  throw new Error('registration must reject an invalid email when one is entered');
+}
+
 const masked = safeServerMessage([{ Message: 'Code 123456 sent' }]);
 if (masked !== 'Code ****** sent') {
   throw new Error('a code inside the server message must be masked');
@@ -270,8 +304,19 @@ const duplicateCustomer = interpretCustomerResponse(
   { Status: 'Failed', Message: 'Mobile number already registered' },
   fallback,
 );
-if (registrationFollowUp(duplicateCustomer) !== 'otp' || screenAfterCustomerCall(duplicateCustomer, 'register') === 'home') {
-  throw new Error('a duplicate customer must request OTP once and must not register again or open Home');
+if (registrationFollowUp(duplicateCustomer) !== 'login' || screenAfterCustomerCall(duplicateCustomer, 'register') === 'home') {
+  throw new Error('a duplicate customer must recover to login and must not open Home or auto-send OTP');
+}
+const explicitAlreadyRegistered = interpretCustomerResponse(
+  200,
+  { Status: 'Failed', Message: 'This customer mobile number is already registered.' },
+  fallback,
+);
+if (
+  !explicitAlreadyRegistered.message.toLowerCase().includes('already registered') ||
+  registrationFollowUp(explicitAlreadyRegistered) !== 'login'
+) {
+  throw new Error('register already-registered wording must recover to login');
 }
 if (registrationFollowUp(created) !== 'otp' || registrationFollowUp(createdWithoutId) !== 'stay') {
   throw new Error('only a confirmed registration should continue to OTP');
@@ -319,6 +364,44 @@ const detailedUnregistered = interpretCustomerResponse(
 );
 if (screenAfterCustomerCall(detailedUnregistered, 'send') !== 'complete-profile' || detailedUnregistered.next === 'stay') {
   throw new Error('an unregistered mobile must not be treated as already registered');
+}
+
+// OTP-first: verify Success for an unregistered mobile opens Personal Information, not Home.
+const otpFirstUnregistered = interpretCustomerResponse(
+  200,
+  {
+    Status: 'Success',
+    Message: 'Mobile verified. Complete registration.',
+    IsRegistered: false,
+    MobileVerificationToken: 'verify-secret',
+  },
+  fallback,
+);
+const otpFirstLogin = applyTemporaryUiLogin(
+  otpFirstUnregistered,
+  {
+    Status: 'Success',
+    Message: 'Mobile verified. Complete registration.',
+    IsRegistered: false,
+    MobileVerificationToken: 'verify-secret',
+  },
+  '9000000001',
+);
+if (
+  screenAfterCustomerCall(otpFirstLogin, 'verify') !== 'complete-profile' ||
+  otpFirstLogin.localLogin ||
+  otpFirstLogin.next !== 'register' ||
+  !otpFirstLogin.confirmed ||
+  otpFirstLogin.session?.field !== 'MobileVerificationToken' ||
+  otpFirstLogin.message.includes('verify-secret')
+) {
+  throw new Error('OTP-first unregistered verify must open Personal Information with a redacted verification credential');
+}
+if (registrationFollowUp(created, { mobileAlreadyVerified: true }) !== 'home') {
+  throw new Error('OTP-first registration after verified mobile must open Home without a second OTP');
+}
+if (registrationFollowUp(created) !== 'otp') {
+  throw new Error('without prior OTP verification, registration must still request OTP');
 }
 
 async function main() {

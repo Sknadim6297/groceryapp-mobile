@@ -21,7 +21,6 @@ import { AppIcon } from '@/components/ui/AppIcon';
 import { BrandLogo } from '@/components/ui/BrandLogo';
 import { useToast } from '@/components/ui/AppToast';
 import { colors, fonts } from '@/constants/theme';
-import { formatDeliveryAddress } from '@/data/referenceLocations';
 import { useAuthFlow } from '@/context/AuthFlowContext';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useCustomerAccount } from '@/context/CustomerAccountContext';
@@ -29,9 +28,12 @@ import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useProfileDraft } from '@/context/ProfileDraftContext';
 import { useRememberedCustomer } from '@/context/RememberedCustomerContext';
 import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
-import { buildCustomerRegistration, registerCustomer, sendCustomerOtp } from '@/services/customerAuth';
-import { canUseDevelopmentHome, isDevOtpEnabled } from '@/services/devOtp';
-import { registrationFollowUp, screenAfterCustomerCall } from '@/types/customerApi';
+import { sendCustomerOtp } from '@/services/customerAuth';
+import { ALREADY_REGISTERED_LOGIN_MESSAGE } from '@/navigation/alreadyRegisteredRecovery';
+import { canUseDevelopmentHome, isDevOtpEnabled, promoteDevTestSessionToHome } from '@/services/devOtp';
+import { clearMobileOtpVerification } from '@/services/mobileVerificationStore';
+import { submitRegistrationThenOtp } from '@/services/registrationSubmission';
+import { screenAfterCustomerCall } from '@/types/customerApi';
 import { isValidEmail } from '@/utils/profileValidation';
 import { formatIndiaMobileDisplay, isValidIndiaMobile } from '@/utils/phoneValidation';
 import { registeredDisplayName, registeredDisplayPhone } from '@/utils/registeredIdentity';
@@ -42,11 +44,12 @@ export default function CompleteProfileScreen() {
   const keyboardOverlap = Platform.OS === 'android' ? keyboardCover : 0;
   const { width } = useWindowDimensions();
   const compact = width < 360;
-  const { nationalNumber, standing, setStanding, setOtpDispatched } = useAuthFlow();
+  const { nationalNumber, standing, setStanding, setOtpDispatched, mobileVerification, setMobileVerification } =
+    useAuthFlow();
   const focused = useIsFocused();
-  const { hydrated, session, devSession } = useAuthSession();
+  const { hydrated, session, devSession, signIn, keepDevelopmentLogin, clearAuthSession } = useAuthSession();
   const { account, setAccount } = useCustomerAccount();
-  const { confirmed, beginLocationEdit } = useDeliveryLocation();
+  const { confirmed, beginLocationEdit, clearDelivery } = useDeliveryLocation();
   const draft = useProfileDraft();
   const { customer: remembered } = useRememberedCustomer();
   const [nameCleared, setNameCleared] = useState(false);
@@ -61,7 +64,9 @@ export default function CompleteProfileScreen() {
   const mobileReady = isValidIndiaMobile(nationalNumber);
   const sameAccount = account && account.mobile === nationalNumber ? account : null;
   const alreadyRegistered = standing === 'registered';
-  const canSubmit = alreadyRegistered || (nameValue.trim().length > 0 && isValidEmail(draft.email));
+  const canSubmit =
+    alreadyRegistered ||
+    (nameValue.trim().length > 0 && (draft.email.trim().length === 0 || isValidEmail(draft.email)));
   const signedIn = Boolean(session) || canUseDevelopmentHome(devSession);
   const finishingRegistration = isDevOtpEnabled() && devSession?.destination === 'complete-profile';
   const profileReady = signedIn || finishingRegistration || (mobileReady && standing !== 'unknown');
@@ -82,8 +87,10 @@ export default function CompleteProfileScreen() {
     router.replace('/home');
   }
 
-  function openAddress() {
-    beginLocationEdit(signedIn ? 'change' : 'registration');
+  function openLocationForDelivery() {
+    beginLocationEdit(signedIn ? 'change' : 'registration', {
+      returnTo: signedIn ? '/home' : '/complete-profile',
+    });
     router.push('/location');
   }
 
@@ -92,12 +99,16 @@ export default function CompleteProfileScreen() {
       router.back();
       return;
     }
-
-    beginLocationEdit('registration');
-    router.replace('/location');
+    router.replace(alreadyRegistered || registrationSent || mobileVerification ? '/otp' : '/login');
   }
 
   async function openVerification() {
+    // Development OTP mode: never call live send-otp from Personal Information.
+    if (isDevOtpEnabled()) {
+      showToast('error', 'Live OTP is blocked in Development OTP mode. Use Login → Development OTP.');
+      setNotice('Live OTP is blocked in Development OTP mode.');
+      return false;
+    }
     const result = await sendCustomerOtp(nationalNumber);
     showToast(result.tone, result.message);
     setNotice(result.message);
@@ -127,11 +138,6 @@ export default function CompleteProfileScreen() {
       return;
     }
 
-    if (isDevOtpEnabled()) {
-      showToast('info', 'Development mode does not register this number.');
-      return;
-    }
-
     if (alreadyRegistered || registrationSent) {
       setSubmitting(true);
       let holdLoading = false;
@@ -148,7 +154,8 @@ export default function CompleteProfileScreen() {
     const name = nameValue.trim();
     const email = draft.email.trim();
     const nextNameError = name.length === 0 ? 'Enter your full name.' : null;
-    const nextEmailError = isValidEmail(email) ? null : 'Enter a valid email address.';
+    const nextEmailError =
+      email.length > 0 && !isValidEmail(email) ? 'Enter a valid email address.' : null;
     setNameError(nextNameError);
     setEmailError(nextEmailError);
 
@@ -157,49 +164,85 @@ export default function CompleteProfileScreen() {
       return;
     }
 
-    const registration = buildCustomerRegistration({
-      mobile: nationalNumber,
-      name,
-      email,
-      dateOfBirth: draft.dateOfBirth,
-      location: confirmed,
-    });
-    if (!registration.ok) {
-      showToast('error', registration.message);
-      setNotice(registration.message);
-      if (registration.message.startsWith('Select a delivery address')) {
-        openAddress();
-      }
+    // Delivery address is collected only on Location / Choose Place — never on this screen.
+    if (!confirmed) {
+      openLocationForDelivery();
       return;
     }
 
     setSubmitting(true);
     setNotice(null);
-    let holdLoading = false;
     try {
-      const result = await registerCustomer(registration.body);
-      showToast(result.tone, result.message);
-      setNotice(result.message);
+      const result = await submitRegistrationThenOtp({
+        mobile: nationalNumber,
+        name,
+        email,
+        dateOfBirth: draft.dateOfBirth,
+        location: confirmed,
+        mobileVerification,
+      });
+      if (!result.ok) {
+        if (result.reason === 'already-registered') {
+          showToast('info', ALREADY_REGISTERED_LOGIN_MESSAGE);
+          setNotice(ALREADY_REGISTERED_LOGIN_MESSAGE);
+          setStanding('registered');
+          setOtpDispatched(false);
+          setMobileVerification(null);
+          void clearMobileOtpVerification();
+          clearAuthSession();
+          draft.clearDraft();
+          clearDelivery();
+          setRegistrationSent(false);
+          router.replace('/login');
+          return;
+        }
+        showToast('error', result.message);
+        setNotice(result.message);
+        if (result.message.startsWith('Select a delivery address')) {
+          openLocationForDelivery();
+        }
+        return;
+      }
       if (result.customer) {
         setAccount(result.customer);
       }
-      if (registrationFollowUp(result) === 'otp') {
-        setStanding('registered');
-        setRegistrationSent(true);
-        holdLoading = await openVerification();
+      setStanding('registered');
+      setRegistrationSent(true);
+      showToast('success', result.message);
+      // Development OTP demo: Home via development-test session only (no TemporaryUiLogin).
+      if (result.next === 'home' && isDevOtpEnabled()) {
+        promoteDevTestSessionToHome(nationalNumber);
+        const saved = await keepDevelopmentLogin();
+        if (!saved) {
+          showToast('warning', 'This development sign-in could not be saved on this device.');
+          return;
+        }
+        setMobileVerification(null);
+        void clearMobileOtpVerification();
+        router.replace('/home');
+        return;
       }
+      if (result.next === 'home' && result.temporaryLogin) {
+        const saved = await signIn(result.temporaryLogin);
+        if (!saved) {
+          showToast('warning', 'Registration succeeded, but this sign-in could not be saved on this device.');
+          return;
+        }
+        setMobileVerification(null);
+        void clearMobileOtpVerification();
+        router.replace('/home');
+        return;
+      }
+      setOtpDispatched(true);
+      router.replace('/otp');
     } finally {
-      if (!holdLoading) {
-        setSubmitting(false);
-      }
+      setSubmitting(false);
     }
   }
 
   if (!hydrated || !profileReady) {
     return null;
   }
-
-  const address = confirmed ? formatDeliveryAddress(confirmed) : '';
 
   return (
     <View style={styles.screen}>
@@ -241,7 +284,7 @@ export default function CompleteProfileScreen() {
             <Text maxFontSizeMultiplier={1.2} style={styles.subtitle}>
               {alreadyRegistered
                 ? 'This number is already registered. Continue to the verification code.'
-                : 'Add your name, email, and delivery address.'}
+                : 'Add your full name to continue. Email is optional.'}
             </Text>
 
             {alreadyRegistered && sameAccount ? (
@@ -305,7 +348,7 @@ export default function CompleteProfileScreen() {
                   </View>
                 </Field>
 
-                <Field label="Email" error={emailError}>
+                <Field label="Email (optional)" error={emailError}>
                   <View style={[styles.inputRow, emailError ? styles.inputInvalid : null]}>
                     <TextInput
                       value={draft.email}
@@ -314,30 +357,16 @@ export default function CompleteProfileScreen() {
                         setEmailError(null);
                         setNotice(null);
                       }}
-                      placeholder="Enter your email"
+                      placeholder="Optional"
                       placeholderTextColor={colors.textSecondary}
                       keyboardType="email-address"
                       autoCapitalize="none"
                       autoCorrect={false}
-                      accessibilityLabel="Email address"
+                      accessibilityLabel="Email address, optional"
                       style={styles.input}
                     />
                   </View>
                 </Field>
-
-                <Field label="Delivery address" error={null}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={address.length > 0 ? `Delivery address ${address}` : 'Add a delivery address'}
-                    onPress={openAddress}
-                    style={({ pressed }) => [styles.inputRow, pressed && styles.pressed]}>
-                    <Text numberOfLines={2} style={[styles.address, address.length === 0 && styles.addressEmpty]}>
-                      {address.length > 0 ? address : 'Add a delivery address'}
-                    </Text>
-                    <AppIcon name="chevron" color={colors.primaryInk} size={18} />
-                  </Pressable>
-                </Field>
-
               </>
             )}
             {notice ? (
@@ -517,16 +546,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
     paddingVertical: 12,
-  },
-  address: {
-    flex: 1,
-    fontFamily: fonts.medium,
-    fontSize: 15,
-    lineHeight: 20,
-    color: colors.text,
-  },
-  addressEmpty: {
-    color: colors.textSecondary,
   },
   error: {
     fontFamily: fonts.medium,

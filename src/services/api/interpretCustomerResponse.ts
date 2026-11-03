@@ -4,7 +4,14 @@ import type { CustomerApiResult, RegisteredCustomer } from '@/types/customerApi'
 const MESSAGE_KEYS = ['Message', 'message', 'ExceptionMessage', 'error_description', 'title'] as const;
 const FAILURE_STATUS = /^(false|fail|failed|error|invalid|expired|unsuccessful)$/i;
 const NOT_REGISTERED = /customer is not registered/i;
-const ALREADY_REGISTERED = /already registered|duplicate mobile|mobile number already/i;
+/** Documented register / duplicate responses, including "This customer mobile number is already registered." */
+export const ALREADY_REGISTERED =
+  /already registered|duplicate mobile|mobile number already|customer mobile number is already/i;
+
+/** True when the server message says this mobile already has a customer account. */
+export function isAlreadyRegisteredMessage(message: string | null | undefined): boolean {
+  return Boolean(message && ALREADY_REGISTERED.test(message));
+}
 const OTP_PROBLEM = /invalid otp|incorrect otp|otp expired|otp is expired|expired otp|already used/i;
 const OTP_DISPATCHED = /otp (has been |is |was )?sent|verification code (has been |is |was )?sent|code (has been |is |was )?sent/i;
 const OTP_VERIFIED = /otp (has been |is |was )?(verified|matched|validated)|verified successfully|verification successful|login successful/i;
@@ -29,6 +36,47 @@ export function hasSuccessStatus(body: unknown): boolean {
   return false;
 }
 const REGISTERED = /customer registered successfully/i;
+const REGISTRATION_PENDING =
+  /registration (is )?required|complete (your )?registration|pending registration|finish registration|mobile verified/i;
+
+function asBool(value: unknown): boolean | null {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') {
+      return true;
+    }
+    if (normalized === 'false') {
+      return false;
+    }
+  }
+  return null;
+}
+
+/**
+ * True when verify-otp succeeded for a mobile that still needs Personal Information + registration.
+ * Used for OTP-first onboarding once the C# API returns these signals.
+ */
+export function isRegistrationPendingAfterOtp(body: unknown, serverMessage: string | null): boolean {
+  const record = firstRecord(normalizeBody(body));
+  if (!record) {
+    return Boolean(serverMessage && REGISTRATION_PENDING.test(serverMessage));
+  }
+  const registeredFlag = asBool(record.IsRegistered ?? record.isRegistered);
+  if (registeredFlag === false) {
+    return true;
+  }
+  if (record.RegistrationRequired === true || record.registrationRequired === true) {
+    return true;
+  }
+  const standing = textField(record.CustomerStanding ?? record.customerStanding ?? record.Standing ?? record.standing);
+  if (standing && /unregistered|new|pending/i.test(standing)) {
+    return true;
+  }
+  return Boolean(serverMessage && REGISTRATION_PENDING.test(serverMessage));
+}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
@@ -259,6 +307,23 @@ export function interpretCustomerResponse(status: number, body: unknown, fallbac
 
   const dispatched = Boolean(serverMessage && OTP_DISPATCHED.test(serverMessage));
   const verified = Boolean(serverMessage && OTP_VERIFIED.test(serverMessage));
+  const credentialEarly = readSessionCredential(normalized);
+  const customerEarly = readRegisteredCustomer(normalized) ?? undefined;
+
+  // OTP-first: Status Success + registration-pending signals (before Home login).
+  if (hasSuccessStatus(normalized) && isRegistrationPendingAfterOtp(normalized, serverMessage)) {
+    return {
+      tone: 'success',
+      message: serverMessage ?? 'Mobile verified. Complete your registration.',
+      confirmed: true,
+      next: 'register',
+      customer: customerEarly,
+      // Mobile is filled from the requested number in applyTemporaryUiLogin.
+      session: credentialEarly
+        ? { mobile: customerEarly?.mobile ?? '', field: credentialEarly.field, value: credentialEarly.value }
+        : undefined,
+    };
+  }
 
   if (dispatched) {
     return {
@@ -270,8 +335,8 @@ export function interpretCustomerResponse(status: number, body: unknown, fallbac
   }
 
   if (verified) {
-    const credential = readSessionCredential(normalized);
-    const customer = readRegisteredCustomer(normalized) ?? undefined;
+    const credential = credentialEarly;
+    const customer = customerEarly;
     if (hasSuccessStatus(normalized)) {
       return {
         tone: 'success',

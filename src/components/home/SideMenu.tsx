@@ -1,43 +1,33 @@
-import { router, usePathname, type Href } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router, usePathname, type Href } from "expo-router";
+import { useEffect, useState } from "react";
+import {
+    Animated,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    useWindowDimensions,
+    View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { DrawerHeader } from '@/components/navigation/drawer/DrawerHeader';
-import { DrawerItem } from '@/components/navigation/drawer/DrawerItem';
-import { type AppIconName } from '@/components/ui/AppIcon';
-import { colors } from '@/constants/theme';
-import { useAuthSession } from '@/context/AuthSessionContext';
-import { useCustomerAccount } from '@/context/CustomerAccountContext';
-import { useRememberedCustomer } from '@/context/RememberedCustomerContext';
-import { displayCustomer } from '@/services/rememberedCustomer';
-import { profileRoutes } from '@/navigation/profileRoutes';
-import { registeredDisplayName, registeredDisplayPhone } from '@/utils/registeredIdentity';
-
-type MenuItem = {
-  label: string;
-  icon: AppIconName;
-  href?: Href;
-};
-
-const items: MenuItem[] = [
-  { label: 'Homepage', icon: 'home', href: '/home' },
-  { label: 'Listing', icon: 'grid', href: '/shop' },
-  { label: 'Product Detail', icon: 'bag', href: { pathname: '/product/[id]', params: { id: 'eggs' } } },
-  { label: 'Cart', icon: 'cart', href: '/cart' },
-  { label: 'Payment Option', icon: 'card', href: '/payment' },
-  { label: 'Payment Time', icon: 'clock', href: '/payment' },
-  { label: 'Order Received', icon: 'check', href: '/orders' },
-  { label: 'Track Order', icon: 'truck', href: '/track' },
-  { label: 'Track Delivery Boy', icon: 'profile', href: '/track' },
-  { label: 'Profile', icon: 'profile', href: profileRoutes.profile },
-  { label: 'Order Details', icon: 'box', href: '/orders' },
-];
-
-const subItems: MenuItem[] = [
-  { label: 'Sample link', icon: 'link' },
-  { label: 'Another sample', icon: 'link' },
-];
+import { DrawerHeader } from "@/components/navigation/drawer/DrawerHeader";
+import { DrawerItem } from "@/components/navigation/drawer/DrawerItem";
+import { colors } from "@/constants/theme";
+import { useAuthSession } from "@/context/AuthSessionContext";
+import { useCustomerAccount } from "@/context/CustomerAccountContext";
+import { useRememberedCustomer } from "@/context/RememberedCustomerContext";
+import {
+    isSideMenuItemActive,
+    sideMenuItems,
+    type SideMenuItem,
+} from "@/navigation/sideMenuItems";
+import { displayCustomer } from "@/services/rememberedCustomer";
+import {
+    registeredDisplayName,
+    registeredDisplayPhone,
+} from "@/utils/registeredIdentity";
 
 type SideMenuProps = {
   visible: boolean;
@@ -55,8 +45,7 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
   const [translateX] = useState(() => new Animated.Value(-panelWidth));
   const [backdrop] = useState(() => new Animated.Value(0));
   const [mounted, setMounted] = useState(visible);
-  const [linksOpen, setLinksOpen] = useState(false);
-  const nativeDriver = Platform.OS !== 'web';
+  const nativeDriver = Platform.OS !== "web";
   const identity = displayCustomer(session, account, remembered);
   const name = registeredDisplayName(identity);
   const phone = registeredDisplayPhone(identity);
@@ -100,10 +89,10 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
 
   function openPlaceholder(label: string) {
     onClose();
-    router.push({ pathname: '/menu', params: { section: label } });
+    router.push({ pathname: "/menu", params: { section: label } });
   }
 
-  function openItem(item: MenuItem) {
+  function openItem(item: SideMenuItem) {
     if (item.href) {
       openRoute(item.href);
       return;
@@ -112,47 +101,51 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
   }
 
   return (
-    <Modal visible={mounted} transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
+    <Modal
+      visible={mounted}
+      transparent
+      animationType="none"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
       <View style={styles.fill}>
         <Animated.View style={[styles.backdrop, { opacity: backdrop }]}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Close menu" onPress={onClose} style={styles.fill} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close menu"
+            onPress={onClose}
+            style={styles.fill}
+          />
         </Animated.View>
         <Animated.View
           accessibilityRole="menu"
-          style={[styles.panel, { width: panelWidth, transform: [{ translateX }] }]}>
-          <DrawerHeader name={name} phone={phone} paddingTop={Math.max(insets.top, 20)} />
+          style={[
+            styles.panel,
+            { width: panelWidth, transform: [{ translateX }] },
+          ]}
+        >
+          <DrawerHeader
+            name={name}
+            subtitle={phone}
+            paddingTop={Math.max(insets.top, 20)}
+          />
           <ScrollView
             style={styles.list}
-            contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 12) }}
+            contentContainerStyle={{
+              paddingBottom: Math.max(insets.bottom, 12),
+            }}
             showsVerticalScrollIndicator={false}
-            bounces={false}>
-            {items.map((item) => (
+            bounces={false}
+          >
+            {sideMenuItems.map((item) => (
               <DrawerItem
                 key={item.label}
                 label={item.label}
                 icon={item.icon}
-                active={item.href === pathname}
+                active={isSideMenuItemActive(item, pathname)}
                 onPress={() => openItem(item)}
               />
             ))}
-            <DrawerItem
-              label="Example Multi Link"
-              icon="link"
-              showChevron
-              expanded={linksOpen}
-              onPress={() => setLinksOpen((open) => !open)}
-            />
-            {linksOpen
-              ? subItems.map((item) => (
-                  <DrawerItem
-                    key={item.label}
-                    label={item.label}
-                    icon={item.icon}
-                    nested
-                    onPress={() => openPlaceholder(item.label)}
-                  />
-                ))
-              : null}
           </ScrollView>
         </Animated.View>
       </View>
@@ -165,15 +158,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   backdrop: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: 'rgba(23, 23, 23, 0.4)',
+    backgroundColor: "rgba(23, 23, 23, 0.4)",
   },
   panel: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     top: 0,
     bottom: 0,

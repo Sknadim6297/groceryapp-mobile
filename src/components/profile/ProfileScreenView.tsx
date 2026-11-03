@@ -1,62 +1,81 @@
-import Constants from 'expo-constants';
-import { Redirect, router, useIsFocused } from 'expo-router';
-import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Constants from "expo-constants";
+import { Redirect, router, useIsFocused } from "expo-router";
+import { useState } from "react";
+import {
+    Modal,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { SideMenu } from '@/components/home/SideMenu';
-import { AppIcon, type AppIconName } from '@/components/ui/AppIcon';
-import { colors, fonts, homeLayout } from '@/constants/theme';
-import { useAuthFlow } from '@/context/AuthFlowContext';
-import { useAuthSession } from '@/context/AuthSessionContext';
-import { useCustomerAccount } from '@/context/CustomerAccountContext';
-import { useRememberedCustomer } from '@/context/RememberedCustomerContext';
-import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
-import { useProfileDraft } from '@/context/ProfileDraftContext';
-import { readPastOrders } from '@/data/pastOrders';
-import { profileRoutes } from '@/navigation/profileRoutes';
-import { canUseDevelopmentHome, clearDevTestSession } from '@/services/devOtp';
-import { displayCustomer } from '@/services/rememberedCustomer';
-import { clearSignedInSession } from '@/utils/customerSession';
-import type { CustomerOrder, OrderStatus } from '@/types/order';
-import { registeredDisplayName, registeredDisplayPhone } from '@/utils/registeredIdentity';
+import { SideMenu } from "@/components/home/SideMenu";
+import { AppIcon, type AppIconName } from "@/components/ui/AppIcon";
+import { colors, fonts, homeLayout } from "@/constants/theme";
+import { useAuthFlow } from "@/context/AuthFlowContext";
+import { useAuthSession } from "@/context/AuthSessionContext";
+import { useCustomerAccount } from "@/context/CustomerAccountContext";
+import { useCustomerProfile } from "@/context/CustomerProfileContext";
+import { useDeliveryLocation } from "@/context/DeliveryLocationContext";
+import { useProfileDraft } from "@/context/ProfileDraftContext";
+import { useRememberedCustomer } from "@/context/RememberedCustomerContext";
+import { useSavedAddresses } from "@/context/SavedAddressesContext";
+import { readPastOrders } from "@/data/pastOrders";
+import { profileRoutes } from "@/navigation/profileRoutes";
+import { canUseDevelopmentHome, clearDevTestSession } from "@/services/devOtp";
+import { displayCustomer } from "@/services/rememberedCustomer";
+import type { CustomerOrder, OrderStatus } from "@/types/order";
+import { clearSignedInSession } from "@/utils/customerSession";
+import {
+    registeredDisplayName,
+    registeredDisplayPhone,
+} from "@/utils/registeredIdentity";
 
 const statusLabel: Record<OrderStatus, string> = {
-  placed: 'Placed',
-  confirmed: 'Confirmed',
-  packing: 'Packing',
-  picked_up: 'Picked up',
-  out_for_delivery: 'On the way',
-  delivered: 'Delivered',
-  cancelled: 'Cancelled',
+  placed: "Placed",
+  confirmed: "Confirmed",
+  packing: "Packing",
+  picked_up: "Picked up",
+  out_for_delivery: "On the way",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
 };
 
 function appVersion(): string {
   const version = Constants.expoConfig?.version;
-  return typeof version === 'string' && version.trim().length > 0 ? version.trim() : '1.0.0';
+  return typeof version === "string" && version.trim().length > 0
+    ? version.trim()
+    : "1.0.0";
 }
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean).slice(0, 2);
-  return parts.map((part) => part.charAt(0).toUpperCase()).join('');
+  return parts.map((part) => part.charAt(0).toUpperCase()).join("");
 }
 
 function orderSummary(order: CustomerOrder): string {
   if (order.items.length === 0) {
-    return 'Items were not included with this order.';
+    return "Items were not included with this order.";
   }
-  return order.items.map((item) => `${item.name} x ${item.quantity}`).join(', ');
+  return order.items
+    .map((item) => `${item.name} x ${item.quantity}`)
+    .join(", ");
 }
 
 export function ProfileScreenView() {
   const focused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { hydrated, session, devSession, clearAuthSession } = useAuthSession();
-  const { customer: remembered, clearRememberedCustomer } = useRememberedCustomer();
+  const { customer: remembered, clearRememberedCustomer } =
+    useRememberedCustomer();
   const { account, clearAccount } = useCustomerAccount();
   const { setNationalNumber } = useAuthFlow();
   const { clearDraft } = useProfileDraft();
-  const { clearDelivery, beginLocationEdit } = useDeliveryLocation();
+  const { clearDelivery } = useDeliveryLocation();
+  const { clearActiveBook } = useSavedAddresses();
+  const { clearActiveProfile } = useCustomerProfile();
   const [menuOpen, setMenuOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const orders = readPastOrders();
@@ -77,19 +96,21 @@ export function ProfileScreenView() {
   const mobile = identity
     ? registeredDisplayPhone(identity)
     : registeredDisplayPhone({
-        customerId: 'session',
-        name: '',
-        mobile: session?.mobile ?? devSession?.mobile ?? '',
+        customerId: "session",
+        name: "",
+        mobile: session?.mobile ?? devSession?.mobile ?? "",
         companyMobile: null,
       });
-  const mark = initials(identity ? registeredDisplayName(identity) : 'Your account');
+  const mark = initials(
+    identity ? registeredDisplayName(identity) : "Your account",
+  );
 
   function goBack() {
     if (router.canGoBack()) {
       router.back();
       return;
     }
-    router.navigate('/home');
+    router.navigate("/home");
   }
 
   function confirmLogout() {
@@ -101,6 +122,8 @@ export function ProfileScreenView() {
       clearDraft,
       clearDelivery,
       clearDevTestSession,
+      clearSavedAddresses: clearActiveBook,
+      clearCustomerProfile: clearActiveProfile,
     });
     setLogoutOpen(false);
     router.replace(profileRoutes.login);
@@ -113,15 +136,23 @@ export function ProfileScreenView() {
           accessibilityRole="button"
           accessibilityLabel="Go back"
           onPress={goBack}
-          style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.iconButton,
+            pressed && styles.pressed,
+          ]}
+        >
           <AppIcon name="back" color={colors.text} size={24} />
         </Pressable>
         <View style={styles.avatar}>
-          {mark ? <Text style={styles.avatarText}>{mark}</Text> : <AppIcon name="profile" color={colors.primaryInk} size={22} />}
+          {mark ? (
+            <Text style={styles.avatarText}>{mark}</Text>
+          ) : (
+            <AppIcon name="profile" color={colors.primaryInk} size={22} />
+          )}
         </View>
         <View style={styles.identity}>
           <Text numberOfLines={1} style={styles.name}>
-            {identity ? registeredDisplayName(identity) : 'Your account'}
+            {identity ? registeredDisplayName(identity) : "Your account"}
           </Text>
           <Text numberOfLines={1} style={styles.phone}>
             {mobile}
@@ -132,7 +163,11 @@ export function ProfileScreenView() {
           accessibilityLabel="Menu"
           accessibilityState={{ expanded: menuOpen }}
           onPress={() => setMenuOpen(true)}
-          style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}>
+          style={({ pressed }) => [
+            styles.iconButton,
+            pressed && styles.pressed,
+          ]}
+        >
           <AppIcon name="menu" color={colors.text} size={24} />
         </Pressable>
       </View>
@@ -140,7 +175,8 @@ export function ProfileScreenView() {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+      >
         <View style={[styles.column, { maxWidth: homeLayout.maxWidth }]}>
           <OptionRow
             icon="pencil"
@@ -150,12 +186,15 @@ export function ProfileScreenView() {
           />
           <OptionRow
             icon="stores"
-            title="Addresses"
+            title="My Addresses"
             subtitle="View, add and edit delivery addresses"
-            onPress={() => {
-              beginLocationEdit('change');
-              router.push(profileRoutes.addresses);
-            }}
+            onPress={() => router.push(profileRoutes.addresses)}
+          />
+          <OptionRow
+            icon="heart"
+            title="My Wishlist"
+            subtitle="Your saved favorites"
+            onPress={() => router.push(profileRoutes.wishlist)}
           />
           <OptionRow
             icon="headset"
@@ -168,17 +207,26 @@ export function ProfileScreenView() {
             Past orders
           </Text>
 
-          {orders.kind === 'ready'
+          {orders.kind === "ready"
             ? orders.orders.map((order) => (
                 <OrderCard
                   key={order.id}
                   order={order}
-                  onPress={() => router.push({ pathname: '/order/[id]', params: { id: order.id } })}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/order/[id]",
+                      params: { id: order.id },
+                    })
+                  }
                 />
               ))
             : null}
-          {orders.kind === 'empty' ? <Notice title="No past orders" message={orders.message} /> : null}
-          {orders.kind === 'error' ? <Notice title="Orders are unavailable" message={orders.message} /> : null}
+          {orders.kind === "empty" ? (
+            <Notice title="No past orders" message={orders.message} />
+          ) : null}
+          {orders.kind === "error" ? (
+            <Notice title="Orders are unavailable" message={orders.message} />
+          ) : null}
         </View>
       </ScrollView>
 
@@ -190,20 +238,26 @@ export function ProfileScreenView() {
             paddingLeft: 16 + insets.left,
             paddingRight: 16 + insets.right,
           },
-        ]}>
+        ]}
+      >
         <Text style={styles.version}>App version {appVersion()}</Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Logout"
           onPress={() => setLogoutOpen(true)}
-          style={({ pressed }) => [styles.logout, pressed && styles.pressed]}>
+          style={({ pressed }) => [styles.logout, pressed && styles.pressed]}
+        >
           <Text style={styles.logoutLabel}>Logout</Text>
           <AppIcon name="chevron" color={colors.text} size={22} />
         </Pressable>
       </View>
 
       <SideMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
-      <LogoutSheet visible={logoutOpen} onClose={() => setLogoutOpen(false)} onConfirm={confirmLogout} />
+      <LogoutSheet
+        visible={logoutOpen}
+        onClose={() => setLogoutOpen(false)}
+        onConfirm={confirmLogout}
+      />
     </View>
   );
 }
@@ -224,7 +278,8 @@ function OptionRow({
       accessibilityRole="button"
       accessibilityLabel={`${title}. ${subtitle}`}
       onPress={onPress}
-      style={({ pressed }) => [styles.option, pressed && styles.pressed]}>
+      style={({ pressed }) => [styles.option, pressed && styles.pressed]}
+    >
       <AppIcon name={icon} color={colors.text} size={24} />
       <View style={styles.optionCopy}>
         <Text numberOfLines={1} style={styles.optionTitle}>
@@ -239,14 +294,26 @@ function OptionRow({
   );
 }
 
-function OrderCard({ order, onPress }: { order: CustomerOrder; onPress: () => void }) {
-  const tone = order.status === 'cancelled' ? 'danger' : order.status === 'delivered' ? 'success' : 'progress';
+function OrderCard({
+  order,
+  onPress,
+}: {
+  order: CustomerOrder;
+  onPress: () => void;
+}) {
+  const tone =
+    order.status === "cancelled"
+      ? "danger"
+      : order.status === "delivered"
+        ? "success"
+        : "progress";
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Order ${order.id}, ${statusLabel[order.status]}`}
       onPress={onPress}
-      style={({ pressed }) => [styles.order, pressed && styles.pressed]}>
+      style={({ pressed }) => [styles.order, pressed && styles.pressed]}
+    >
       <View style={styles.orderTop}>
         <View style={styles.orderCopy}>
           <Text numberOfLines={1} style={styles.orderTitle}>
@@ -257,7 +324,9 @@ function OrderCard({ order, onPress }: { order: CustomerOrder; onPress: () => vo
           </Text>
         </View>
         <View style={[styles.badge, badgeBackground[tone]]}>
-          <Text style={[styles.badgeText, badgeInk[tone]]}>{statusLabel[order.status]}</Text>
+          <Text style={[styles.badgeText, badgeInk[tone]]}>
+            {statusLabel[order.status]}
+          </Text>
         </View>
       </View>
       <Text numberOfLines={2} style={styles.summary}>
@@ -291,25 +360,50 @@ function LogoutSheet({
 }) {
   const insets = useSafeAreaInsets();
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
       <View style={styles.modalRoot}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Close logout options" onPress={onClose} style={styles.backdrop} />
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close logout options"
+          onPress={onClose}
+          style={styles.backdrop}
+        />
+        <View
+          style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
+        >
           <Text style={styles.sheetTitle}>Log out?</Text>
-          <Text style={styles.sheetCopy}>This signs out the account saved for this session.</Text>
+          <Text style={styles.sheetCopy}>
+            This signs out the account saved for this session.
+          </Text>
           <View style={styles.sheetActions}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Cancel logout"
               onPress={onClose}
-              style={({ pressed }) => [styles.sheetButton, styles.sheetCancel, pressed && styles.pressed]}>
+              style={({ pressed }) => [
+                styles.sheetButton,
+                styles.sheetCancel,
+                pressed && styles.pressed,
+              ]}
+            >
               <Text style={styles.sheetCancelLabel}>Cancel</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Confirm logout"
               onPress={onConfirm}
-              style={({ pressed }) => [styles.sheetButton, styles.sheetConfirm, pressed && styles.pressed]}>
+              style={({ pressed }) => [
+                styles.sheetButton,
+                styles.sheetConfirm,
+                pressed && styles.pressed,
+              ]}
+            >
               <Text style={styles.sheetConfirmLabel}>Log out</Text>
             </Pressable>
           </View>
@@ -320,8 +414,8 @@ function LogoutSheet({
 }
 
 const badgeBackground = {
-  success: { backgroundColor: '#F0FDF4' },
-  danger: { backgroundColor: '#FEF2F2' },
+  success: { backgroundColor: "#F0FDF4" },
+  danger: { backgroundColor: "#FEF2F2" },
   progress: { backgroundColor: colors.softYellow },
 } as const;
 
@@ -334,12 +428,12 @@ const badgeInk = {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.softBackground,
+    backgroundColor: colors.warmBackground,
   },
   header: {
     backgroundColor: colors.brightYellow,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     paddingHorizontal: 8,
     paddingBottom: 12,
@@ -347,16 +441,16 @@ const styles = StyleSheet.create({
   iconButton: {
     width: 44,
     height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatar: {
     width: 44,
     height: 44,
     borderRadius: 22,
     backgroundColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatarText: {
     fontFamily: fonts.bold,
@@ -385,11 +479,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    alignItems: 'center',
+    alignItems: "center",
     paddingBottom: 12,
   },
   column: {
-    width: '100%',
+    width: "100%",
     paddingHorizontal: 16,
     paddingTop: 14,
     gap: 10,
@@ -398,8 +492,8 @@ const styles = StyleSheet.create({
     minHeight: 64,
     borderRadius: 16,
     backgroundColor: colors.white,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
@@ -431,8 +525,8 @@ const styles = StyleSheet.create({
   notice: {
     borderRadius: 16,
     backgroundColor: colors.white,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 12,
     padding: 14,
   },
@@ -459,8 +553,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   orderTop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 8,
   },
   orderCopy: {
@@ -511,9 +605,9 @@ const styles = StyleSheet.create({
     minHeight: 52,
     borderRadius: 14,
     backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
   },
   logoutLabel: {
@@ -524,7 +618,7 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   version: {
-    textAlign: 'center',
+    textAlign: "center",
     fontFamily: fonts.regular,
     fontSize: 12,
     lineHeight: 16,
@@ -535,11 +629,11 @@ const styles = StyleSheet.create({
   },
   modalRoot: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(23, 23, 23, 0.4)',
+    backgroundColor: "rgba(23, 23, 23, 0.4)",
   },
   sheet: {
     backgroundColor: colors.white,
@@ -562,7 +656,7 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   sheetActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 10,
     marginTop: 4,
   },
@@ -570,8 +664,8 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 48,
     borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   sheetCancel: {
     backgroundColor: colors.softBackground,

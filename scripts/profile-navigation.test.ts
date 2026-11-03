@@ -33,8 +33,10 @@ if (
   profileRoutes.tab !== 'profile' ||
   profileRoutes.profile !== '/profile' ||
   profileRoutes.login !== '/login' ||
-  profileRoutes.account !== '/complete-profile' ||
-  profileRoutes.addresses !== '/location' ||
+  profileRoutes.account !== '/edit-profile' ||
+  profileRoutes.completeProfile !== '/complete-profile' ||
+  profileRoutes.addresses !== '/addresses' ||
+  profileRoutes.wishlist !== '/wishlist' ||
   profileRoutes.help !== '/help'
 ) {
   throw new Error('profile navigation must keep one route for the tab, menu, and avatar');
@@ -49,11 +51,13 @@ clearSignedInSession({
   clearDraft: () => calls.push('draft'),
   clearDelivery: () => calls.push('delivery'),
   clearDevTestSession: () => calls.push('dev'),
+  clearSavedAddresses: () => calls.push('addresses'),
+  clearCustomerProfile: () => calls.push('profile'),
 });
 
-const expected = ['auth', 'account', 'remembered', 'phone:', 'draft', 'delivery', 'dev'];
+const expected = ['auth', 'account', 'remembered', 'phone:', 'draft', 'delivery', 'dev', 'addresses', 'profile'];
 if (calls.join('|') !== expected.join('|')) {
-  throw new Error('logout must clear the customer, login number, draft, delivery selection, and development session');
+  throw new Error('logout must clear customer session state including the active profile book');
 }
 
 console.log('profile navigation fixtures passed');

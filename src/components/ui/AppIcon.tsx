@@ -1,5 +1,6 @@
 import type { LucideIcon, LucideProps } from 'lucide-react-native';
 import {
+  ArrowDownUp,
   ArrowRight,
   Bell,
   Briefcase,
@@ -8,14 +9,19 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Bike,
   Clock,
   CreditCard,
+  Crosshair,
   Crown,
   Flame,
+  Flashlight,
   Gift,
   Headset,
   Heart,
+  History,
   House,
+  Image as ImageIcon,
   Lamp,
   LayoutGrid,
   Leaf,
@@ -24,23 +30,33 @@ import {
   Mail,
   MapPin,
   Menu,
+  MessageCircle,
+  Info,
   Minus,
   Package,
+  Paperclip,
   Pencil,
   Percent,
   Phone,
   Plug,
   Plus,
+  CircleHelp,
   RotateCw,
+  SendHorizontal,
   ScanLine,
   Search,
+  Settings,
   ShieldCheck,
   ShoppingBag,
   ShoppingBasket,
   ShoppingCart,
+  SlidersHorizontal,
   Sprout,
   Star,
   Store,
+  Tag,
+  ThumbsDown,
+  ThumbsUp,
   TicketPercent,
   Truck,
   User,
@@ -83,6 +99,8 @@ const icons = {
   box: Package,
   shield: ShieldCheck,
   headset: Headset,
+  chat: MessageCircle,
+  help: CircleHelp,
   truck: Truck,
   grid: LayoutGrid,
   leafLine: Leaf,
@@ -99,6 +117,20 @@ const icons = {
   link: Link,
   lamp: Lamp,
   ticket: TicketPercent,
+  sliders: SlidersHorizontal,
+  sort: ArrowDownUp,
+  history: History,
+  settings: Settings,
+  tag: Tag,
+  bike: Bike,
+  crosshair: Crosshair,
+  flashlight: Flashlight,
+  image: ImageIcon,
+  thumbsUp: ThumbsUp,
+  thumbsDown: ThumbsDown,
+  paperclip: Paperclip,
+  send: SendHorizontal,
+  info: Info,
 } as const satisfies Record<string, LucideIcon>;
 
 export type AppIconName = keyof typeof icons;
@@ -119,7 +151,13 @@ const stroke: Pick<LucideProps, 'strokeWidth' | 'strokeLinecap' | 'strokeLinejoi
 
 export function AppIcon({ name, color, size = 24 }: AppIconProps) {
   const Icon = icons[name];
+  const resolved = typeof color === 'string' ? color : '#171717';
   return (
-    <Icon color={typeof color === 'string' ? color : '#171717'} size={size} {...stroke} />
+    <Icon
+      color={resolved}
+      size={size}
+      fill={name === 'heartFill' ? resolved : 'none'}
+      {...stroke}
+    />
   );
 }

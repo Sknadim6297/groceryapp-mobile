@@ -1,7 +1,11 @@
+import { isDevOtpModeEnabled } from '@/constants/devOtpMode';
 import { isValidIndiaMobile } from '@/utils/phoneValidation';
 
 /** Five minutes. The code lives in memory only and is never written to storage. */
 export const DEV_OTP_TTL_MS = 5 * 60 * 1000;
+
+/** Maximum wrong verification attempts before the current Dev OTP is locked. */
+export const DEV_OTP_MAX_ATTEMPTS = 5;
 
 export type DevMockCustomerStatus = 'registered' | 'unregistered';
 
@@ -9,6 +13,9 @@ export type DevOtpView = {
   code: string;
   expiresAt: number;
   used: boolean;
+  locked: boolean;
+  failedAttempts: number;
+  attemptsRemaining: number;
   mockStatus: DevMockCustomerStatus;
 };
 
@@ -18,22 +25,27 @@ export type DevTestSession = {
   destination: 'home' | 'complete-profile';
 };
 
-export type DevOtpFailure = 'disabled' | 'missing' | 'wrong' | 'expired' | 'used';
+export type DevOtpFailure = 'disabled' | 'missing' | 'wrong' | 'expired' | 'used' | 'locked';
 
 export type DevOtpVerifyResult =
   | { ok: true; destination: DevTestSession['destination']; sessionKind: DevTestSession['kind'] }
   | { ok: false; reason: DevOtpFailure };
 
-type DevOtpRecord = DevOtpView & { mobile: string };
+type DevOtpRecord = {
+  mobile: string;
+  code: string;
+  expiresAt: number;
+  used: boolean;
+  locked: boolean;
+  failedAttempts: number;
+  mockStatus: DevMockCustomerStatus;
+};
 
 const records = new Map<string, DevOtpRecord>();
 let session: DevTestSession | null = null;
 
 function developmentBuild(): boolean {
-  if (typeof __DEV__ === 'undefined' || __DEV__ !== true) {
-    return false;
-  }
-  return process.env.EXPO_PUBLIC_UI_PREVIEW !== 'ui-preview';
+  return isDevOtpModeEnabled();
 }
 
 function wipe(): void {
@@ -42,28 +54,43 @@ function wipe(): void {
 }
 
 function randomCode(): string {
+  // Cryptographically strong when available; never a fixed universal code.
+  try {
+    const cryptoObj = globalThis.crypto as { getRandomValues?: (buffer: Uint32Array) => Uint32Array } | undefined;
+    if (cryptoObj?.getRandomValues) {
+      const buffer = new Uint32Array(1);
+      cryptoObj.getRandomValues(buffer);
+      return String(buffer[0]! % 1_000_000).padStart(6, '0');
+    }
+  } catch {
+    // fall through
+  }
   return Math.floor(Math.random() * 1_000_000)
     .toString()
     .padStart(6, '0');
 }
 
 function viewOf(record: DevOtpRecord): DevOtpView {
+  const attemptsRemaining = Math.max(0, DEV_OTP_MAX_ATTEMPTS - record.failedAttempts);
   return {
     code: record.code,
     expiresAt: record.expiresAt,
     used: record.used,
+    locked: record.locked || record.failedAttempts >= DEV_OTP_MAX_ATTEMPTS,
+    failedAttempts: record.failedAttempts,
+    attemptsRemaining,
     mockStatus: record.mockStatus,
   };
 }
 
-/** True only in a local Metro development bundle. Release builds are false. */
+/** True only when `__DEV__` and `EXPO_PUBLIC_DEV_OTP` explicitly enable Dev OTP mode. */
 export function isDevOtpEnabled(): boolean {
   return developmentBuild();
 }
 
 /**
- * Drops any in-memory development code and session when this is not a development build.
- * Release builds call this on startup so a development session cannot survive.
+ * Drops any in-memory development code and session when Dev OTP mode is off.
+ * Release builds / disabled mode call this on startup so a development session cannot survive.
  */
 export function rejectDevTestSessionOutsideDevelopment(): void {
   if (!developmentBuild()) {
@@ -92,6 +119,8 @@ export function issueDevTestOtp(
     code: nextCode(),
     expiresAt: now + DEV_OTP_TTL_MS,
     used: false,
+    locked: false,
+    failedAttempts: 0,
     mockStatus,
   };
   records.set(mobile, record);
@@ -105,6 +134,22 @@ export function peekDevTestOtp(mobile: string, enabled = developmentBuild()): De
   }
   const record = records.get(mobile);
   return record ? viewOf(record) : null;
+}
+
+/** True while an unused, unlocked, unexpired in-memory development code is available. */
+export function hasActiveDevOtp(mobile: string, enabled = developmentBuild(), now = Date.now()): boolean {
+  const record = peekDevTestOtp(mobile, enabled);
+  return Boolean(record && !record.used && !record.locked && now < record.expiresAt);
+}
+
+/** True when Dev OTP mode is on and this mobile has any in-memory Dev OTP record (including used/expired/locked). */
+export function hasDevOtpRecord(mobile: string, enabled = developmentBuild()): boolean {
+  return peekDevTestOtp(mobile, enabled) !== null;
+}
+
+/** Drops an in-memory Dev OTP so live verify-otp is used when Dev OTP mode is off. */
+export function clearDevTestOtp(mobile: string): void {
+  records.delete(mobile);
 }
 
 export function setDevMockCustomerStatus(
@@ -142,10 +187,19 @@ export function verifyDevTestOtp(
   if (record.used) {
     return { ok: false, reason: 'used' };
   }
+  if (record.locked || record.failedAttempts >= DEV_OTP_MAX_ATTEMPTS) {
+    record.locked = true;
+    return { ok: false, reason: 'locked' };
+  }
   if (now >= record.expiresAt) {
     return { ok: false, reason: 'expired' };
   }
   if (code !== record.code) {
+    record.failedAttempts += 1;
+    if (record.failedAttempts >= DEV_OTP_MAX_ATTEMPTS) {
+      record.locked = true;
+      return { ok: false, reason: 'locked' };
+    }
     return { ok: false, reason: 'wrong' };
   }
 
@@ -155,7 +209,7 @@ export function verifyDevTestOtp(
   return { ok: true, destination, sessionKind: 'development-test' };
 }
 
-/** Null outside a development build, including after a code was previously accepted. */
+/** Null when Dev OTP mode is off, including after a code was previously accepted. */
 export function readDevTestSession(enabled = developmentBuild()): DevTestSession | null {
   if (!enabled) {
     wipe();
@@ -191,7 +245,12 @@ let sessionStore: DevSessionStore = memorySessionStore;
 /** Tests replace the store so a restart can be simulated without a device. */
 export function installDevSessionStoreForTests(next: DevSessionStore | null): void {
   sessionMemory.clear();
+  storeWipeOnlyMemory();
   sessionStore = next ?? memorySessionStore;
+}
+
+function storeWipeOnlyMemory(): void {
+  wipe();
 }
 
 export function resetDevTestOtpForTests(): void {
@@ -230,9 +289,25 @@ export function parseDevTestSession(raw: string | null): DevTestSession | null {
   }
 }
 
-/** Home is available only for a registered development-test customer inside a development build. */
+/** Home is available only for a registered development-test customer while Dev OTP mode is on. */
 export function canUseDevelopmentHome(value: DevTestSession | null, enabled = developmentBuild()): boolean {
   return enabled && value?.kind === 'development-test' && value.destination === 'home';
+}
+
+/**
+ * After OTP-first Dev verify + successful registration, promote onboarding to Home.
+ * Does not invent a live TemporaryUiLogin; only updates the development-test session.
+ */
+export function promoteDevTestSessionToHome(mobile: string, enabled = developmentBuild()): DevTestSession | null {
+  if (!enabled || !isValidIndiaMobile(mobile)) {
+    return null;
+  }
+  const current = session;
+  if (!current || current.mobile !== mobile || current.kind !== 'development-test') {
+    return null;
+  }
+  session = { kind: 'development-test', mobile, destination: 'home' };
+  return session;
 }
 
 export async function saveDevTestSession(value: DevTestSession, enabled = developmentBuild()): Promise<boolean> {

@@ -1,26 +1,30 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { SoftIcon } from '@/components/ui/SoftIcon';
 import { colors, fonts } from '@/constants/theme';
+import type { ProfileGender } from '@/types/customerProfile';
+import { profileAvatarEmoji } from '@/utils/profileAvatar';
 
 type DrawerHeaderProps = {
   name: string;
-  phone: string;
+  subtitle: string;
+  gender?: ProfileGender | null;
   paddingTop: number;
 };
 
-export function DrawerHeader({ name, phone, paddingTop }: DrawerHeaderProps) {
+export function DrawerHeader({ name, subtitle, gender, paddingTop }: DrawerHeaderProps) {
   return (
     <View style={[styles.header, { paddingTop }]}>
-      <View style={styles.avatar}>
-        <SoftIcon name="profile" size={28} />
+      <View
+        style={styles.avatar}
+        accessibilityLabel={gender === 'male' ? 'Male cartoon avatar' : 'Female cartoon avatar'}>
+        <Text style={styles.emoji}>{profileAvatarEmoji(gender)}</Text>
       </View>
       <View style={styles.copy}>
         <Text numberOfLines={1} style={styles.name}>
           {name}
         </Text>
-        <Text numberOfLines={1} style={styles.phone}>
-          {phone}
+        <Text numberOfLines={1} style={styles.subtitle}>
+          {subtitle}
         </Text>
       </View>
     </View>
@@ -29,36 +33,42 @@ export function DrawerHeader({ name, phone, paddingTop }: DrawerHeaderProps) {
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: colors.brightYellow,
+    backgroundColor: colors.drawer,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 18,
+    paddingBottom: 18,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.white,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.55)',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.9)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  emoji: {
+    fontSize: 30,
+    lineHeight: 36,
   },
   copy: {
     flex: 1,
     minWidth: 0,
-    gap: 2,
+    gap: 3,
   },
   name: {
     fontFamily: fonts.bold,
-    fontSize: 16,
-    lineHeight: 20,
+    fontSize: 17,
+    lineHeight: 22,
     color: colors.text,
   },
-  phone: {
+  subtitle: {
     fontFamily: fonts.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.text,
+    fontSize: 13,
+    lineHeight: 17,
+    color: colors.primaryInk,
   },
 });

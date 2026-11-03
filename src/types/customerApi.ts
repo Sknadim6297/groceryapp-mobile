@@ -23,6 +23,11 @@ export type CustomerRegistrationRequest = {
   State?: string;
   City?: string;
   Pincode?: string;
+  /**
+   * Optional server proof from OTP-first verify-otp.
+   * Sent only when verify-otp returned a Token/Session field. Never invented by the client.
+   */
+  MobileVerificationToken?: string;
 };
 
 /** Customer fields returned by a confirmed registration. This is not a login token. */
@@ -106,14 +111,34 @@ export function screenAfterCustomerCall(
   return 'stay';
 }
 
-const DUPLICATE_CUSTOMER = /already registered|duplicate mobile|mobile number already/i;
+const ALREADY_REGISTERED =
+  /already registered|duplicate mobile|mobile number already|customer mobile number is already/i;
+
+export type RegistrationFollowUp = 'otp' | 'home' | 'stay' | 'login';
 
 /**
- * A confirmed registration, or a duplicate mobile, requests one OTP.
- * Anything else stays so the customer can correct the form and try again.
+ * A confirmed registration normally requests one OTP (register-then-OTP contract).
+ * Duplicate / already-registered must recover to login — never auto-send another OTP.
+ * When the mobile was already verified in an OTP-first flow, a confirmed registration
+ * (with customer record) opens Home instead of a second OTP.
  */
-export function registrationFollowUp(result: CustomerApiResult): 'otp' | 'stay' {
-  if (screenAfterCustomerCall(result, 'register') === 'otp' || DUPLICATE_CUSTOMER.test(result.message)) {
+export function registrationFollowUp(
+  result: CustomerApiResult,
+  options?: { mobileAlreadyVerified?: boolean },
+): RegistrationFollowUp {
+  if (ALREADY_REGISTERED.test(result.message)) {
+    return 'login';
+  }
+  if (options?.mobileAlreadyVerified) {
+    if (result.localLogin === 'temporary-ui' || result.next === 'home') {
+      return 'home';
+    }
+    if (result.customer && result.confirmed) {
+      return 'home';
+    }
+    return 'stay';
+  }
+  if (screenAfterCustomerCall(result, 'register') === 'otp') {
     return 'otp';
   }
   return 'stay';

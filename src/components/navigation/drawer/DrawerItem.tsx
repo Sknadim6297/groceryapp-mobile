@@ -1,7 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { AppIcon, type AppIconName } from '@/components/ui/AppIcon';
-import { colors, fonts } from '@/constants/theme';
+import { AppIcon, type AppIconName } from "@/components/ui/AppIcon";
+import { colors, fonts } from "@/constants/theme";
 
 type DrawerItemProps = {
   label: string;
@@ -26,16 +26,36 @@ export function DrawerItem({
     <Pressable
       accessibilityRole="menuitem"
       accessibilityLabel={label}
-      accessibilityState={{ selected: active, expanded: showChevron ? expanded : undefined }}
+      accessibilityState={{
+        selected: active,
+        expanded: showChevron ? expanded : undefined,
+      }}
       aria-selected={active}
       onPress={onPress}
-      style={({ pressed }) => [styles.row, nested && styles.nested, active && styles.active, pressed && styles.pressed]}>
-      <AppIcon name={icon} color={active ? colors.primaryInk : colors.text} size={24} />
-      <Text numberOfLines={1} style={[styles.label, active && styles.labelActive]}>
+      style={({ pressed }) => [
+        styles.row,
+        nested && styles.nested,
+        active && styles.active,
+        pressed && styles.pressed,
+      ]}
+    >
+      <AppIcon
+        name={icon}
+        color={active ? colors.primaryInk : colors.text}
+        size={24}
+      />
+      <Text
+        numberOfLines={1}
+        style={[styles.label, active && styles.labelActive]}
+      >
         {label}
       </Text>
       {showChevron ? (
-        <AppIcon name={expanded ? 'chevronDown' : 'chevron'} color={colors.textSecondary} size={24} />
+        <AppIcon
+          name={expanded ? "chevronDown" : "chevron"}
+          color={colors.textSecondary}
+          size={24}
+        />
       ) : (
         <View style={styles.spacer} />
       )}
@@ -46,8 +66,8 @@ export function DrawerItem({
 const styles = StyleSheet.create({
   row: {
     minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 14,
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,

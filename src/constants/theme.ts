@@ -82,23 +82,30 @@ export const colors = {
   primary: '#FACC15',
   primaryDark: '#EAB308',
   primaryInk: '#854D0E',
+  ink: '#111827',
   softYellow: '#FEF9C3',
   background: '#FFFFFF',
   softBackground: '#F8FAFC',
-  text: '#171717',
+  /** Warm app canvas — screens that sit outside pure white sheets. */
+  warmBackground: '#FFF9EC',
+  text: '#111827',
   textSecondary: '#64748B',
-  textOnPrimary: '#171717',
-  textOnPrimaryMuted: 'rgba(23, 23, 23, 0.72)',
+  textOnPrimary: '#111827',
+  textOnPrimaryMuted: 'rgba(17, 24, 39, 0.72)',
   border: '#E5E7EB',
+  borderSubtle: '#F1F5F9',
   success: '#16A34A',
+  warning: '#D97706',
   danger: '#DC2626',
-  iconSurface: '#171717',
+  iconSurface: '#111827',
   white: '#FFFFFF',
   brightYellow: '#FFD633',
-  cream: '#FFFBEB',
+  cream: '#FFF9EC',
   welcomeSoft: '#FEF3C7',
-  welcomeMuted: '#737373',
+  welcomeMuted: '#64748B',
   iconBadge: '#FDE68A',
+  /** Side drawer brand surface (Mayapur yellow, not the green reference). */
+  drawer: '#FACC15',
 } as const;
 
 export const headerGradient = ['#FDE047', '#FACC15', '#EAB308'] as const;
@@ -108,4 +115,72 @@ export const fontFamily = fonts.regular;
 export const homeLayout = {
   maxWidth: 480,
   gutter: 16,
+} as const;
+
+/** Shared layout scale. Prefer these over one-off padding in new screens. */
+export const space = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  xxl: 32,
+} as const;
+
+export const radii = {
+  xs: 8,
+  sm: 12,
+  md: 16,
+  lg: 20,
+  sheet: 24,
+  pill: 28,
+} as const;
+
+export const control = {
+  button: 52,
+  input: 48,
+  icon: 44,
+  chip: 36,
+  touch: 44,
+} as const;
+
+export const typeScale = {
+  display: { size: 28, line: 34 },
+  title: { size: 22, line: 28 },
+  heading: { size: 18, line: 24 },
+  body: { size: 15, line: 22 },
+  label: { size: 14, line: 20 },
+  caption: { size: 12, line: 16 },
+  micro: { size: 11, line: 14 },
+} as const;
+
+export const motion = {
+  press: 120,
+  enter: 220,
+  expand: 260,
+  sheet: 280,
+} as const;
+
+export const shadow = {
+  card: {
+    shadowColor: '#111827',
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  soft: {
+    shadowColor: '#111827',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  fab: {
+    shadowColor: '#111827',
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
+  },
 } as const;

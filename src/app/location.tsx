@@ -1,11 +1,10 @@
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
+  ActivityIndicator,
+  FlatList,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -13,204 +12,236 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { LocationFlowHeader } from '@/components/location/LocationFlowHeader';
+import { LocationResultCard } from '@/components/location/LocationResultCard';
+import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { AppIcon } from '@/components/ui/AppIcon';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { colors, fonts } from '@/constants/theme';
-import { useAuthFlow } from '@/context/AuthFlowContext';
-import { useAuthSession } from '@/context/AuthSessionContext';
+import { useToast } from '@/components/ui/AppToast';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { colors, control, fonts, homeLayout, radii } from '@/constants/theme';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
-import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
-import { formatDeliveryAddress, referenceLocations } from '@/data/referenceLocations';
-import { locationContinueTarget } from '@/navigation/locationFlow';
-import { canUseDevelopmentHome, isDevOtpEnabled } from '@/services/devOtp';
-import { readCurrentLocation } from '@/services/location/locationService';
+import { locationRoutes } from '@/navigation/locationRoutes';
+import { readCurrentLocation, searchDeliveryLocations } from '@/services/location/locationService';
+import type { LocationSearchResult } from '@/types/location';
 
-const statusCopy: Record<string, string> = {
-  denied: 'Location permission was denied. You can enter an address instead.',
-  'services-off': 'Location services are turned off. Turn them on, or enter an address.',
-  timeout: 'Finding your location took too long. Try again, or enter an address.',
-  unavailable: 'A street address could not be read. Enter the address manually.',
-};
+const emptyArt = require('@/assets/images/onboarding/location-illustration.jpg');
+const SEARCH_DEBOUNCE_MS = 380;
 
-export default function LocationScreen() {
+export default function LocationSearchScreen() {
   const insets = useSafeAreaInsets();
-  const keyboardCover = useKeyboardOverlap();
-  const keyboardOverlap = Platform.OS === 'android' ? keyboardCover : 0;
-  const { selection, setSelection, confirmSelection, locationIntent } = useDeliveryLocation();
-  const { standing } = useAuthFlow();
-  const { session, devSession } = useAuthSession();
-  const leaving = useRef(false);
-  const [detecting, setDetecting] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
+  const { showToast } = useToast();
+  const { setSelection } = useDeliveryLocation();
   const [query, setQuery] = useState('');
-  const trimmed = query.trim().toLowerCase();
-  const matches =
-    trimmed.length === 0
-      ? []
-      : referenceLocations.filter((place) =>
-          `${place.label} ${formatDeliveryAddress(place)}`.toLowerCase().includes(trimmed),
-        );
+  const [results, setResults] = useState<LocationSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [detecting, setDetecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const requestId = useRef(0);
+  const gpsInFlight = useRef(false);
+  const mounted = useRef(true);
 
-  async function detectCurrentLocation() {
-    if (detecting) {
-      return;
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      requestId.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
+    const trimmed = query.trim();
+    const id = ++requestId.current;
+
+    if (trimmed.length < 2) {
+      const clearTimer = setTimeout(() => {
+        if (id !== requestId.current) {
+          return;
+        }
+        setResults([]);
+        setSearching(false);
+        setError(null);
+      }, 0);
+      return () => {
+        clearTimeout(clearTimer);
+      };
     }
 
+    const timer = setTimeout(() => {
+      void (async () => {
+        if (id !== requestId.current) {
+          return;
+        }
+        setSearching(true);
+        setError(null);
+        try {
+          const next = await searchDeliveryLocations(trimmed);
+          if (id !== requestId.current) {
+            return;
+          }
+          setResults(next);
+          if (next.length === 0) {
+            setError('No matching locations. Try another area or use current location.');
+          }
+        } catch {
+          if (id !== requestId.current) {
+            return;
+          }
+          setResults([]);
+          setError('Location search is unavailable right now. Try current location or enter manually.');
+        } finally {
+          if (id === requestId.current) {
+            setSearching(false);
+          }
+        }
+      })();
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [query]);
+
+  function openMap() {
+    router.push(locationRoutes.map);
+  }
+
+  async function onUseCurrentLocation() {
+    if (detecting || gpsInFlight.current) {
+      return;
+    }
+    gpsInFlight.current = true;
     setDetecting(true);
-    setStatus(null);
-    const result = await readCurrentLocation();
-    setDetecting(false);
-
-    if (result.status !== 'ready') {
-      setStatus(result.status);
-      return;
-    }
-
-    setSelection(result.location);
-    if (result.location.approximate) {
-      setStatus('approximate');
+    setError(null);
+    try {
+      const outcome = await readCurrentLocation();
+      if (!mounted.current) {
+        return;
+      }
+      if (outcome.status !== 'ready') {
+        const message =
+          outcome.status === 'denied'
+            ? 'Location permission was denied. Search for an area or enter an address manually.'
+            : outcome.status === 'services-off'
+              ? 'Turn on location services, then try again.'
+              : outcome.status === 'timeout'
+                ? 'Finding your location took too long. Try again or search instead.'
+                : 'Could not read your current location. Search or enter an address manually.';
+        setError(message);
+        showToast('error', message);
+        return;
+      }
+      setSelection(outcome.location);
+      openMap();
+    } finally {
+      gpsInFlight.current = false;
+      if (mounted.current) {
+        setDetecting(false);
+      }
     }
   }
 
-  function continueNext() {
-    if (!selection || leaving.current) {
-      return;
-    }
-
-    leaving.current = true;
-    confirmSelection();
-    const signedIn = Boolean(session) || canUseDevelopmentHome(devSession);
-    const onboarding =
-      locationIntent === 'registration' ||
-      standing === 'unregistered' ||
-      (isDevOtpEnabled() && devSession?.destination === 'complete-profile');
-    const target = locationContinueTarget({
-      intent: locationIntent,
-      canGoBack: router.canGoBack(),
-      signedIn,
-      onboarding,
-    });
-    if (target === 'back') {
-      router.back();
-      return;
-    }
-    if (target === '/complete-profile') {
-      router.navigate('/complete-profile');
-      return;
-    }
-    router.replace(target);
+  function onSelectResult(item: LocationSearchResult) {
+    setSelection(item.location);
+    openMap();
   }
+
+  const showEmpty = query.trim().length < 2 && !detecting;
 
   return (
     <View style={styles.screen}>
-      <StatusBar style="dark" />
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          contentContainerStyle={[
-            styles.scroll,
-            {
-              paddingTop: insets.top + 16,
-              paddingBottom: Math.max(insets.bottom, 12) + (selection ? 96 : 24) + keyboardOverlap,
-            },
-          ]}>
-          <View style={styles.column}>
-            <Text accessibilityRole="header" maxFontSizeMultiplier={1.2} style={styles.title}>
-              Enter your area or apartment name
-            </Text>
-            <View style={styles.search}>
-              <AppIcon name="search" color={colors.textSecondary} size={24} />
-              <TextInput
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Try a locality or apartment"
-                placeholderTextColor={colors.textSecondary}
-                accessibilityLabel="Search for an area or apartment"
-                autoCorrect={false}
-                style={styles.searchInput}
-              />
-            </View>
+      <LocationFlowHeader title="Select Delivery Location" fallbackHref="/complete-profile" />
 
+      <View style={styles.panel}>
+        <View style={styles.search}>
+          <AppIcon name="search" color={colors.textSecondary} size={20} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search for location"
+            placeholderTextColor={colors.textSecondary}
+            accessibilityLabel="Search for location"
+            autoCorrect={false}
+            returnKeyType="search"
+            style={styles.searchInput}
+          />
+          {query.length > 0 ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Use my current location"
-              accessibilityState={{ busy: detecting }}
-              disabled={detecting}
-              onPress={() => {
-                void detectCurrentLocation();
-              }}
-              style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
-              <AppIcon name="stores" color={colors.primaryInk} size={24} />
-              <Text style={styles.rowLabel}>{detecting ? 'Finding your location…' : 'Use my current location'}</Text>
-              <AppIcon name="chevron" color={colors.textSecondary} size={24} />
+              accessibilityLabel="Clear search"
+              hitSlop={8}
+              onPress={() => setQuery('')}>
+              <AppIcon name="close" color={colors.textSecondary} size={18} />
             </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Add new address"
-              onPress={() => router.push('/location-manual')}
-              style={({ pressed }) => [styles.row, styles.rowLast, pressed && styles.pressed]}>
-              <AppIcon name="plus" color={colors.primaryInk} size={24} />
-              <Text style={styles.rowLabel}>Add new address</Text>
-            </Pressable>
-
-            {status === 'approximate' ? (
-              <Text style={styles.note}>This location is approximate. Check the address before continuing.</Text>
-            ) : null}
-            {status === 'preview' ? (
-              <Text style={styles.note}>UI preview does not request location permission.</Text>
-            ) : null}
-            {status && status !== 'approximate' && status !== 'preview' ? (
-              <Text accessibilityRole="alert" style={styles.error}>
-                {statusCopy[status]}
-              </Text>
-            ) : null}
-
-            {matches.length > 0 ? <Text style={styles.section}>Suggested areas</Text> : null}
-            {trimmed.length > 0 && matches.length === 0 ? (
-              <Text style={styles.note}>No matching area. Add a new address instead.</Text>
-            ) : null}
-            {matches.map((place) => (
-              <Pressable
-                key={place.id}
-                accessibilityRole="button"
-                accessibilityLabel={`${place.label}, ${formatDeliveryAddress(place)}`}
-                accessibilityState={{ selected: selection?.id === place.id }}
-                onPress={() => {
-                  setStatus(null);
-                  setSelection(place);
-                }}
-                style={({ pressed }) => [styles.result, selection?.id === place.id && styles.resultSelected, pressed && styles.pressed]}>
-                <Text style={styles.resultTitle}>{place.label}</Text>
-                <Text style={styles.resultDetail}>{formatDeliveryAddress(place)}</Text>
-              </Pressable>
-            ))}
-
-            {selection ? (
-              <View style={styles.selected}>
-                <Text style={styles.section}>Selected address</Text>
-                <Text style={styles.resultTitle}>{selection.label}</Text>
-                <Text style={styles.resultDetail}>{formatDeliveryAddress(selection)}</Text>
-              </View>
-            ) : null}
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-      {selection ? (
-        <View
-          style={[
-            styles.footer,
-            {
-              bottom: keyboardOverlap,
-              paddingBottom: keyboardOverlap > 0 ? 12 : Math.max(insets.bottom, 12),
-            },
-          ]}>
-          <View style={styles.footerInner}>
-            <PrimaryButton label="Continue" onPress={continueNext} accessibilityLabel="Continue with this address" />
-            <Text style={styles.disclaimer}>Delivery availability is not confirmed until the store service checks this address.</Text>
-          </View>
+          ) : null}
         </View>
-      ) : null}
+
+        <AnimatedPressable
+          accessibilityRole="button"
+          accessibilityLabel="Use current location"
+          accessibilityState={{ busy: detecting }}
+          disabled={detecting}
+          onPress={() => {
+            void onUseCurrentLocation();
+          }}
+          style={[styles.gpsButton, detecting && styles.gpsBusy]}>
+          <View style={styles.gpsIcon}>
+            {detecting ? (
+              <ActivityIndicator color={colors.primaryInk} />
+            ) : (
+              <AppIcon name="crosshair" color={colors.primaryInk} size={20} />
+            )}
+          </View>
+          <Text style={styles.gpsLabel}>{detecting ? 'Finding your location…' : 'Use current location'}</Text>
+          <AppIcon name="chevron" color={colors.primaryInk} size={18} />
+        </AnimatedPressable>
+
+        {error ? (
+          <View style={styles.errorBox} accessibilityRole="alert">
+            <Text style={styles.error}>{error}</Text>
+          </View>
+        ) : null}
+
+        {showEmpty ? (
+          <EmptyState
+            title="Search your delivery location"
+            body="Find your area, locality or use your current location to continue."
+            art={<Image source={emptyArt} style={styles.emptyArt} contentFit="contain" accessible={false} />}
+            action={
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Enter address manually"
+                onPress={() => router.push(locationRoutes.manual)}
+                style={({ pressed }) => [styles.manualLink, pressed && styles.pressed]}>
+                <Text style={styles.manualLabel}>Enter address manually</Text>
+              </Pressable>
+            }
+          />
+        ) : (
+          <FlatList
+            data={results}
+            keyExtractor={(item) => item.id}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(insets.bottom, 16) }]}
+            ListHeaderComponent={
+              searching ? (
+                <ActivityIndicator color={colors.primaryInk} style={styles.listSpinner} />
+              ) : results.length > 0 ? (
+                <Text style={styles.section}>Search results</Text>
+              ) : (
+                <View />
+              )
+            }
+            renderItem={({ item }) => (
+              <LocationResultCard
+                title={item.title}
+                subtitle={item.subtitle}
+                accessibilityLabel={`${item.title}. ${item.subtitle}`}
+                onPress={() => onSelectResult(item)}
+              />
+            )}
+          />
+        )}
+      </View>
     </View>
   );
 }
@@ -218,133 +249,113 @@ export default function LocationScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.cream,
   },
-  flex: {
+  panel: {
     flex: 1,
-  },
-  scroll: {
-    alignItems: 'center',
-  },
-  column: {
+    marginTop: 10,
+    marginHorizontal: 12,
+    backgroundColor: colors.white,
+    borderTopLeftRadius: radii.sheet,
+    borderTopRightRadius: radii.sheet,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    maxWidth: homeLayout.maxWidth,
     width: '100%',
-    maxWidth: 480,
-    paddingHorizontal: 20,
-  },
-  title: {
-    fontFamily: fonts.bold,
-    fontSize: 18,
-    lineHeight: 24,
-    color: colors.text,
+    alignSelf: 'center',
   },
   search: {
-    marginTop: 16,
-    minHeight: 48,
-    borderRadius: 12,
+    minHeight: control.input,
+    borderRadius: radii.md,
     borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 12,
+    borderColor: '#E2E8F0',
+    backgroundColor: colors.white,
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
   },
   searchInput: {
     flex: 1,
     minWidth: 0,
-    fontFamily: fonts.regular,
+    fontFamily: fonts.medium,
     fontSize: 15,
     color: colors.text,
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
-  row: {
-    minHeight: 52,
+  gpsButton: {
+    marginTop: 12,
+    minHeight: control.input,
+    borderRadius: radii.md,
+    backgroundColor: colors.softYellow,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    gap: 12,
   },
-  rowLast: {
-    borderBottomWidth: 0,
+  gpsBusy: {
+    opacity: 0.75,
   },
-  rowLabel: {
+  gpsIcon: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gpsLabel: {
     flex: 1,
     fontFamily: fonts.semibold,
     fontSize: 15,
     lineHeight: 20,
-    color: colors.primaryInk,
-  },
-  pressed: {
-    opacity: 0.75,
-  },
-  section: {
-    marginTop: 18,
-    marginBottom: 8,
-    fontFamily: fonts.medium,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textSecondary,
-  },
-  result: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  resultSelected: {
-    backgroundColor: colors.softYellow,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-  },
-  resultTitle: {
-    fontFamily: fonts.semibold,
-    fontSize: 15,
-    lineHeight: 20,
     color: colors.text,
   },
-  resultDetail: {
-    marginTop: 2,
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textSecondary,
-  },
-  selected: {
-    marginTop: 8,
-  },
-  note: {
+  errorBox: {
     marginTop: 12,
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.text,
+    borderRadius: radii.sm,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   error: {
-    marginTop: 12,
     fontFamily: fonts.medium,
     fontSize: 13,
     lineHeight: 18,
     color: colors.danger,
   },
-  footer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    alignItems: 'center',
+  emptyArt: {
+    width: 220,
+    height: 160,
+  },
+  manualLink: {
+    marginTop: 8,
+    paddingVertical: 8,
+  },
+  manualLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.primaryInk,
+    textDecorationLine: 'underline',
+  },
+  pressed: {
+    opacity: 0.75,
+  },
+  listContent: {
     paddingTop: 8,
-    backgroundColor: colors.white,
+    gap: 4,
   },
-  footerInner: {
-    width: '100%',
-    maxWidth: 480,
-    paddingHorizontal: 20,
-    gap: 8,
+  listSpinner: {
+    marginVertical: 16,
   },
-  disclaimer: {
-    fontFamily: fonts.regular,
-    fontSize: 11,
-    lineHeight: 15,
+  section: {
+    marginTop: 8,
+    marginBottom: 6,
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    lineHeight: 18,
     color: colors.textSecondary,
-    textAlign: 'center',
   },
 });

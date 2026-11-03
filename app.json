@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "PhoneBook ERP",
+    "name": "Mayapur Bazaar",
     "slug": "GroceryApp",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,7 +14,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#FFFFFF",
+        "backgroundColor": "#FFD633",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -32,13 +32,27 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "GroceryApp uses your location only after you tap Use current location, to fill in a delivery address."
+          "locationWhenInUsePermission": "Mayapur Bazaar uses your location only after you tap Use current location, to fill in a delivery address."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Mayapur Bazaar uses the camera only when you open Scan QR Code, to read product or offer codes.",
+          "barcodeScannerEnabled": true,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Mayapur Bazaar accesses photos only when you choose a QR image from your gallery."
         }
       ],
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFFBEB",
+          "backgroundColor": "#FFD633",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 220
         }

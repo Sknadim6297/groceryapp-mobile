@@ -1,9 +1,8 @@
-import { router } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AppIcon } from '@/components/ui/AppIcon';
+import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
 import { colors, fonts } from '@/constants/theme';
 
 type PreviewScaffoldProps = {
@@ -18,24 +17,12 @@ export function PreviewScaffold({ title, subtitle, children, footer }: PreviewSc
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-          hitSlop={8}
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))}
-          style={styles.back}>
-          <AppIcon name="back" color={colors.text} size={22} />
-        </Pressable>
-        <View style={styles.copy}>
-          <Text style={styles.title}>{title}</Text>
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-        </View>
-      </View>
+      <AppScreenHeader title={title} />
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[styles.content, footer ? null : { paddingBottom: 16 + insets.bottom }]}
         showsVerticalScrollIndicator={false}>
+        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         {children}
       </ScrollView>
       {footer ? <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 10) }]}>{footer}</View> : null}
@@ -48,36 +35,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.softBackground,
   },
-  header: {
-    backgroundColor: colors.brightYellow,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-  },
-  back: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  copy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  title: {
-    fontFamily: fonts.bold,
-    fontSize: 18,
-    lineHeight: 22,
-    color: colors.text,
-  },
-  subtitle: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.text,
-  },
   scroll: {
     flex: 1,
   },
@@ -85,11 +42,17 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
   },
+  subtitle: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
   footer: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
     backgroundColor: colors.white,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
-    paddingHorizontal: 14,
-    paddingTop: 10,
   },
 });

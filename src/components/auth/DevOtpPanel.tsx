@@ -13,6 +13,9 @@ function remainingLabel(otp: DevOtpView, now: number): string {
   if (otp.used) {
     return 'Already used once. Resend OTP creates a new code.';
   }
+  if (otp.locked) {
+    return 'Locked after too many incorrect attempts. Resend OTP creates a new code.';
+  }
   const remaining = otp.expiresAt - now;
   if (remaining <= 0) {
     return 'Expired. Resend OTP creates a new code.';
@@ -20,12 +23,12 @@ function remainingLabel(otp: DevOtpView, now: number): string {
   const totalSeconds = Math.ceil(remaining / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  return `Expires in ${minutes}:${seconds.toString().padStart(2, '0')}`;
+  return `Expires in ${minutes}:${seconds.toString().padStart(2, '0')} · ${otp.attemptsRemaining} attempts left`;
 }
 
 export function DevOtpPanel({ otp, onStatus }: DevOtpPanelProps) {
   const [now, setNow] = useState(() => Date.now());
-  const locked = otp.used;
+  const locked = otp.used || otp.locked;
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -34,13 +37,14 @@ export function DevOtpPanel({ otp, onStatus }: DevOtpPanelProps) {
 
   return (
     <View accessibilityRole="summary" style={styles.panel} testID="dev-otp-panel">
+      <Text style={styles.demoBadge}>Demo / Development — not a real SMS</Text>
       <View style={styles.codeRow}>
         <Text style={styles.kicker}>Development OTP</Text>
         <Text accessibilityLabel={`Development test code ${otp.code.split('').join(' ')}`} style={styles.code}>
           {otp.code}
         </Text>
       </View>
-      <Text style={styles.note}>{remainingLabel(otp, now)} Type it in the boxes. This is not a real SMS.</Text>
+      <Text style={styles.note}>{remainingLabel(otp, now)} Type it in the boxes.</Text>
       <View style={styles.statusRow}>
         <Pressable
           accessibilityRole="button"
@@ -85,6 +89,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primaryDark,
   },
+  demoBadge: {
+    alignSelf: 'flex-start',
+    fontFamily: fonts.semibold,
+    fontSize: 11,
+    color: colors.primaryInk,
+    backgroundColor: colors.softYellow,
+    overflow: 'hidden',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
   codeRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -101,15 +116,14 @@ const styles = StyleSheet.create({
   code: {
     fontFamily: fonts.bold,
     fontSize: 22,
-    lineHeight: 28,
-    letterSpacing: 3,
+    letterSpacing: 2,
     color: colors.text,
   },
   note: {
     fontFamily: fonts.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.text,
+    color: colors.textSecondary,
   },
   statusRow: {
     flexDirection: 'row',
@@ -119,7 +133,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 40,
     borderRadius: 12,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     backgroundColor: colors.white,
     alignItems: 'center',
@@ -127,16 +141,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   statusOn: {
-    borderColor: colors.primaryInk,
-    backgroundColor: colors.welcomeSoft,
+    backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
   },
   statusLabel: {
     fontFamily: fonts.semibold,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
     color: colors.text,
   },
   pressed: {
-    opacity: 0.75,
+    opacity: 0.85,
   },
 });

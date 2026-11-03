@@ -6,8 +6,10 @@ import { Animated, Easing, StyleSheet, View } from 'react-native';
 
 import { BrandLogo } from '@/components/ui/BrandLogo';
 import { colors } from '@/constants/theme';
+import { useAuthFlow } from '@/context/AuthFlowContext';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { canUseDevelopmentHome, isDevOtpEnabled } from '@/services/devOtp';
+import { shouldSkipPostRegistrationOtp } from '@/services/mobileVerification';
 
 const SPLASH_MS = 1100;
 
@@ -19,6 +21,7 @@ const preload = [
 
 export default function SplashScreen() {
   const { hydrated, session, devSession } = useAuthSession();
+  const { nationalNumber, mobileVerification } = useAuthFlow();
   const [opacity] = useState(() => new Animated.Value(0));
   const [scale] = useState(() => new Animated.Value(0.84));
   const [shift] = useState(() => new Animated.Value(14));
@@ -40,7 +43,12 @@ export default function SplashScreen() {
         router.replace('/home');
         return;
       }
-      if (isDevOtpEnabled() && devSession?.destination === 'complete-profile') {
+      // OTP-first mid-onboarding: verified unregistered mobile resumes Personal Information.
+      if (
+        (isDevOtpEnabled() && devSession?.destination === 'complete-profile') ||
+        (mobileVerification?.standing === 'unregistered' &&
+          shouldSkipPostRegistrationOtp(mobileVerification, nationalNumber || mobileVerification.mobile))
+      ) {
         router.replace('/complete-profile');
         return;
       }
@@ -50,7 +58,7 @@ export default function SplashScreen() {
       clearTimeout(timer);
       motion.stop();
     };
-  }, [devSession, hydrated, opacity, scale, session, shift]);
+  }, [devSession, hydrated, mobileVerification, nationalNumber, opacity, scale, session, shift]);
 
   return (
     <View style={styles.screen}>

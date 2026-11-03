@@ -1,12 +1,25 @@
 import { create, isAxiosError } from 'axios';
 
-import { API_BASE_URL } from '@/constants/api';
+import { API_BASE_URL, LIVE_API_BASE_URL } from '@/constants/api';
 
 const TIMEOUT_MS = 15000;
 
+/**
+ * Expo web in the browser is subject to CORS. Detect without importing react-native
+ * so Node regression scripts that load this module still run.
+ */
+function isWebRuntime(): boolean {
+  return typeof document !== 'undefined';
+}
+
+/** True when Expo web uses the Metro same-origin proxy instead of the live host. */
+const usesWebDevProxy = typeof __DEV__ !== 'undefined' && __DEV__ && isWebRuntime();
+
+const resolvedBaseURL = usesWebDevProxy ? '' : API_BASE_URL;
+
 /** The only HTTP client used for customer authentication. */
 export const apiClient = create({
-  baseURL: API_BASE_URL,
+  baseURL: resolvedBaseURL,
   timeout: TIMEOUT_MS,
   headers: {
     Accept: 'application/json',
@@ -68,6 +81,8 @@ function logCustomerCall(method: string, path: string, status: number, detail: u
   console.info('[customer-api]', {
     method,
     endpoint: path,
+    baseURL: resolvedBaseURL || '(same-origin web proxy)',
+    liveHost: LIVE_API_BASE_URL,
     status,
     category,
     shape: Array.isArray(detail) ? 'array' : detail === null || detail === undefined ? 'empty' : typeof detail,
@@ -76,13 +91,62 @@ function logCustomerCall(method: string, path: string, status: number, detail: u
   });
 }
 
+function classifyAxiosFailure(error: unknown): {
+  category: 'timeout' | 'cors' | 'network' | 'unknown';
+  message: string;
+  detail: Record<string, unknown>;
+} {
+  if (!isAxiosError(error)) {
+    return { category: 'unknown', message: 'Unable to connect. Please try again.', detail: {} };
+  }
+
+  const timedOut = error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT';
+  if (timedOut) {
+    return {
+      category: 'timeout',
+      message: 'The request timed out. Please try again.',
+      detail: { code: error.code ?? null },
+    };
+  }
+
+  // Browser CORS: no response object; fetch/XHR surfaces as Network Error / Failed to fetch.
+  // Native RN has no CORS — the same Axios shape means real reachability failure.
+  const browserBlocked =
+    isWebRuntime() &&
+    !error.response &&
+    (error.message === 'Network Error' || /failed to fetch/i.test(error.message));
+
+  if (browserBlocked && !usesWebDevProxy) {
+    return {
+      category: 'cors',
+      message: 'Unable to connect. Please try again.',
+      detail: {
+        code: error.code ?? null,
+        axiosMessage: error.message.slice(0, 120),
+        hint: 'Browser CORS blocked the live API (missing ACAO / OPTIONS 405). Restart Metro so /api is proxied, or use Expo Go.',
+      },
+    };
+  }
+
+  return {
+    category: 'network',
+    message: 'Unable to connect. Please try again.',
+    detail: {
+      code: error.code ?? null,
+      axiosMessage: error.message.slice(0, 120),
+      web: isWebRuntime(),
+      webProxy: usesWebDevProxy,
+    },
+  };
+}
+
 async function requestJson(
   method: 'get' | 'post',
   path: string,
   body?: unknown,
   query?: Record<string, string>,
 ): Promise<ApiPostResult> {
-  if (!API_BASE_URL.startsWith('https://')) {
+  if (!usesWebDevProxy && !LIVE_API_BASE_URL.startsWith('https://')) {
     return { status: 0, body: { message: 'The API address must use HTTPS.' } };
   }
 
@@ -95,11 +159,9 @@ async function requestJson(
     logCustomerCall(method.toUpperCase(), path, response.status, payload, 'http');
     return { status: response.status, body: payload };
   } catch (error) {
-    const timedOut = isAxiosError(error) && (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT');
-    const category = timedOut ? 'timeout' : isAxiosError(error) ? 'network' : 'unknown';
-    const message = timedOut ? 'The request timed out. Please try again.' : 'Unable to connect. Please try again.';
-    logCustomerCall(method.toUpperCase(), path, 0, { category, message }, category);
-    return { status: 0, body: { message } };
+    const failure = classifyAxiosFailure(error);
+    logCustomerCall(method.toUpperCase(), path, 0, { ...failure.detail, message: failure.message }, failure.category);
+    return { status: 0, body: { message: failure.message } };
   }
 }
 

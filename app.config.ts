@@ -8,14 +8,21 @@ function isUiPreviewBuild(): boolean {
 }
 
 export default ({ config }: ConfigContext): ExpoConfig => {
-  const name = config.name ?? 'PhoneBook ERP';
+  const name = config.name ?? 'Mayapur Bazaar';
   const slug = config.slug ?? 'GroceryApp';
+
+  const sharedExtra = {
+    ...config.extra,
+    /** Mirrored for runtime fallback if Metro env inlining is stale. */
+    expoPublicDevOtp: process.env.EXPO_PUBLIC_DEV_OTP ?? '',
+  };
 
   if (!isUiPreviewBuild()) {
     return {
       ...config,
       name,
       slug,
+      extra: sharedExtra,
     };
   }
 
@@ -35,7 +42,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   return {
     ...config,
-    name: 'GroceryApp Preview',
+    name: 'Mayapur Bazaar Preview',
     slug,
     scheme: 'groceryapp-preview',
     android: {
@@ -45,7 +52,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     plugins,
     extra: {
-      ...config.extra,
+      ...sharedExtra,
       uiPreview: true,
     },
   };

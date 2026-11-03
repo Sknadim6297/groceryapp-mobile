@@ -1,284 +1,337 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
-import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useMemo, useState, type ReactNode } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { SideMenu } from '@/components/home/SideMenu';
-import { AppIcon } from '@/components/ui/AppIcon';
-import { SoftIcon } from '@/components/ui/SoftIcon';
+import { DemoTrackingMap } from '@/components/track/DemoTrackingMap';
+import { AppIcon, type AppIconName } from '@/components/ui/AppIcon';
+import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
+import { useToast } from '@/components/ui/AppToast';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts } from '@/constants/theme';
+import { useMockCart } from '@/context/MockCartContext';
 import { usePreviewSession } from '@/context/PreviewSessionContext';
 import { readActiveOrder } from '@/data/activeOrder';
-import type { CustomerOrder, OrderLine, OrderStatus } from '@/types/order';
+import { buildTrackPanelTimeline, getDemoOrderTracking } from '@/data/demoOrderTracking';
+import type { CustomerOrder } from '@/types/order';
+import type { TrackTimelineStep } from '@/types/orderTracking';
+import { isActiveOrder } from '@/utils/orderListing';
 
-const flow: OrderStatus[] = ['placed', 'confirmed', 'packing', 'picked_up', 'out_for_delivery', 'delivered'];
-
-const statusCopy: Record<OrderStatus, { title: string; detail: string }> = {
-  placed: { title: 'Your order is placed', detail: 'Waiting for the store to confirm it' },
-  confirmed: { title: 'Your order is confirmed', detail: 'The store has accepted it' },
-  packing: { title: 'Your order is getting packed', detail: 'Items are being prepared' },
-  picked_up: { title: 'Order picked up', detail: 'The order has left the store' },
-  out_for_delivery: { title: 'Out for delivery', detail: 'The order is on the way' },
-  delivered: { title: 'Order delivered', detail: 'This order has been delivered' },
-  cancelled: { title: 'Order cancelled', detail: 'This order is not on the way' },
-};
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
 
 export function OrderTrackingScreen() {
   const insets = useSafeAreaInsets();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const { orders } = usePreviewSession();
-  const previewOrder = UI_PREVIEW_MODE ? orders[0] : undefined;
-  const state = previewOrder ? ({ kind: 'ready', order: previewOrder } as const) : readActiveOrder();
+  const { height } = useWindowDimensions();
+  const { showToast } = useToast();
+  const { totalCount } = useMockCart();
+  const { id } = useLocalSearchParams<{ id?: string | string[] }>();
+  const orderId = firstParam(id);
+  const { findOrder, orders } = usePreviewSession();
+  const [panelExpanded, setPanelExpanded] = useState(true);
+
+  const previewOrder = UI_PREVIEW_MODE
+    ? findOrder(orderId) ??
+      orders.find((order) => isActiveOrder(order)) ??
+      orders.find((order) => order.status === 'out_for_delivery') ??
+      null
+    : null;
+  const liveState = previewOrder ? null : readActiveOrder();
+  const order: CustomerOrder | null =
+    previewOrder ?? (liveState?.kind === 'ready' ? liveState.order : null);
+  const tracking = order ? getDemoOrderTracking(order) : null;
+  const mapHeight = Math.max(280, Math.round(height * 0.58));
+  const timeline = useMemo(() => (order ? buildTrackPanelTimeline(order) : []), [order]);
 
   return (
-    <View style={styles.screen}>
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-          hitSlop={8}
-          onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))}
-          style={({ pressed }) => [styles.headerIcon, pressed && styles.pressed]}>
-          <AppIcon name="close" color={colors.text} size={24} />
-        </Pressable>
-        <View style={styles.headerCopy}>
-          {state.kind === 'ready' ? (
-            <>
-              <Text style={styles.headerTitle} numberOfLines={1}>
-                Order {state.order.id}
-              </Text>
-              <View style={styles.headerMeta}>
-                <Pressable accessibilityRole="button" accessibilityLabel="View order details" onPress={() => setDetailsOpen(true)}>
-                  <Text style={styles.headerLink}>View Details</Text>
-                </Pressable>
-                <Text style={styles.headerTime}>{state.order.placedAtLabel}</Text>
+    <View style={styles.screen} testID="track-order-screen">
+      <AppScreenHeader
+        title="Track Order"
+        fallbackHref="/orders"
+        right={
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open cart"
+            onPress={() => router.push('/cart')}
+            style={({ pressed }) => [styles.headerCart, pressed && styles.pressed]}
+            testID="track-header-cart">
+            <AppIcon name="bag" color={colors.primaryInk} size={20} />
+            {totalCount > 0 ? (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{totalCount > 9 ? '9+' : totalCount}</Text>
               </View>
-            </>
-          ) : (
-            <>
-              <Text style={styles.headerTitle}>Track order</Text>
-              <Text style={styles.headerSubtitle}>GroceryApp</Text>
-            </>
-          )}
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Menu"
-          accessibilityState={{ expanded: menuOpen }}
-          hitSlop={8}
-          onPress={() => setMenuOpen(true)}
-          style={({ pressed }) => [styles.headerAction, pressed && styles.pressed]}>
-          <AppIcon name="menu" color={colors.white} size={24} />
-        </Pressable>
-      </View>
+            ) : null}
+          </Pressable>
+        }
+      />
 
-      {state.kind === 'ready' ? (
-        <ActiveOrder order={state.order} detailsOpen={detailsOpen} onCloseDetails={() => setDetailsOpen(false)} />
-      ) : state.kind === 'error' ? (
-        <StatusMessage title="Tracking is unavailable" message={state.message} />
-      ) : state.kind === 'loading' ? (
-        <StatusMessage title="Checking for an order" message="Looking up the current order." />
-      ) : (
-        <StatusMessage
-          title="No active order"
-          message="Order tracking is not connected yet. An order number, arrival time, and delivery partner will appear here after an order is placed."
+      {!order || !tracking ? (
+        <EmptyTracking
+          previewMode={UI_PREVIEW_MODE}
+          bottomInset={insets.bottom}
+          reason={
+            liveState?.kind === 'error'
+              ? liveState.message
+              : liveState?.kind === 'loading'
+                ? 'Looking up the current order.'
+                : undefined
+          }
         />
-      )}
-
-      <View style={styles.footer}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Help"
-          onPress={() => router.push('/help')}
-          style={({ pressed }) => [styles.helpButton, pressed && styles.pressed]}>
-          <Text style={styles.helpLabel}>HELP</Text>
-        </Pressable>
-      </View>
-      <SideMenu visible={menuOpen} onClose={() => setMenuOpen(false)} />
-    </View>
-  );
-}
-
-function ActiveOrder({
-  order,
-  detailsOpen,
-  onCloseDetails,
-}: {
-  order: CustomerOrder;
-  detailsOpen: boolean;
-  onCloseDetails: () => void;
-}) {
-  const [itemsOpen, setItemsOpen] = useState(false);
-  const count = order.items.reduce((sum, item) => sum + item.quantity, 0);
-  const copy = statusCopy[order.status];
-  const phone = callablePhone(order.partner?.phone);
-  const step = flow.indexOf(order.status);
-
-  return (
-    <>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.hero}>
-          <View style={styles.illustration}>
-            <SoftIcon name="box" size={72} />
-            <SoftIcon name="basket" size={48} />
+      ) : (
+        <View style={styles.body}>
+          <View style={[styles.mapWrap, { height: mapHeight }]}>
+            <DemoTrackingMap tracking={tracking} />
           </View>
-          {order.eta ? (
-            <View style={styles.eta} accessibilityRole="text" accessibilityLabel={`Delivery estimate ${order.eta.value} ${order.eta.unit}`}>
-              <Text style={styles.etaValue}>{order.eta.value}</Text>
-              <Text style={styles.etaUnit}>{order.eta.unit}</Text>
-            </View>
-          ) : null}
-          <Text style={styles.addressTitle}>{order.addressTitle}</Text>
-          <Text style={styles.addressLine}>{order.addressLine}</Text>
-        </View>
 
-        <View style={styles.card}>
-          <View style={styles.cardTop}>
-            <Text style={styles.countLabel}>{itemsCaption(order.status, count)}</Text>
+          <View
+            style={[
+              styles.panel,
+              panelExpanded ? styles.panelExpanded : styles.panelCollapsed,
+            ]}
+            testID="track-bottom-panel">
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={itemsOpen ? 'Hide items' : 'See all items'}
-              onPress={() => setItemsOpen((open) => !open)}>
-              <Text style={styles.link}>{itemsOpen ? 'Hide items' : 'See all items'}</Text>
+              accessibilityLabel={panelExpanded ? 'Collapse delivery details' : 'Expand delivery details'}
+              onPress={() => setPanelExpanded((open) => !open)}
+              style={styles.handleHit}
+              testID="track-panel-toggle">
+              <View style={styles.handle} />
             </Pressable>
-          </View>
-          {itemsOpen ? <ItemList items={order.items} /> : null}
-          <View style={styles.statusRow}>
-            <View style={styles.statusIcon}>
-              <SoftIcon name="box" size={24} />
-            </View>
-            <View style={styles.statusCopy}>
-              <Text style={styles.cardTitle}>{copy.title}</Text>
-              <Text style={styles.cardSub}>{order.statusDetail ?? copy.detail}</Text>
-            </View>
-          </View>
-          {order.status === 'cancelled' ? null : (
-            <View style={styles.progress} accessibilityRole="progressbar">
-              {flow.map((status, index) => (
-                <View key={status} style={[styles.progressStep, index <= step && styles.progressDone]} />
-              ))}
-            </View>
-          )}
-        </View>
 
-        {order.partner ? (
-          <View style={styles.card}>
-            <View style={styles.partnerRow}>
-              <View style={styles.avatar}>
-                <SoftIcon name="profile" size={28} />
-              </View>
-              <View style={styles.statusCopy}>
-                <Text style={styles.cardTitle}>{order.partner.name}</Text>
-                <Text style={styles.cardSub}>{order.partner.status}</Text>
-              </View>
-              {phone ? (
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              contentContainerStyle={[
+                styles.panelContent,
+                { paddingBottom: Math.max(insets.bottom, 8) + 76 },
+              ]}>
+              <PartnerRow
+                order={order}
+                onCallPreview={() =>
+                  showToast('info', 'Preview only — partner call is not connected.')
+                }
+              />
+
+              <DetailRow
+                icon="stores"
+                iconWash="#FEF3C7"
+                iconColor={colors.primaryInk}
+                title={order.addressTitle || 'Delivery address'}
+                subtitle={order.addressLine || 'Address was not included.'}
+              />
+
+              <DetailRow
+                icon="clock"
+                iconWash="#FEF3C7"
+                iconColor={colors.primaryInk}
+                title={tracking.etaRangeLabel}
+                subtitle="Estimated Delivery Time"
+              />
+
+              <DetailRow
+                icon="truck"
+                iconWash="#DCFCE7"
+                iconColor="#15803D"
+                title="Order Status"
+                subtitle={order.statusDetail ?? 'Your groceries are on the way'}
+                trailing={
+                  <View style={styles.statusChip}>
+                    <View style={styles.statusDot} />
+                    <Text style={styles.statusChipText}>{tracking.statusChipLabel}</Text>
+                  </View>
+                }
+              />
+
+              <DetailRow
+                icon="bag"
+                iconWash="#FEF3C7"
+                iconColor={colors.primaryInk}
+                title="Order ID"
+                subtitle={order.id}
+                trailing={
+                  <View style={styles.paidChip}>
+                    <AppIcon name="check" color="#15803D" size={12} />
+                    <Text style={styles.paidChipText}>{tracking.paymentChipLabel}</Text>
+                  </View>
+                }
+              />
+
+              {panelExpanded ? (
+                <>
+                  <Text style={styles.sectionLabel}>Delivery progress</Text>
+                  <View style={styles.timelineCard}>
+                    {timeline.map((step, index) => (
+                      <TimelineRow key={step.id} step={step} last={index === timeline.length - 1} />
+                    ))}
+                  </View>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="View order details"
+                    onPress={() => router.push({ pathname: '/order/[id]', params: { id: order.id } })}
+                    style={({ pressed }) => [styles.detailsBtn, pressed && styles.pressed]}
+                    testID="track-view-order-details">
+                    <Text style={styles.detailsBtnLabel}>View Order Details</Text>
+                  </Pressable>
+
+                  <Text style={styles.demoFootnote}>{tracking.demoNotice}</Text>
+                </>
+              ) : (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Call ${order.partner.name}`}
-                  onPress={() => void Linking.openURL(`tel:${phone}`)}
-                  style={styles.call}>
-                  <AppIcon name="phone" color={colors.white} size={24} />
+                  accessibilityLabel="Show more tracking details"
+                  onPress={() => setPanelExpanded(true)}
+                  style={styles.moreHit}>
+                  <Text style={styles.moreLabel}>Show timeline & details</Text>
                 </Pressable>
-              ) : null}
-            </View>
+              )}
+            </ScrollView>
           </View>
-        ) : null}
-
-        {order.offer ? (
-          <View style={styles.wait}>
-            <Text style={styles.waitTitle}>While you wait for your order...</Text>
-            <View style={styles.offer}>
-              <Text style={styles.offerTitle}>{order.offer.title}</Text>
-              <Text style={styles.offerDetail}>{order.offer.detail}</Text>
-            </View>
-          </View>
-        ) : null}
-      </ScrollView>
-
-      <OrderDetails order={order} visible={detailsOpen} onClose={onCloseDetails} />
-    </>
-  );
-}
-
-function ItemList({ items }: { items: OrderLine[] }) {
-  if (items.length === 0) {
-    return <Text style={styles.cardSub}>No items were included with this order.</Text>;
-  }
-  return (
-    <View style={styles.items}>
-      {items.map((item) => (
-        <View key={item.id} style={styles.itemRow}>
-          <Text style={styles.itemName} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <Text style={styles.itemQty}>
-            {item.quantity}
-            {item.unit ? ` · ${item.unit}` : ''}
-          </Text>
         </View>
-      ))}
+      )}
     </View>
   );
 }
 
-function OrderDetails({
+function PartnerRow({
   order,
-  visible,
-  onClose,
+  onCallPreview,
 }: {
   order: CustomerOrder;
-  visible: boolean;
-  onClose: () => void;
+  onCallPreview: () => void;
 }) {
-  const insets = useSafeAreaInsets();
-  const copy = statusCopy[order.status];
+  const name = order.partner?.name ?? 'Delivery Partner';
+  const initials = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('');
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-      <View style={styles.modalRoot}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Close order details" onPress={onClose} style={styles.backdrop} />
-      <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-        <Text style={styles.cardTitle}>Order {order.id}</Text>
-        <Text style={styles.cardSub}>{order.placedAtLabel}</Text>
-        <Text style={styles.cardTitle}>{copy.title}</Text>
-        <Text style={styles.cardSub}>{order.addressTitle}</Text>
-        <Text style={styles.addressLine}>{order.addressLine}</Text>
-        <ItemList items={order.items} />
-        <Pressable accessibilityRole="button" accessibilityLabel="Close details" onPress={onClose} style={styles.sheetClose}>
-          <Text style={styles.link}>Close</Text>
-        </Pressable>
+    <View style={styles.partnerRow}>
+      <View style={styles.avatar}>
+        <Text style={styles.avatarText}>{initials || 'DP'}</Text>
       </View>
+      <View style={styles.partnerCopy}>
+        <Text style={styles.partnerName}>{name}</Text>
+        <Text style={styles.partnerRole}>{order.partner?.status ?? 'Delivery Partner'}</Text>
+        {order.partner?.ratingLabel ? (
+          <View style={styles.ratingRow}>
+            <AppIcon name="star" color={colors.primary} size={14} />
+            <Text style={styles.ratingText}>{order.partner.ratingLabel}</Text>
+          </View>
+        ) : null}
       </View>
-    </Modal>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Preview call delivery partner"
+        onPress={onCallPreview}
+        style={({ pressed }) => [styles.callBtn, pressed && styles.pressed]}
+        testID="track-call-preview">
+        <AppIcon name="phone" color={colors.text} size={20} />
+      </Pressable>
+    </View>
   );
 }
 
-function StatusMessage({ title, message }: { title: string; message: string }) {
+function DetailRow({
+  icon,
+  iconWash,
+  iconColor,
+  title,
+  subtitle,
+  trailing,
+}: {
+  icon: AppIconName;
+  iconWash: string;
+  iconColor: string;
+  title: string;
+  subtitle: string;
+  trailing?: ReactNode;
+}) {
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.empty} showsVerticalScrollIndicator={false}>
-      <View style={styles.illustration}>
-        <SoftIcon name="box" size={84} />
+    <View style={styles.detailRow}>
+      <View style={[styles.detailIcon, { backgroundColor: iconWash }]}>
+        <AppIcon name={icon} color={iconColor} size={18} />
       </View>
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.emptyCopy}>{message}</Text>
-    </ScrollView>
+      <View style={styles.detailCopy}>
+        <Text style={styles.detailTitle} numberOfLines={2}>
+          {title}
+        </Text>
+        <Text style={styles.detailSubtitle} numberOfLines={2}>
+          {subtitle}
+        </Text>
+      </View>
+      {trailing}
+    </View>
   );
 }
 
-function itemsCaption(status: OrderStatus, count: number) {
-  const noun = count === 1 ? 'item' : 'items';
-  if (status === 'packing') return `${count} ${noun} to be packed`;
-  if (status === 'picked_up' || status === 'out_for_delivery') return `${count} ${noun} on the way`;
-  if (status === 'delivered') return `${count} ${noun} delivered`;
-  if (status === 'cancelled') return `${count} ${noun} cancelled`;
-  return `${count} ${noun} in this order`;
+function TimelineRow({ step, last }: { step: TrackTimelineStep; last: boolean }) {
+  const active = step.state === 'done' || step.state === 'current';
+  return (
+    <View style={styles.timelineRow}>
+      <View style={styles.timelineRail}>
+        <View
+          style={[
+            styles.timelineDot,
+            active && styles.timelineDotActive,
+            step.state === 'current' && styles.timelineDotCurrent,
+            step.state === 'pending' && styles.timelineDotPending,
+          ]}
+        />
+        {!last ? <View style={[styles.timelineLine, active && styles.timelineLineActive]} /> : null}
+      </View>
+      <View style={[styles.timelineCopy, last && styles.timelineCopyLast]}>
+        <Text style={[styles.timelineLabel, step.state === 'pending' && styles.timelineLabelPending]}>
+          {step.label}
+        </Text>
+        <Text style={styles.timelineAt}>{step.at ?? (step.state === 'pending' ? 'Pending' : '—')}</Text>
+      </View>
+    </View>
+  );
 }
 
-function callablePhone(phone: string | undefined) {
-  if (!phone) return null;
-  const compact = phone.replace(/[\s()-]/g, '');
-  return /^\+?[0-9]{6,15}$/.test(compact) ? compact : null;
+function EmptyTracking({
+  previewMode,
+  bottomInset,
+  reason,
+}: {
+  previewMode: boolean;
+  bottomInset: number;
+  reason?: string;
+}) {
+  return (
+    <View style={[styles.empty, { paddingBottom: Math.max(bottomInset, 24) }]} testID="track-empty">
+      <View style={styles.emptyIcon}>
+        <AppIcon name="truck" color={colors.textSecondary} size={36} />
+      </View>
+      <Text style={styles.emptyTitle}>No active deliveries</Text>
+      <Text style={styles.emptyBody}>
+        {reason ??
+          (previewMode
+            ? 'No active demo order is available to track right now.'
+            : 'Your active grocery orders will appear here.')}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Explore Products"
+        onPress={() => router.push('/shop')}
+        style={({ pressed }) => [styles.exploreBtn, pressed && styles.pressed]}
+        testID="track-explore-products">
+        <Text style={styles.exploreLabel}>Explore Products</Text>
+      </Pressable>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -286,334 +339,332 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.softBackground,
   },
-  header: {
-    backgroundColor: colors.brightYellow,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-    gap: 8,
-  },
-  headerIcon: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerAction: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.iconSurface,
-  },
-  headerCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  headerTitle: {
-    fontFamily: fonts.bold,
-    fontSize: 16,
-    lineHeight: 20,
-    color: colors.text,
-  },
-  headerSubtitle: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.text,
-  },
-  headerMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  headerLink: {
-    fontFamily: fonts.semibold,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.primaryInk,
-  },
-  headerTime: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.textSecondary,
-  },
-  scroll: {
+  body: {
     flex: 1,
   },
-  content: {
-    paddingTop: 8,
-    paddingBottom: 16,
-    gap: 12,
+  mapWrap: {
+    width: '100%',
   },
-  hero: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 4,
-    gap: 4,
-  },
-  illustration: {
-    minHeight: 150,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 8,
-  },
-  eta: {
-    width: 88,
-    height: 88,
-    marginTop: -28,
-    borderRadius: 44,
-    borderWidth: 4,
-    borderColor: colors.primary,
-    backgroundColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  etaValue: {
-    fontFamily: fonts.bold,
-    fontSize: 28,
-    lineHeight: 32,
-    color: colors.text,
-  },
-  etaUnit: {
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.textSecondary,
-  },
-  addressTitle: {
-    marginTop: 8,
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    lineHeight: 18,
-    color: colors.text,
-    textAlign: 'center',
-  },
-  addressLine: {
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  card: {
-    marginHorizontal: 12,
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 14,
-    gap: 10,
-    shadowColor: colors.text,
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  countLabel: {
-    flex: 1,
-    fontFamily: fonts.semibold,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.text,
-  },
-  link: {
-    fontFamily: fonts.semibold,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.primaryInk,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  statusIcon: {
+  headerCart: {
     width: 40,
     height: 40,
     borderRadius: 12,
     backgroundColor: colors.softYellow,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 4,
   },
-  statusCopy: {
-    flex: 1,
-    minWidth: 0,
-    gap: 2,
+  cartBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
   },
-  cardTitle: {
+  cartBadgeText: {
     fontFamily: fonts.bold,
-    fontSize: 15,
-    lineHeight: 20,
-    color: colors.text,
+    fontSize: 9,
+    color: colors.white,
   },
-  cardSub: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.textSecondary,
+  panel: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -4 },
+    elevation: 12,
+    maxHeight: '58%',
   },
-  progress: {
-    flexDirection: 'row',
-    gap: 4,
+  panelExpanded: {
+    maxHeight: '58%',
   },
-  progressStep: {
-    flex: 1,
+  panelCollapsed: {
+    maxHeight: 280,
+  },
+  handleHit: {
+    alignItems: 'center',
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
+  handle: {
+    width: 40,
     height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.border,
+    borderRadius: 999,
+    backgroundColor: '#D1D5DB',
   },
-  progressDone: {
-    backgroundColor: colors.primary,
+  panelContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    gap: 14,
   },
   partnerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.cream,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  call: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.iconSurface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  items: {
-    gap: 6,
-  },
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  itemName: {
-    flex: 1,
-    fontFamily: fonts.medium,
-    fontSize: 13,
-    lineHeight: 18,
+  avatarText: {
+    fontFamily: fonts.bold,
+    fontSize: 16,
     color: colors.text,
   },
-  itemQty: {
+  partnerCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  partnerName: {
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    color: colors.text,
+  },
+  partnerRole: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
+  ratingText: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  callBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  detailIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  detailTitle: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.text,
+  },
+  detailSubtitle: {
     fontFamily: fonts.regular,
     fontSize: 12,
     lineHeight: 16,
     color: colors.textSecondary,
   },
-  wait: {
-    marginHorizontal: 12,
-    gap: 8,
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
   },
-  waitTitle: {
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#16A34A',
+  },
+  statusChipText: {
+    fontFamily: fonts.semibold,
+    fontSize: 11,
+    color: '#15803D',
+  },
+  paidChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F0FDF4',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  paidChipText: {
+    fontFamily: fonts.semibold,
+    fontSize: 11,
+    color: '#15803D',
+  },
+  sectionLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.text,
+    marginTop: 2,
+  },
+  timelineCard: {
+    backgroundColor: colors.softBackground,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 4,
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    minHeight: 34,
+  },
+  timelineRail: {
+    width: 16,
+    alignItems: 'center',
+  },
+  timelineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: 4,
+    borderWidth: 2,
+    borderColor: colors.primaryDark,
+    backgroundColor: colors.primary,
+  },
+  timelineDotActive: {
+    borderColor: colors.primaryDark,
+    backgroundColor: colors.primary,
+  },
+  timelineDotCurrent: {
+    borderColor: '#16A34A',
+    backgroundColor: '#86EFAC',
+  },
+  timelineDotPending: {
+    borderColor: '#CBD5E1',
+    backgroundColor: colors.white,
+  },
+  timelineLine: {
+    width: 2,
+    flex: 1,
+    marginTop: 2,
+    marginBottom: 2,
+    backgroundColor: '#E2E8F0',
+  },
+  timelineLineActive: {
+    backgroundColor: colors.primaryDark,
+  },
+  timelineCopy: {
+    flex: 1,
+    paddingLeft: 10,
+    paddingBottom: 10,
+  },
+  timelineCopyLast: {
+    paddingBottom: 6,
+  },
+  timelineLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.text,
+  },
+  timelineLabelPending: {
+    color: colors.textSecondary,
+  },
+  timelineAt: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  detailsBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  detailsBtnLabel: {
     fontFamily: fonts.semibold,
     fontSize: 14,
-    lineHeight: 18,
     color: colors.text,
   },
-  offer: {
-    borderRadius: 16,
-    backgroundColor: colors.brightYellow,
-    padding: 16,
-    gap: 4,
+  demoFootnote: {
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
-  offerTitle: {
-    fontFamily: fonts.bold,
-    fontSize: 20,
-    lineHeight: 26,
-    color: colors.text,
+  moreHit: {
+    alignItems: 'center',
+    paddingVertical: 4,
   },
-  offerDetail: {
-    fontFamily: fonts.medium,
+  moreLabel: {
+    fontFamily: fonts.semibold,
     fontSize: 13,
-    lineHeight: 18,
-    color: colors.text,
+    color: colors.primaryInk,
   },
   empty: {
-    paddingHorizontal: 28,
-    paddingTop: 36,
+    flex: 1,
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    paddingHorizontal: 28,
+    gap: 10,
+  },
+  emptyIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
   },
   emptyTitle: {
     fontFamily: fonts.bold,
-    fontSize: 20,
-    lineHeight: 26,
+    fontSize: 18,
     color: colors.text,
     textAlign: 'center',
   },
-  emptyCopy: {
+  emptyBody: {
     fontFamily: fonts.regular,
     fontSize: 14,
     lineHeight: 20,
     color: colors.textSecondary,
     textAlign: 'center',
   },
-  footer: {
-    backgroundColor: colors.white,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-    paddingHorizontal: 14,
-    paddingTop: 10,
-    paddingBottom: 10,
-  },
-  helpButton: {
-    minHeight: 48,
-    borderRadius: 10,
+  exploreBtn: {
+    marginTop: 8,
     backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 14,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
   },
-  helpLabel: {
-    fontFamily: fonts.bold,
+  exploreLabel: {
+    fontFamily: fonts.semibold,
     fontSize: 14,
-    lineHeight: 18,
     color: colors.text,
-    letterSpacing: 0.4,
   },
   pressed: {
-    opacity: 0.75,
-  },
-  modalRoot: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  backdrop: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    backgroundColor: 'rgba(23, 23, 23, 0.4)',
-  },
-  sheet: {
-    marginTop: 'auto',
-    backgroundColor: colors.white,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    gap: 6,
-  },
-  sheetClose: {
-    alignSelf: 'flex-start',
-    marginTop: 8,
-    minHeight: 36,
-    justifyContent: 'center',
+    opacity: 0.85,
   },
 });

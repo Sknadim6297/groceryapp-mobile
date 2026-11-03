@@ -115,6 +115,23 @@ export function parseTemporaryUiLogin(raw: string | null): TemporaryUiLogin | nu
  */
 export function applyTemporaryUiLogin(result: CustomerApiResult, body: unknown, requestedMobile: string): CustomerApiResult {
   const cleared: CustomerApiResult = { ...result, session: undefined, temporaryLogin: undefined, localLogin: undefined };
+  // OTP-first: verified unregistered mobile keeps next=register. Preserve any server verification credential.
+  if (result.next === 'register' && result.confirmed) {
+    const mobile = nationalMobile(requestedMobile);
+    const session =
+      result.session && mobile
+        ? { ...result.session, mobile }
+        : result.session;
+    return {
+      ...cleared,
+      tone: result.tone,
+      message: result.message,
+      confirmed: true,
+      next: 'register',
+      customer: result.customer,
+      session,
+    };
+  }
   if (result.tone === 'error' || result.next === 'register' || result.next === 'otp' || BLOCKED_MESSAGE.test(result.message)) {
     return cleared;
   }

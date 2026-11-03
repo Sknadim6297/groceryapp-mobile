@@ -13,7 +13,11 @@ export default function MenuScreen() {
   return (
     <PlaceholderScreen
       title={name || 'Menu'}
-      message={name ? `${name} is not connected yet.` : 'This is a placeholder. Menu actions are not available yet.'}
+      message={
+        name
+          ? `Coming Soon. ${name} is not connected yet.`
+          : 'Coming Soon. This menu action is not available yet.'
+      }
       withHeader
     />
   );

@@ -1,17 +1,60 @@
-import { StyleSheet, Text } from 'react-native';
+import { FlatList, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { PreviewScaffold } from '@/components/preview/PreviewScaffold';
-import { colors, fonts } from '@/constants/theme';
+import { ProductCard } from '@/components/home/ProductCard';
+import { DemoBanner } from '@/components/preview/DemoBanner';
+import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
+import { UI_PREVIEW_MODE } from '@/constants/preview';
+import { colors, fonts, homeLayout } from '@/constants/theme';
+import { listBuyAgainProducts } from '@/data/listCatalogProducts';
 
 export default function BuyAgainScreen() {
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const contentWidth = Math.min(width, homeLayout.maxWidth);
+  const gutter = homeLayout.gutter;
+  const gap = 10;
+  const cardWidth = (contentWidth - gutter * 2 - gap) / 2;
+  const products = listBuyAgainProducts();
+
   return (
-    <PreviewScaffold title="Buy again" subtitle="GroceryApp">
-      <Text style={styles.note}>Buy again is not available until your past orders come from the store service.</Text>
-    </PreviewScaffold>
+    <View style={styles.screen}>
+      <AppScreenHeader title="Buy Again" fallbackHref="/home" />
+      <FlatList
+        data={products}
+        keyExtractor={(item) => item.id}
+        numColumns={2}
+        columnWrapperStyle={styles.row}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Math.max(insets.bottom, 20), maxWidth: homeLayout.maxWidth, width: '100%', alignSelf: 'center' },
+        ]}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            {UI_PREVIEW_MODE ? (
+              <DemoBanner message="Buy Again uses local catalogue fixtures until past-order APIs exist." />
+            ) : (
+              <Text style={styles.note}>Items you’ve purchased before will appear here when order history is connected.</Text>
+            )}
+          </View>
+        }
+        ListEmptyComponent={<Text style={styles.note}>No buy-again products in the local catalogue.</Text>}
+        renderItem={({ item }) => (
+          <View style={{ width: cardWidth }}>
+            <ProductCard product={item} compact={cardWidth < 140} />
+          </View>
+        )}
+        showsVerticalScrollIndicator={false}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.softBackground },
+  content: { paddingHorizontal: homeLayout.gutter, paddingTop: 12 },
+  header: { marginBottom: 12 },
+  row: { gap: 10, marginBottom: 10 },
   note: {
     fontFamily: fonts.regular,
     fontSize: 13,

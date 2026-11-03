@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
 import { BrandLogo } from '@/components/ui/BrandLogo';
-import { ScreenContainer } from '@/components/ui/ScreenContainer';
 import { colors, fonts } from '@/constants/theme';
 
 type PlaceholderScreenProps = {
@@ -13,25 +13,35 @@ type PlaceholderScreenProps = {
 
 export function PlaceholderScreen({ title, message, detail, withHeader = false }: PlaceholderScreenProps) {
   return (
-    <ScreenContainer edges={withHeader ? ['left', 'right', 'bottom'] : ['top', 'left', 'right']}>
-      <View style={styles.body}>
+    <View style={styles.screen}>
+      {withHeader ? <AppScreenHeader title={title} /> : null}
+      <View style={[styles.body, !withHeader && styles.bodyTopSafe]}>
         <BrandLogo height={64} />
-        <Text accessibilityRole="header" style={styles.title}>
-          {title}
-        </Text>
+        {!withHeader ? (
+          <Text accessibilityRole="header" style={styles.title}>
+            {title}
+          </Text>
+        ) : null}
         <Text style={styles.message}>{message}</Text>
         {detail ? <Text style={styles.detail}>{detail}</Text> : null}
       </View>
-    </ScreenContainer>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   body: {
     flex: 1,
     paddingHorizontal: 24,
     paddingTop: 28,
     gap: 8,
+  },
+  bodyTopSafe: {
+    paddingTop: 48,
   },
   title: {
     fontFamily: fonts.bold,

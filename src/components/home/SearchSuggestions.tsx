@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type Vie
 import { CatalogImage } from '@/components/home/CatalogImage';
 import { colors, fonts } from '@/constants/theme';
 import { searchSuggestions, type SearchSuggestion } from '@/data/searchSuggestions';
+import { resolveParentIdForCategory } from '@/data/subcategoryCatalog';
 
 type SearchSuggestionsProps = {
   query: string;
@@ -51,6 +52,11 @@ export function openSuggestion(item: SearchSuggestion) {
     return;
   }
   if (item.kind === 'category' && item.categoryId) {
+    const parentId = resolveParentIdForCategory(item.categoryId);
+    if (parentId) {
+      router.push({ pathname: '/category/[id]', params: { id: parentId } });
+      return;
+    }
     router.push({ pathname: '/shop', params: { category: item.categoryId } });
     return;
   }

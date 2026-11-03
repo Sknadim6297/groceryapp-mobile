@@ -7,9 +7,12 @@ import { ProductCard } from '@/components/home/ProductCard';
 import { ProductGallery } from '@/components/product/ProductGallery';
 import { productCardWidth, productColumns } from '@/components/home/productLayout';
 import { AppIcon } from '@/components/ui/AppIcon';
+import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
 import { colors, fonts, homeLayout } from '@/constants/theme';
 import { useMockCart } from '@/context/MockCartContext';
+import { useWishlist } from '@/context/WishlistContext';
 import { findDemoProduct } from '@/data/findDemoProduct';
+import { isProductInStock } from '@/data/resolveWishlistProducts';
 import { productDetailCopy } from '@/data/productDetails';
 import { relatedCatalogProducts } from '@/data/shopCatalog';
 import { formatRupee } from '@/utils/cartBill';
@@ -24,6 +27,7 @@ export default function ProductDetailScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { add, quantities, setQuantity, totalCount } = useMockCart();
+  const { isSaved, toggle } = useWishlist();
   const related = useMemo(() => (product ? relatedCatalogProducts(product.id) : null), [product]);
   const columns = productColumns(width, 2, PAGE_PAD, CARD_GAP);
   const cardWidth = productCardWidth(width, columns, PAGE_PAD, CARD_GAP);
@@ -31,41 +35,50 @@ export default function ProductDetailScreen() {
   if (!product) {
     return (
       <View style={styles.screen}>
-        <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
-          <BackButton />
-          <Text style={styles.headerTitle}>Product</Text>
-        </View>
+        <AppScreenHeader title="Product" />
         <Text style={styles.missing}>This item is not in the catalogue.</Text>
       </View>
     );
   }
 
   const quantity = quantities[product.id] ?? 0;
+  const saved = isSaved(product.id);
+  const inStock = isProductInStock(product);
   const showMrp = product.compareAt != null && product.compareAt > product.price;
   const shelfName = related?.shelfName;
   const copy = productDetailCopy(product);
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
-        <BackButton />
-        <Text numberOfLines={1} style={styles.headerTitle}>
-          {product.name}
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={totalCount > 0 ? `Cart, ${totalCount} items` : 'Cart'}
-          hitSlop={8}
-          onPress={() => router.push('/cart')}
-          style={styles.cart}>
-          <AppIcon name="cart" color={colors.text} size={22} />
-          {totalCount > 0 ? (
-            <View style={styles.badge}>
-              <Text style={styles.badgeLabel}>{totalCount > 9 ? '9+' : String(totalCount)}</Text>
-            </View>
-          ) : null}
-        </Pressable>
-      </View>
+      <AppScreenHeader
+        title={product.name}
+        right={
+          <View style={styles.headerActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={saved ? `Remove ${product.name} from wishlist` : `Save ${product.name} to wishlist`}
+              accessibilityState={{ selected: saved }}
+              hitSlop={8}
+              onPress={() => toggle(product.id)}
+              style={styles.wish}>
+              <AppIcon name={saved ? 'heartFill' : 'heart'} color={saved ? colors.danger : colors.text} size={22} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={totalCount > 0 ? `Cart, ${totalCount} items` : 'Cart'}
+              hitSlop={8}
+              onPress={() => router.push('/cart')}
+              style={styles.cart}>
+              <AppIcon name="cart" color={colors.text} size={22} />
+              {totalCount > 0 ? (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeLabel}>{totalCount > 9 ? '9+' : String(totalCount)}</Text>
+                </View>
+              ) : null}
+            </Pressable>
+          </View>
+        }
+      />
 
       <ScrollView
         key={product.id}
@@ -119,7 +132,11 @@ export default function ProductDetailScreen() {
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        {quantity > 0 ? (
+        {!inStock ? (
+          <View style={styles.oos}>
+            <Text style={styles.oosLabel}>OUT OF STOCK</Text>
+          </View>
+        ) : quantity > 0 ? (
           <View style={styles.stepper}>
             <Pressable
               accessibilityRole="button"
@@ -153,19 +170,6 @@ export default function ProductDetailScreen() {
   );
 }
 
-function BackButton() {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Go back"
-      hitSlop={8}
-      onPress={() => (router.canGoBack() ? router.back() : router.replace('/home'))}
-      style={styles.back}>
-      <AppIcon name="back" color={colors.text} size={22} />
-    </Pressable>
-  );
-}
-
 function Fact({ label, value, first = false }: { label: string; value: string; first?: boolean }) {
   return (
     <View style={[styles.fact, first && styles.factFirst]}>
@@ -180,31 +184,19 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.softBackground,
   },
-  header: {
-    backgroundColor: colors.brightYellow,
+  headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingBottom: 12,
   },
-  back: {
-    width: 36,
-    height: 36,
+  wish: {
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: {
-    flex: 1,
-    minWidth: 0,
-    fontFamily: fonts.bold,
-    fontSize: 18,
-    lineHeight: 22,
-    color: colors.text,
-  },
   cart: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'visible',
@@ -372,6 +364,23 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     letterSpacing: 0.6,
     color: colors.text,
+  },
+  oos: {
+    minHeight: 48,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.softBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+  },
+  oosLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    lineHeight: 18,
+    letterSpacing: 0.4,
+    color: colors.textSecondary,
   },
   stepper: {
     height: 48,

@@ -7,6 +7,7 @@ import type { ManualAddressInput } from '@/types/location';
 
 type ManualAddressFormProps = {
   onSubmit: (value: ManualAddressInput) => void;
+  submitLabel?: string;
 };
 
 const emptyAddress: ManualAddressInput = {
@@ -17,7 +18,7 @@ const emptyAddress: ManualAddressInput = {
   postalCode: '',
 };
 
-export function ManualAddressForm({ onSubmit }: ManualAddressFormProps) {
+export function ManualAddressForm({ onSubmit, submitLabel = 'Save address' }: ManualAddressFormProps) {
   const [value, setValue] = useState<ManualAddressInput>(emptyAddress);
   const [error, setError] = useState<string | null>(null);
   const postalCode = value.postalCode.replace(/\D/g, '').slice(0, 6);
@@ -80,7 +81,7 @@ export function ManualAddressForm({ onSubmit }: ManualAddressFormProps) {
           {error}
         </Text>
       ) : null}
-      <PrimaryButton label="Use this address" onPress={submit} disabled={!ready} />
+      <PrimaryButton label={submitLabel} onPress={submit} disabled={!ready} />
     </View>
   );
 }

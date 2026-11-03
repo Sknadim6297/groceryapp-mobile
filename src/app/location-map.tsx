@@ -1,0 +1,593 @@
+import { router } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { DeliveryMap } from '@/components/location/DeliveryMap';
+import { LocationFlowHeader } from '@/components/location/LocationFlowHeader';
+import type { DeliveryMapHandle, MapRegion } from '@/components/location/mapRegion';
+import { AppIcon } from '@/components/ui/AppIcon';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { useToast } from '@/components/ui/AppToast';
+import { colors, fonts, homeLayout } from '@/constants/theme';
+import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
+import { formatDeliveryAddress } from '@/data/referenceLocations';
+import { useConfirmDeliveryLocation } from '@/hooks/useConfirmDeliveryLocation';
+import { locationRoutes } from '@/navigation/locationRoutes';
+import { readCurrentLocation, reverseGeocodeCoords } from '@/services/location/locationService';
+import type { DeliveryLocation } from '@/types/location';
+import { distanceKmBetween, formatDistanceKm } from '@/utils/deliveryAddress';
+import { isValidMapCoordinate, regionsNearlyEqual } from '@/utils/mapCameraGuards';
+
+const DEFAULT_REGION: MapRegion = {
+  latitude: 22.5726,
+  longitude: 88.3639,
+  latitudeDelta: 0.02,
+  longitudeDelta: 0.02,
+};
+
+const REVERSE_DEBOUNCE_MS = 450;
+const PROGRAMMATIC_LOCK_MS = 700;
+
+function buildInitialRegion(selection: DeliveryLocation | null): MapRegion {
+  if (isValidMapCoordinate(selection?.latitude, selection?.longitude)) {
+    return {
+      latitude: selection!.latitude!,
+      longitude: selection!.longitude!,
+      latitudeDelta: 0.012,
+      longitudeDelta: 0.012,
+    };
+  }
+  return DEFAULT_REGION;
+}
+
+export default function LocationMapScreen() {
+  const insets = useSafeAreaInsets();
+  const { showToast } = useToast();
+  const { selection, setSelection } = useDeliveryLocation();
+  const { confirmLocation, isBusy } = useConfirmDeliveryLocation();
+  const mapRef = useRef<DeliveryMapHandle | null>(null);
+  const reverseRequestId = useRef(0);
+  const reverseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mounted = useRef(true);
+  const programmaticUntil = useRef(0);
+  const lastResolvedCoords = useRef<{ latitude: number; longitude: number } | null>(
+    isValidMapCoordinate(selection?.latitude, selection?.longitude)
+      ? { latitude: selection!.latitude!, longitude: selection!.longitude! }
+      : null,
+  );
+  const gpsInFlight = useRef(false);
+
+  // initialRegion is captured once — never fed back from onRegionChangeComplete.
+  const [initialRegion] = useState<MapRegion>(() => buildInitialRegion(selection));
+  const [preview, setPreview] = useState<DeliveryLocation | null>(selection);
+  const [deviceOrigin, setDeviceOrigin] = useState<DeliveryLocation | null>(
+    selection?.source === 'gps' ? selection : null,
+  );
+  const [resolving, setResolving] = useState(false);
+  const [fetchingGps, setFetchingGps] = useState(false);
+  const [geocodeError, setGeocodeError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [query, setQuery] = useState(selection?.locality || selection?.label || '');
+  const [pendingRetry, setPendingRetry] = useState<MapRegion | null>(null);
+
+  const distanceKm = deviceOrigin && preview ? distanceKmBetween(deviceOrigin, preview) : null;
+  const mapUnavailable = Platform.OS === 'web';
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (reverseTimer.current) {
+        clearTimeout(reverseTimer.current);
+      }
+      reverseRequestId.current += 1;
+    };
+  }, []);
+
+  const applyResolved = useCallback(
+    (location: DeliveryLocation, coords: { latitude: number; longitude: number }) => {
+      if (!mounted.current) {
+        return;
+      }
+      lastResolvedCoords.current = coords;
+      setPreview(location);
+      setSelection(location);
+      setQuery(location.locality || location.label);
+      setGeocodeError(null);
+      setPendingRetry(null);
+    },
+    [setSelection],
+  );
+
+  const runReverseGeocode = useCallback(
+    async (next: MapRegion, source: DeliveryLocation['source']) => {
+      if (!isValidMapCoordinate(next.latitude, next.longitude)) {
+        return;
+      }
+      if (lastResolvedCoords.current && regionsNearlyEqual(lastResolvedCoords.current, next)) {
+        return;
+      }
+
+      const requestId = ++reverseRequestId.current;
+      if (mounted.current) {
+        setResolving(true);
+        setGeocodeError(null);
+      }
+
+      try {
+        const outcome = await reverseGeocodeCoords(next.latitude, next.longitude, source);
+        if (!mounted.current || requestId !== reverseRequestId.current) {
+          return;
+        }
+        if (outcome.status !== 'ready') {
+          // Keep the pin and last preview; do not reset the camera.
+          setGeocodeError('Address could not be resolved. You can retry or Set Location with coordinates.');
+          setPendingRetry(next);
+          return;
+        }
+        applyResolved(outcome.location, { latitude: next.latitude, longitude: next.longitude });
+      } catch {
+        if (!mounted.current || requestId !== reverseRequestId.current) {
+          return;
+        }
+        setGeocodeError('Address lookup failed. Retry when the network is available.');
+        setPendingRetry(next);
+      } finally {
+        if (mounted.current && requestId === reverseRequestId.current) {
+          setResolving(false);
+        }
+      }
+    },
+    [applyResolved],
+  );
+
+  const scheduleReverseGeocode = useCallback(
+    (next: MapRegion, source: DeliveryLocation['source'], debounceMs = REVERSE_DEBOUNCE_MS) => {
+      if (reverseTimer.current) {
+        clearTimeout(reverseTimer.current);
+      }
+      reverseTimer.current = setTimeout(() => {
+        void runReverseGeocode(next, source);
+      }, debounceMs);
+    },
+    [runReverseGeocode],
+  );
+
+  const centerMapOnce = useCallback((coords: { latitude: number; longitude: number }) => {
+    const nextRegion: MapRegion = {
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    };
+    programmaticUntil.current = Date.now() + PROGRAMMATIC_LOCK_MS;
+    mapRef.current?.animateToRegion(nextRegion, 420);
+    return nextRegion;
+  }, []);
+
+  const onRegionChangeComplete = useCallback(
+    (next: MapRegion, isGesture: boolean | undefined) => {
+      if (mapUnavailable) {
+        return;
+      }
+      if (!isValidMapCoordinate(next.latitude, next.longitude)) {
+        return;
+      }
+
+      const programmatic = Date.now() < programmaticUntil.current;
+      // Prefer explicit gesture flag when the native map provides it.
+      if (isGesture === false || (isGesture === undefined && programmatic)) {
+        // Programmatic settle after GPS/search center — only resolve if we lack a preview.
+        if (!preview || !lastResolvedCoords.current) {
+          scheduleReverseGeocode(next, 'map', 120);
+        }
+        return;
+      }
+
+      if (lastResolvedCoords.current && regionsNearlyEqual(lastResolvedCoords.current, next)) {
+        return;
+      }
+
+      scheduleReverseGeocode(next, 'map');
+    },
+    [mapUnavailable, preview, scheduleReverseGeocode],
+  );
+
+  async function goToCurrentLocation() {
+    if (isBusy() || confirming || gpsInFlight.current || fetchingGps) {
+      return;
+    }
+    gpsInFlight.current = true;
+    setFetchingGps(true);
+    setGeocodeError(null);
+    try {
+      const outcome = await readCurrentLocation();
+      if (!mounted.current) {
+        return;
+      }
+      if (outcome.status !== 'ready' || !isValidMapCoordinate(outcome.location.latitude, outcome.location.longitude)) {
+        const message =
+          outcome.status === 'denied'
+            ? 'Location permission was denied.'
+            : outcome.status === 'services-off'
+              ? 'Turn on location services, then try again.'
+              : outcome.status === 'timeout'
+                ? 'Finding your location took too long. Try again.'
+                : 'Could not read your current location.';
+        showToast('error', message);
+        setGeocodeError(message);
+        return;
+      }
+
+      const coords = {
+        latitude: outcome.location.latitude!,
+        longitude: outcome.location.longitude!,
+      };
+      setDeviceOrigin(outcome.location);
+      applyResolved(outcome.location, coords);
+      // Single camera move. Do not also set controlled region state.
+      centerMapOnce(coords);
+    } finally {
+      gpsInFlight.current = false;
+      if (mounted.current) {
+        setFetchingGps(false);
+      }
+    }
+  }
+
+  async function onSetLocation() {
+    if (!preview || confirming || isBusy() || resolving) {
+      return;
+    }
+    if (
+      preview.source !== 'manual' &&
+      !isValidMapCoordinate(preview.latitude, preview.longitude)
+    ) {
+      showToast('error', 'Select a point on the map first.');
+      return;
+    }
+    setConfirming(true);
+    try {
+      await confirmLocation(preview);
+    } finally {
+      if (mounted.current) {
+        setConfirming(false);
+      }
+    }
+  }
+
+  return (
+    <View style={styles.screen}>
+      <LocationFlowHeader title="Select Delivery Location" fallbackHref={locationRoutes.search} />
+
+      <View style={styles.mapArea}>
+        <DeliveryMap ref={mapRef} initialRegion={initialRegion} onRegionChangeComplete={onRegionChangeComplete} />
+
+        <View pointerEvents="box-none" style={styles.overlayTop}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Change search"
+            onPress={() => router.replace(locationRoutes.search)}
+            style={styles.searchOverlay}>
+            <AppIcon name="search" color={colors.textSecondary} size={18} />
+            <Text numberOfLines={1} style={styles.searchOverlayText}>
+              {query || 'Search for location'}
+            </Text>
+            <AppIcon name="pencil" color={colors.primaryInk} size={18} />
+          </Pressable>
+        </View>
+
+        {!mapUnavailable ? (
+          <View pointerEvents="none" style={styles.centerPinWrap}>
+            <View style={styles.tooltip}>
+              <Text style={styles.tooltipText}>Drag the map to adjust location</Text>
+              <Text style={styles.tooltipSub}>Your order will be delivered here.</Text>
+            </View>
+            <View style={styles.pin}>
+              <AppIcon name="stores" color={colors.white} size={18} />
+            </View>
+            <View style={styles.pinStem} />
+          </View>
+        ) : null}
+
+        {!mapUnavailable ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go to current location"
+            disabled={fetchingGps}
+            onPress={() => {
+              void goToCurrentLocation();
+            }}
+            style={({ pressed }) => [styles.locateFab, pressed && styles.pressed, fetchingGps && styles.fabBusy]}>
+            {fetchingGps ? (
+              <ActivityIndicator color={colors.success} />
+            ) : (
+              <AppIcon name="stores" color={colors.success} size={20} />
+            )}
+            <Text style={styles.locateLabel}>{fetchingGps ? 'Finding…' : 'Go to current location'}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      <View style={styles.distanceSlot}>
+        {distanceKm != null && distanceKm >= 1 ? (
+          <View style={styles.distanceBanner}>
+            <Text style={styles.distanceText}>
+              Pin location is <Text style={styles.distanceStrong}>{formatDistanceKm(distanceKm)}</Text> away from
+              your current location.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.distancePlaceholder} />
+        )}
+      </View>
+
+      <View style={[styles.confirmPanel, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <View style={styles.previewRow}>
+          <View style={styles.previewIcon}>
+            <AppIcon name="stores" color={colors.text} size={18} />
+          </View>
+          <View style={styles.previewCopy}>
+            <View style={styles.previewTextBlock}>
+              <Text numberOfLines={1} style={styles.previewTitle}>
+                {preview?.locality || preview?.label || 'Selected location'}
+              </Text>
+              <Text numberOfLines={2} style={styles.previewBody}>
+                {preview ? formatDeliveryAddress(preview) : 'Move the map to choose a delivery point.'}
+              </Text>
+            </View>
+            {resolving ? <ActivityIndicator color={colors.primaryInk} style={styles.previewSpinner} /> : null}
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Change location search"
+            onPress={() => router.replace(locationRoutes.search)}
+            hitSlop={8}>
+            <Text style={styles.change}>Change</Text>
+          </Pressable>
+        </View>
+        {geocodeError ? (
+          <View style={styles.errorRow}>
+            <Text accessibilityRole="alert" style={styles.errorText}>
+              {geocodeError}
+            </Text>
+            {pendingRetry ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Retry address lookup"
+                onPress={() => {
+                  void runReverseGeocode(pendingRetry, 'map');
+                }}>
+                <Text style={styles.retry}>Retry</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+        <PrimaryButton
+          label={confirming ? 'Setting…' : 'Set Location'}
+          accessibilityLabel="Set Location"
+          disabled={!preview || confirming}
+          onPress={() => {
+            void onSetLocation();
+          }}
+        />
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: colors.white,
+  },
+  mapArea: {
+    flex: 1,
+    minHeight: 280,
+    backgroundColor: colors.softBackground,
+  },
+  overlayTop: {
+    position: 'absolute',
+    top: 12,
+    left: 16,
+    right: 16,
+  },
+  searchOverlay: {
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  searchOverlayText: {
+    flex: 1,
+    fontFamily: fonts.medium,
+    fontSize: 14,
+    color: colors.text,
+  },
+  centerPinWrap: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 28,
+  },
+  tooltip: {
+    maxWidth: 240,
+    backgroundColor: colors.text,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  tooltipText: {
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.white,
+    textAlign: 'center',
+  },
+  tooltipSub: {
+    marginTop: 2,
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    lineHeight: 14,
+    color: 'rgba(255,255,255,0.85)',
+    textAlign: 'center',
+  },
+  pin: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: colors.white,
+  },
+  pinStem: {
+    width: 3,
+    height: 12,
+    backgroundColor: colors.success,
+    marginTop: -2,
+  },
+  locateFab: {
+    position: 'absolute',
+    right: 16,
+    bottom: 16,
+    borderRadius: 22,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  locateLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    color: colors.text,
+  },
+  distanceSlot: {
+    minHeight: 34,
+  },
+  distancePlaceholder: {
+    height: 34,
+  },
+  distanceBanner: {
+    minHeight: 34,
+    justifyContent: 'center',
+    backgroundColor: '#FFF7ED',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: '#FDBA74',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  distanceText: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.text,
+    textAlign: 'center',
+  },
+  distanceStrong: {
+    fontFamily: fonts.bold,
+  },
+  confirmPanel: {
+    width: '100%',
+    maxWidth: homeLayout.maxWidth,
+    alignSelf: 'center',
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    gap: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  previewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 48,
+  },
+  previewIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.softYellow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewCopy: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 40,
+  },
+  previewTextBlock: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  previewSpinner: {
+    marginLeft: 4,
+  },
+  previewTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    lineHeight: 20,
+    color: colors.text,
+  },
+  previewBody: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+  change: {
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    color: colors.primaryInk,
+  },
+  errorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  errorText: {
+    flex: 1,
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.danger,
+  },
+  retry: {
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    color: colors.primaryInk,
+  },
+  pressed: {
+    opacity: 0.8,
+  },
+  fabBusy: {
+    opacity: 0.7,
+  },
+});

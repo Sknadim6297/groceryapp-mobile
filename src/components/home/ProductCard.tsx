@@ -1,14 +1,18 @@
 import { router } from 'expo-router';
-import { memo, useState } from 'react';
+import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CatalogImage } from '@/components/home/CatalogImage';
+import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { DiscountOff } from '@/components/ui/DiscountOff';
-import { colors, fonts } from '@/constants/theme';
+import { colors, fonts, radii, shadow, space } from '@/constants/theme';
 import { useMockCart } from '@/context/MockCartContext';
+import { useWishlist } from '@/context/WishlistContext';
+import { isProductInStock } from '@/data/resolveWishlistProducts';
 import type { DemoProduct } from '@/types/catalog';
 import { formatRupee } from '@/utils/cartBill';
+import { hapticLight, hapticSelection } from '@/utils/haptics';
 
 type ProductCardProps = {
   product: DemoProduct;
@@ -18,8 +22,10 @@ type ProductCardProps = {
 
 function ProductCardComponent({ product, compact = false }: ProductCardProps) {
   const { add, quantities, setQuantity } = useMockCart();
+  const { isSaved, toggle } = useWishlist();
   const quantity = quantities[product.id] ?? 0;
-  const [saved, setSaved] = useState(false);
+  const saved = isSaved(product.id);
+  const inStock = isProductInStock(product);
   const showMrp = product.compareAt != null && product.compareAt > product.price;
 
   function openProduct() {
@@ -27,24 +33,33 @@ function ProductCardComponent({ product, compact = false }: ProductCardProps) {
   }
 
   return (
-    <View style={[styles.card, compact && styles.cardCompact]}>
+    <View style={[styles.card, compact && styles.cardCompact, !inStock && styles.cardMuted]}>
       <View style={styles.chrome}>
         <View style={styles.badgeSlot}>
           {product.discountLabel ? <DiscountOff label={product.discountLabel} inline /> : null}
         </View>
-        <Pressable
+        <AnimatedPressable
           accessibilityRole="button"
-          accessibilityLabel={saved ? `Remove ${product.name} from saved items` : `Save ${product.name}`}
+          accessibilityLabel={saved ? `Remove ${product.name} from wishlist` : `Save ${product.name} to wishlist`}
+          accessibilityState={{ selected: saved }}
           hitSlop={8}
-          onPress={() => setSaved((current) => !current)}
+          onPress={() => {
+            void hapticSelection();
+            toggle(product.id);
+          }}
           style={styles.heart}>
           <AppIcon name={saved ? 'heartFill' : 'heart'} color={saved ? colors.danger : '#CBD5E1'} size={16} />
-        </Pressable>
+        </AnimatedPressable>
       </View>
 
       <Pressable accessibilityRole="button" accessibilityLabel={`Open ${product.name}`} onPress={openProduct} style={styles.details}>
         <View style={[styles.photoFrame, compact && styles.photoFrameCompact]}>
           <CatalogImage source={product.image} style={styles.photo} label={product.name} contentFit="cover" />
+          {!inStock ? (
+            <View style={styles.oosBadge}>
+              <Text style={styles.oosBadgeLabel}>OUT OF STOCK</Text>
+            </View>
+          ) : null}
         </View>
         <Text numberOfLines={2} ellipsizeMode="tail" style={[styles.name, compact && styles.nameCompact]}>
           {product.name}
@@ -65,35 +80,48 @@ function ProductCardComponent({ product, compact = false }: ProductCardProps) {
             </Text>
           ) : null}
         </View>
-        {quantity > 0 ? (
+        {!inStock ? (
+          <View style={styles.oos}>
+            <Text style={styles.oosLabel}>OUT OF STOCK</Text>
+          </View>
+        ) : quantity > 0 ? (
           <View style={styles.stepper}>
-            <Pressable
+            <AnimatedPressable
               accessibilityRole="button"
               accessibilityLabel={`Decrease ${product.name}`}
               hitSlop={6}
-              onPress={() => setQuantity(product.id, quantity - 1)}
+              onPress={() => {
+                void hapticLight();
+                setQuantity(product.id, quantity - 1);
+              }}
               style={styles.step}>
               <AppIcon name="minus" color={colors.success} size={16} />
-            </Pressable>
+            </AnimatedPressable>
             <Text style={styles.count}>{quantity}</Text>
-            <Pressable
+            <AnimatedPressable
               accessibilityRole="button"
               accessibilityLabel={`Increase ${product.name}`}
               hitSlop={6}
-              onPress={() => setQuantity(product.id, quantity + 1)}
+              onPress={() => {
+                void hapticLight();
+                setQuantity(product.id, quantity + 1);
+              }}
               style={styles.step}>
               <AppIcon name="plus" color={colors.success} size={16} />
-            </Pressable>
+            </AnimatedPressable>
           </View>
         ) : (
-          <Pressable
+          <AnimatedPressable
             accessibilityRole="button"
             accessibilityLabel={`Add ${product.name} to the basket`}
-            onPress={() => add(product.id)}
-            style={({ pressed }) => [styles.add, pressed && styles.pressed]}
+            onPress={() => {
+              void hapticLight();
+              add(product.id);
+            }}
+            style={styles.add}
             testID={`product-add-${product.id}`}>
             <Text style={styles.addLabel}>ADD</Text>
-          </Pressable>
+          </AnimatedPressable>
         )}
       </View>
     </View>
@@ -106,21 +134,23 @@ const styles = StyleSheet.create({
   card: {
     flex: 1,
     width: '100%',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: radii.sm,
     backgroundColor: colors.white,
-    paddingHorizontal: 6,
-    paddingTop: 4,
-    paddingBottom: 6,
+    paddingHorizontal: space.sm,
+    paddingTop: space.xs,
+    paddingBottom: space.sm,
     overflow: 'hidden',
+    ...shadow.soft,
   },
   cardCompact: {
-    paddingHorizontal: 4,
-    borderRadius: 10,
+    paddingHorizontal: space.xs,
+    borderRadius: radii.xs,
+  },
+  cardMuted: {
+    opacity: 0.92,
   },
   chrome: {
-    minHeight: 20,
+    minHeight: 22,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
@@ -131,8 +161,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   heart: {
-    width: 22,
-    height: 22,
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -143,8 +173,8 @@ const styles = StyleSheet.create({
   photoFrame: {
     width: '100%',
     aspectRatio: 1.22,
-    borderRadius: 10,
-    backgroundColor: '#F6F7F9',
+    borderRadius: radii.xs,
+    backgroundColor: colors.softBackground,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -156,17 +186,30 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  oosBadge: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.72)',
+  },
+  oosBadgeLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 10,
+    lineHeight: 12,
+    color: colors.textSecondary,
+    letterSpacing: 0.3,
+  },
   name: {
-    marginTop: 6,
+    marginTop: space.sm,
     fontFamily: fonts.semibold,
-    fontSize: 12,
-    lineHeight: 15,
+    fontSize: 13,
+    lineHeight: 17,
     color: colors.text,
     includeFontPadding: false,
   },
   nameCompact: {
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 12,
+    lineHeight: 15,
   },
   unit: {
     marginTop: 2,
@@ -178,14 +221,14 @@ const styles = StyleSheet.create({
   },
   footer: {
     marginTop: 'auto',
-    paddingTop: 4,
-    gap: 4,
+    paddingTop: space.xs,
+    gap: space.xs,
   },
   prices: {
     minHeight: 18,
     flexDirection: 'row',
     alignItems: 'baseline',
-    gap: 4,
+    gap: space.xs,
     minWidth: 0,
   },
   price: {
@@ -193,7 +236,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: 15,
     lineHeight: 18,
-    color: colors.success,
+    color: colors.ink,
   },
   priceCompact: {
     fontSize: 13,
@@ -204,13 +247,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: '#9CA3AF',
+    color: colors.textSecondary,
     textDecorationLine: 'line-through',
   },
   add: {
-    height: 28,
-    borderRadius: 8,
-    borderWidth: 1,
+    height: 30,
+    borderRadius: radii.xs,
+    borderWidth: 1.5,
     borderColor: colors.success,
     backgroundColor: colors.white,
     alignItems: 'center',
@@ -223,10 +266,26 @@ const styles = StyleSheet.create({
     color: colors.success,
     letterSpacing: 0.4,
   },
-  stepper: {
-    height: 28,
-    borderRadius: 8,
+  oos: {
+    height: 30,
+    borderRadius: radii.xs,
     borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.softBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  oosLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    lineHeight: 14,
+    color: colors.textSecondary,
+    letterSpacing: 0.3,
+  },
+  stepper: {
+    height: 30,
+    borderRadius: radii.xs,
+    borderWidth: 1.5,
     borderColor: colors.success,
     backgroundColor: '#F0FDF4',
     flexDirection: 'row',
@@ -234,8 +293,8 @@ const styles = StyleSheet.create({
   },
   step: {
     flex: 1,
-    height: 28,
-    minWidth: 22,
+    height: 30,
+    minWidth: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -246,8 +305,5 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: 14,
     color: colors.success,
-  },
-  pressed: {
-    opacity: 0.75,
   },
 });

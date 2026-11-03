@@ -10,8 +10,10 @@ import { SideMenu } from '@/components/home/SideMenu';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts } from '@/constants/theme';
+import { addressesSelectHref, locationRoutes } from '@/navigation/locationRoutes';
 import { profileRoutes } from '@/navigation/profileRoutes';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
+import { useSavedAddresses } from '@/context/SavedAddressesContext';
 import { previewDeliveryIconUrl } from '@/data/previewImageCatalog';
 import { formatDeliveryAddress } from '@/data/referenceLocations';
 
@@ -21,11 +23,21 @@ export function DeliveryHeader() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { confirmed, beginLocationEdit } = useDeliveryLocation();
+  const { addresses, hydrated } = useSavedAddresses();
   const compact = width < 360;
   const [menuOpen, setMenuOpen] = useState(false);
   const title = UI_PREVIEW_MODE ? 'Deliver in 10 mins' : 'Deliver to';
   const address = confirmed ? formatDeliveryAddress(confirmed) : SELECT_LOCATION;
   const etaIcon = previewDeliveryIconUrl();
+
+  function openDeliveryPicker() {
+    if (hydrated && addresses.length > 0) {
+      router.push(addressesSelectHref());
+      return;
+    }
+    beginLocationEdit('change', { returnTo: '/home' });
+    router.push(locationRoutes.search);
+  }
 
   return (
     <View style={[styles.header, { paddingTop: insets.top + (compact ? 6 : 8) }]}>
@@ -37,10 +49,7 @@ export function DeliveryHeader() {
               ? `Demo estimate. Ten minutes is not a confirmed delivery time. ${address}`
               : `Delivery location. ${address}`
           }
-          onPress={() => {
-            beginLocationEdit('change');
-            router.push('/location');
-          }}
+          onPress={openDeliveryPicker}
           style={({ pressed }) => [styles.location, pressed ? styles.pressed : null]}>
           <View style={styles.copy}>
             <View style={styles.titleRow}>

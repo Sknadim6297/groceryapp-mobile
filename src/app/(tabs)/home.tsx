@@ -14,6 +14,7 @@ import { PopularPicks } from '@/components/home/PopularPicks';
 import { ProductSection } from '@/components/home/ProductSection';
 import { StoreRow } from '@/components/home/StoreRow';
 import { colors, fonts, homeLayout } from '@/constants/theme';
+import { contentColumnWidth } from '@/utils/contentWidth';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useCustomerAccount } from '@/context/CustomerAccountContext';
 import { useRememberedCustomer } from '@/context/RememberedCustomerContext';
@@ -23,7 +24,7 @@ import { previewDryFruitProducts } from '@/data/previewImageCatalog';
 
 export default function HomeScreen() {
   const { width } = useWindowDimensions();
-  const contentWidth = Math.min(width, homeLayout.maxWidth);
+  const contentWidth = contentColumnWidth(width);
   const { session } = useAuthSession();
   const { account } = useCustomerAccount();
   const { customer: remembered } = useRememberedCustomer();
@@ -77,7 +78,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.softBackground,
+    backgroundColor: colors.warmBackground,
   },
   scroll: {
     flex: 1,
@@ -88,7 +89,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   column: {
-    backgroundColor: colors.softBackground,
+    backgroundColor: colors.warmBackground,
     flexGrow: 1,
   },
   greeting: {

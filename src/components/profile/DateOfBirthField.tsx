@@ -10,11 +10,16 @@ type DateOfBirthFieldProps = {
   value: string | null;
   displayValue: string;
   onChange: (value: string | null) => void;
+  /**
+   * Parent supplies the Personal Details row chrome (icon + label).
+   * Field content only — no outer label or bordered box.
+   */
+  embedded?: boolean;
 };
 
 const earliestBirthDate = new Date(1900, 0, 1);
 
-export function DateOfBirthField({ value, displayValue, onChange }: DateOfBirthFieldProps) {
+export function DateOfBirthField({ value, displayValue, onChange, embedded = false }: DateOfBirthFieldProps) {
   const [open, setOpen] = useState(false);
   const selected = value ? parseIsoDate(value) : null;
   const maximumDate = new Date();
@@ -27,24 +32,34 @@ export function DateOfBirthField({ value, displayValue, onChange }: DateOfBirthF
     onChange(toIsoDate(date));
   }
 
+  const control =
+    Platform.OS === 'web' ? (
+      <WebDateInput value={value} onChange={onChange} embedded={embedded} />
+    ) : (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={value ? `Date of birth ${displayValue}` : 'Select date of birth'}
+        onPress={() => setOpen(true)}
+        style={({ pressed }) => [
+          embedded ? styles.embeddedField : styles.field,
+          pressed && styles.pressed,
+        ]}>
+        {!embedded ? <AppIcon name="calendar" color={colors.textSecondary} size={18} /> : null}
+        <Text style={[styles.value, !value && styles.placeholder]}>
+          {value ? displayValue : 'Select date of birth'}
+        </Text>
+        {!embedded ? <AppIcon name="calendar" color={colors.textSecondary} size={18} /> : null}
+      </Pressable>
+    );
+
   return (
-    <View style={styles.wrap}>
-      <Text style={styles.label}>
-        Date of Birth <Text style={styles.optional}>(Optional)</Text>
-      </Text>
-      {Platform.OS === 'web' ? (
-        <WebDateInput value={value} onChange={onChange} />
-      ) : (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={value ? `Date of birth ${displayValue}` : 'Select date of birth'}
-          onPress={() => setOpen(true)}
-          style={({ pressed }) => [styles.field, pressed && styles.pressed]}>
-          <AppIcon name="calendar" color={colors.textSecondary} size={18} />
-          <Text style={[styles.value, !value && styles.placeholder]}>{value ? displayValue : 'Select date'}</Text>
-          <AppIcon name="calendar" color={colors.textSecondary} size={18} />
-        </Pressable>
-      )}
+    <View style={embedded ? styles.embeddedWrap : styles.wrap}>
+      {!embedded ? (
+        <Text style={styles.label}>
+          Date of Birth <Text style={styles.optional}>(Optional)</Text>
+        </Text>
+      ) : null}
+      {control}
       {open && Platform.OS !== 'web' ? (
         <View>
           <DateTimePicker
@@ -75,12 +90,20 @@ export function DateOfBirthField({ value, displayValue, onChange }: DateOfBirthF
   );
 }
 
-function WebDateInput({ value, onChange }: { value: string | null; onChange: (value: string | null) => void }) {
+function WebDateInput({
+  value,
+  onChange,
+  embedded,
+}: {
+  value: string | null;
+  onChange: (value: string | null) => void;
+  embedded: boolean;
+}) {
   const maximum = toIsoDate(new Date());
 
   return (
-    <View style={styles.field}>
-      <AppIcon name="calendar" color={colors.textSecondary} size={18} />
+    <View style={embedded ? styles.embeddedField : styles.field}>
+      {!embedded ? <AppIcon name="calendar" color={colors.textSecondary} size={18} /> : null}
       {createElement('input', {
         type: 'date',
         'aria-label': 'Date of birth',
@@ -108,6 +131,10 @@ const styles = StyleSheet.create({
   wrap: {
     gap: 6,
   },
+  embeddedWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
   label: {
     fontFamily: fonts.medium,
     fontSize: 13,
@@ -129,14 +156,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
   },
+  embeddedField: {
+    minHeight: 22,
+    justifyContent: 'center',
+  },
   value: {
     flex: 1,
-    fontFamily: fonts.medium,
+    fontFamily: fonts.semibold,
     fontSize: 15,
     lineHeight: 20,
     color: colors.text,
   },
   placeholder: {
+    fontFamily: fonts.medium,
     color: colors.textSecondary,
   },
   pressed: {
