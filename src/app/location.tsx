@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -20,6 +20,7 @@ import { useToast } from '@/components/ui/AppToast';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { colors, control, fonts, homeLayout, radii } from '@/constants/theme';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
+import { isLocationPickerHref, resolveLocationExitHref } from '@/navigation/locationFlow';
 import { locationRoutes } from '@/navigation/locationRoutes';
 import { readCurrentLocation, searchDeliveryLocations } from '@/services/location/locationService';
 import type { LocationSearchResult } from '@/types/location';
@@ -30,7 +31,12 @@ const SEARCH_DEBOUNCE_MS = 380;
 export default function LocationSearchScreen() {
   const insets = useSafeAreaInsets();
   const { showToast } = useToast();
-  const { setSelection } = useDeliveryLocation();
+  const { setSelection, returnTo, locationIntent } = useDeliveryLocation();
+  const intentFallback: Href = locationIntent === 'registration' ? '/complete-profile' : '/home';
+  const backFallback = resolveLocationExitHref(
+    returnTo && !isLocationPickerHref(returnTo) ? returnTo : null,
+    intentFallback,
+  );
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<LocationSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -149,7 +155,7 @@ export default function LocationSearchScreen() {
 
   return (
     <View style={styles.screen}>
-      <LocationFlowHeader title="Select Delivery Location" fallbackHref="/complete-profile" />
+      <LocationFlowHeader title="Select Delivery Location" fallbackHref={backFallback} />
 
       <View style={styles.panel}>
         <View style={styles.search}>

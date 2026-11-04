@@ -77,9 +77,30 @@ export default function LocationMapScreen() {
   const [confirming, setConfirming] = useState(false);
   const [query, setQuery] = useState(selection?.locality || selection?.label || '');
   const [pendingRetry, setPendingRetry] = useState<MapRegion | null>(null);
+  const [userLocationEnabled, setUserLocationEnabled] = useState(false);
 
   const distanceKm = deviceOrigin && preview ? distanceKmBetween(deviceOrigin, preview) : null;
   const mapUnavailable = Platform.OS === 'web';
+
+  // Warm permission once so the MapLibre user location layer can show without crashing on deny.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { status } = await import('expo-location').then((Location) =>
+          Location.getForegroundPermissionsAsync(),
+        );
+        if (!cancelled && status === 'granted') {
+          setUserLocationEnabled(true);
+        }
+      } catch {
+        // Permission probe failed — keep showsUserLocation off.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     mounted.current = true;
@@ -232,6 +253,7 @@ export default function LocationMapScreen() {
         longitude: outcome.location.longitude!,
       };
       setDeviceOrigin(outcome.location);
+      setUserLocationEnabled(true);
       applyResolved(outcome.location, coords);
       // Single camera move. Do not also set controlled region state.
       centerMapOnce(coords);
@@ -269,7 +291,12 @@ export default function LocationMapScreen() {
       <LocationFlowHeader title="Select Delivery Location" fallbackHref={locationRoutes.search} />
 
       <View style={styles.mapArea}>
-        <DeliveryMap ref={mapRef} initialRegion={initialRegion} onRegionChangeComplete={onRegionChangeComplete} />
+        <DeliveryMap
+          ref={mapRef}
+          initialRegion={initialRegion}
+          onRegionChangeComplete={onRegionChangeComplete}
+          showsUserLocation={userLocationEnabled}
+        />
 
         <View pointerEvents="box-none" style={styles.overlayTop}>
           <Pressable

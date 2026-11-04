@@ -4,11 +4,17 @@
  * This does **not** enable demo authentication, invent C# API responses, or create
  * real payments. Customer auth, registration, and location flows stay on live APIs.
  *
- * Enable with EXPO_PUBLIC_UI_PREVIEW=on|true|1
+ * Enable with EXPO_PUBLIC_UI_PREVIEW=on|true|1|yes|ui-preview
  */
 function envEnabled(value: string | undefined): boolean {
   const normalized = value?.trim().toLowerCase();
-  return normalized === '1' || normalized === 'true' || normalized === 'on' || normalized === 'yes';
+  return (
+    normalized === '1' ||
+    normalized === 'true' ||
+    normalized === 'on' ||
+    normalized === 'yes' ||
+    normalized === 'ui-preview'
+  );
 }
 
 export const UI_PREVIEW_MODE = envEnabled(process.env.EXPO_PUBLIC_UI_PREVIEW);

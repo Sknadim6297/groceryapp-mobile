@@ -1,3 +1,5 @@
+import 'react-native-gesture-handler';
+
 import { DMSans_400Regular } from '@expo-google-fonts/dm-sans/400Regular';
 import { DMSans_500Medium } from '@expo-google-fonts/dm-sans/500Medium';
 import { DMSans_600SemiBold } from '@expo-google-fonts/dm-sans/600SemiBold';

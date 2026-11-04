@@ -13,6 +13,7 @@
       "translucent": true
     },
     "android": {
+      "package": "com.groceryapp.mayapurbazaar",
       "adaptiveIcon": {
         "backgroundColor": "#FFD633",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -56,7 +57,17 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 220
         }
-      ]
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableMinifyInReleaseBuilds": true,
+            "extraProguardRules": "-keep class * extends androidx.room.RoomDatabase { <init>(); }\n-keep class * extends androidx.work.InputMerger { <init>(); }\n-keep class org.maplibre.** { *; }"
+          }
+        }
+      ],
+      "@maplibre/maplibre-react-native"
     ],
     "experiments": {
       "typedRoutes": true,
