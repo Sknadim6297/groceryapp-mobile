@@ -143,3 +143,33 @@ export function statusDotColor(status: OrderStatus): string {
   }
   return '#FACC15';
 }
+
+/** Soft pill colors for order status chips on list + detail. */
+export function statusPillColors(status: OrderStatus): { background: string; text: string; border: string } {
+  if (status === 'delivered') {
+    return { background: '#DCFCE7', text: '#166534', border: '#86EFAC' };
+  }
+  if (status === 'cancelled') {
+    return { background: '#FEE2E2', text: '#991B1B', border: '#FECACA' };
+  }
+  if (status === 'out_for_delivery' || status === 'picked_up') {
+    return { background: '#FEF3C7', text: '#854D0E', border: '#FDE68A' };
+  }
+  return { background: '#FFF7ED', text: '#9A3412', border: '#FDBA74' };
+}
+
+export function orderStatusIcon(status: OrderStatus): 'truck' | 'box' | 'check' | 'close' | 'clock' {
+  if (status === 'delivered') {
+    return 'check';
+  }
+  if (status === 'cancelled') {
+    return 'close';
+  }
+  if (status === 'out_for_delivery' || status === 'picked_up') {
+    return 'truck';
+  }
+  if (status === 'packing' || status === 'confirmed') {
+    return 'box';
+  }
+  return 'clock';
+}

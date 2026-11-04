@@ -8,18 +8,26 @@ type OtpInputProps = {
   value: string;
   onChange: (value: string) => void;
   invalid?: boolean;
+  /** When false, digits stay visible but typing is blocked (e.g. while verifying). */
+  editable?: boolean;
 };
 
-export function OtpInput({ value, onChange, invalid = false }: OtpInputProps) {
+export function OtpInput({ value, onChange, invalid = false, editable = true }: OtpInputProps) {
   const inputRef = useRef<{ focus: () => void } | null>(null);
   const [focused, setFocused] = useState(false);
   const activeIndex = Math.min(value.length, OTP_LENGTH - 1);
 
   return (
-    <Pressable onPressIn={() => inputRef.current?.focus()} style={styles.wrap}>
+    <Pressable
+      onPressIn={() => {
+        if (editable) {
+          inputRef.current?.focus();
+        }
+      }}
+      style={styles.wrap}>
       <View pointerEvents="none" style={styles.boxes}>
         {Array.from({ length: OTP_LENGTH }, (_, index) => {
-          const active = focused && index === activeIndex;
+          const active = focused && editable && index === activeIndex;
           return (
             <View
               key={index}
@@ -34,10 +42,16 @@ export function OtpInput({ value, onChange, invalid = false }: OtpInputProps) {
           inputRef.current = node;
         }}
         value={value}
-        onChangeText={(next) => onChange(next.replace(/\D/g, '').slice(0, OTP_LENGTH))}
+        onChangeText={(next) => {
+          if (!editable) {
+            return;
+          }
+          onChange(next.replace(/\D/g, '').slice(0, OTP_LENGTH));
+        }}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         autoFocus
+        editable={editable}
         keyboardType="number-pad"
         inputMode="numeric"
         maxLength={OTP_LENGTH}

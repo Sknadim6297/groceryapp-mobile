@@ -1,32 +1,33 @@
-import { useState } from 'react';
+import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
 import { SoftIcon, type SoftIconName } from '@/components/ui/SoftIcon';
 import { colors, fonts } from '@/constants/theme';
+import { listVisibleHomeShoppingShortcuts } from '@/data/shoppingCollections';
+import type { ShoppingCollectionId } from '@/types/shoppingCollection';
 
 const CHIP = '#F6E8B8';
 const INK = '#171717';
 
-type HomeTab = {
-  id: string;
-  label: string;
-  icon: SoftIconName;
-  badge?: string;
+const ICON_BY_COLLECTION: Record<ShoppingCollectionId, SoftIconName> = {
+  all: 'grid',
+  fresh: 'leaf',
+  diwali: 'diya',
+  electronics: 'plug',
+  organic: 'plant',
 };
-
-const tabs: HomeTab[] = [
-  { id: 'all', label: 'All', icon: 'grid' },
-  { id: 'fresh', label: 'Fresh', icon: 'leaf' },
-  { id: 'diwali', label: 'Diwali', icon: 'diya', badge: 'Shop now' },
-  { id: 'electronics', label: 'Electronics', icon: 'plug' },
-  { id: 'organic', label: 'Organic', icon: 'plant' },
-  { id: 'gifting', label: 'Gifting', icon: 'gift' },
-];
 
 export function HomeCategoryTabs() {
   const { width } = useWindowDimensions();
-  const [selected, setSelected] = useState('all');
+  const tabs = listVisibleHomeShoppingShortcuts();
   const tabWidth = Math.max(56, Math.min(72, (Math.min(width, 480) - 20) / 5.15));
+
+  function openCollection(id: ShoppingCollectionId) {
+    router.push({
+      pathname: '/collection/[id]',
+      params: { id },
+    });
+  }
 
   return (
     <View style={styles.strip}>
@@ -36,35 +37,49 @@ export function HomeCategoryTabs() {
         nestedScrollEnabled
         style={styles.scroller}
         contentContainerStyle={styles.row}>
-        {tabs.map((tab) => {
-          const active = selected === tab.id;
-          return (
-            <Pressable
-              key={tab.id}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={tab.badge ? `${tab.label}. ${tab.badge}` : tab.label}
-              onPress={() => setSelected(tab.id)}
-              style={[styles.tab, { width: tabWidth }]}>
-              <View style={styles.iconSlot}>
-                {tab.badge ? (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>{tab.badge}</Text>
-                  </View>
-                ) : null}
-                <View style={[styles.chip, width < 360 && styles.chipCompact, active && styles.chipActive]}>
-                  <SoftIcon name={tab.icon} size={24} />
+        {tabs.map((tab) => (
+          <Pressable
+            key={tab.id}
+            accessibilityRole="button"
+            accessibilityLabel={tab.badgeLabel ? `${tab.title}. ${tab.badgeLabel}` : tab.title}
+            onPress={() => openCollection(tab.id)}
+            style={[styles.tab, { width: tabWidth }]}
+            testID={`home-shortcut-${tab.id}`}>
+            <View style={styles.iconSlot}>
+              {tab.badgeLabel ? (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{tab.badgeLabel}</Text>
                 </View>
+              ) : null}
+              <View style={[styles.chip, width < 360 && styles.chipCompact]}>
+                <SoftIcon name={ICON_BY_COLLECTION[tab.id]} size={24} />
               </View>
-              <Text numberOfLines={1} style={[styles.label, width < 360 && styles.labelCompact]}>
-                {tab.label}
-              </Text>
-            </Pressable>
-          );
-        })}
+            </View>
+            <Text numberOfLines={1} style={[styles.label, width < 360 && styles.labelCompact]}>
+              {shortcutLabel(tab.id)}
+            </Text>
+          </Pressable>
+        ))}
       </ScrollView>
     </View>
   );
+}
+
+function shortcutLabel(id: ShoppingCollectionId): string {
+  switch (id) {
+    case 'all':
+      return 'All';
+    case 'fresh':
+      return 'Fresh';
+    case 'diwali':
+      return 'Diwali';
+    case 'electronics':
+      return 'Electronics';
+    case 'organic':
+      return 'Organic';
+    default:
+      return id;
+  }
 }
 
 const styles = StyleSheet.create({
@@ -121,14 +136,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 34,
     borderRadius: 12,
-  },
-  chipActive: {
-    backgroundColor: colors.white,
-    shadowColor: '#A16207',
-    shadowOpacity: 0.14,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
   },
   label: {
     marginTop: 3,

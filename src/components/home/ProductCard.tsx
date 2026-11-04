@@ -85,7 +85,7 @@ function ProductCardComponent({ product, compact = false }: ProductCardProps) {
             <Text style={styles.oosLabel}>OUT OF STOCK</Text>
           </View>
         ) : quantity > 0 ? (
-          <View style={styles.stepper}>
+          <View style={styles.stepper} accessibilityRole="adjustable" accessibilityValue={{ min: 0, now: quantity }}>
             <AnimatedPressable
               accessibilityRole="button"
               accessibilityLabel={`Decrease ${product.name}`}
@@ -95,9 +95,13 @@ function ProductCardComponent({ product, compact = false }: ProductCardProps) {
                 setQuantity(product.id, quantity - 1);
               }}
               style={styles.step}>
-              <AppIcon name="minus" color={colors.success} size={16} />
+              <AppIcon name="minus" color={colors.primaryInk} size={16} />
             </AnimatedPressable>
-            <Text style={styles.count}>{quantity}</Text>
+            <View style={styles.countSlot}>
+              <Text style={styles.count} numberOfLines={1}>
+                {quantity}
+              </Text>
+            </View>
             <AnimatedPressable
               accessibilityRole="button"
               accessibilityLabel={`Increase ${product.name}`}
@@ -107,7 +111,7 @@ function ProductCardComponent({ product, compact = false }: ProductCardProps) {
                 setQuantity(product.id, quantity + 1);
               }}
               style={styles.step}>
-              <AppIcon name="plus" color={colors.success} size={16} />
+              <AppIcon name="plus" color={colors.primaryInk} size={16} />
             </AnimatedPressable>
           </View>
         ) : (
@@ -251,11 +255,11 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
   },
   add: {
-    height: 30,
+    height: 32,
     borderRadius: radii.xs,
     borderWidth: 1.5,
-    borderColor: colors.success,
-    backgroundColor: colors.white,
+    borderColor: colors.primaryDark,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -263,11 +267,12 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: 13,
     lineHeight: 16,
-    color: colors.success,
+    color: colors.text,
     letterSpacing: 0.4,
+    includeFontPadding: false,
   },
   oos: {
-    height: 30,
+    height: 32,
     borderRadius: radii.xs,
     borderWidth: 1,
     borderColor: colors.border,
@@ -281,29 +286,36 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     color: colors.textSecondary,
     letterSpacing: 0.3,
+    includeFontPadding: false,
   },
   stepper: {
-    height: 30,
+    height: 32,
     borderRadius: radii.xs,
     borderWidth: 1.5,
-    borderColor: colors.success,
-    backgroundColor: '#F0FDF4',
+    borderColor: colors.primaryDark,
+    backgroundColor: colors.softYellow,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
+    overflow: 'hidden',
   },
   step: {
     flex: 1,
-    height: 30,
-    minWidth: 24,
+    minWidth: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countSlot: {
+    minWidth: 28,
+    paddingHorizontal: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   count: {
-    minWidth: 18,
-    flexShrink: 0,
     textAlign: 'center',
     fontFamily: fonts.bold,
     fontSize: 14,
-    color: colors.success,
+    lineHeight: 18,
+    color: colors.primaryInk,
+    includeFontPadding: false,
   },
 });

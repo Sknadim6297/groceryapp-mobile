@@ -11,7 +11,6 @@ import { AppIcon } from '@/components/ui/AppIcon';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts } from '@/constants/theme';
 import { addressesSelectHref, locationRoutes } from '@/navigation/locationRoutes';
-import { profileRoutes } from '@/navigation/profileRoutes';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useSavedAddresses } from '@/context/SavedAddressesContext';
 import { previewDeliveryIconUrl } from '@/data/previewImageCatalog';
@@ -75,10 +74,11 @@ export function DeliveryHeader() {
         <View style={styles.actions}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Profile"
-            onPress={() => router.push(profileRoutes.profile)}
-            style={({ pressed }) => [styles.action, pressed ? styles.pressed : null]}>
-            <AppIcon name="profile" color={colors.white} size={24} />
+            accessibilityLabel="Notifications"
+            onPress={() => router.push('/notifications')}
+            style={({ pressed }) => [styles.action, pressed ? styles.pressed : null]}
+            testID="home-header-notifications">
+            <AppIcon name="bell" color={colors.white} size={24} />
           </Pressable>
           <Pressable
             accessibilityRole="button"

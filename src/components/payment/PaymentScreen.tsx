@@ -20,7 +20,6 @@ import {
 } from '@/components/payment/checkoutPaymentMethods';
 import { PaymentMethodSelectCard } from '@/components/payment/PaymentMethodSelectCard';
 import { PaymentOrderSummary } from '@/components/payment/PaymentOrderSummary';
-import { PaymentStepIndicator } from '@/components/payment/PaymentStepIndicator';
 import { DemoBanner } from '@/components/preview/DemoBanner';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
@@ -261,9 +260,6 @@ export function PaymentScreen() {
               contentContainerStyle={[styles.content, { width: contentWidth, paddingBottom: 24 }]}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}>
-              <Text style={styles.pageSubtitle}>Choose how you'd like to pay</Text>
-              <PaymentStepIndicator activeIndex={2} />
-
               <DemoBanner message="Simulation only — banks and gateways are not contacted." />
 
               <PaymentOrderSummary
@@ -387,13 +383,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: homeLayout.gutter,
     paddingTop: space.sm,
     gap: 12,
-  },
-  pageSubtitle: {
-    fontFamily: fonts.regular,
-    fontSize: 14,
-    lineHeight: 20,
-    color: colors.textSecondary,
-    textAlign: 'center',
   },
   section: {
     gap: 8,

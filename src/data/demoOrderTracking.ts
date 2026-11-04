@@ -25,10 +25,11 @@ const DEMO_2042_TRACKING: DemoOrderTracking = {
   ],
   riderProgress: 0.52,
   etaMinutes: 35,
-  etaRangeLabel: '35–40 min',
+  /** Echo of order.eta when present — never a fabricated clock window. */
+  etaRangeLabel: '35 min away',
   statusChipLabel: 'On the way',
   paymentChipLabel: 'Demo paid',
-  demoNotice: 'Demo Tracking — simulated map, not live GPS',
+  demoNotice: 'Demo Tracking — simulated map, not live GPS or road routing',
 };
 
 const TRACKING_BY_ORDER: Record<string, DemoOrderTracking> = {
@@ -43,26 +44,38 @@ const FALLBACK_TRACKING: Omit<DemoOrderTracking, 'orderId'> = {
   delivery: DEMO_2042_TRACKING.delivery,
   route: DEMO_2042_TRACKING.route,
   riderProgress: 0.35,
-  etaMinutes: 40,
-  etaRangeLabel: '40–50 min',
+  etaMinutes: 0,
+  etaRangeLabel: '',
   statusChipLabel: 'On the way',
   paymentChipLabel: 'Demo paid',
   demoNotice: DEMO_2042_TRACKING.demoNotice,
 };
 
+/** Rider marker is shown only after the order is out with the partner. */
+export function shouldShowRiderMarker(status: OrderStatus): boolean {
+  return status === 'picked_up' || status === 'out_for_delivery';
+}
+
 export function getDemoOrderTracking(order: CustomerOrder): DemoOrderTracking | null {
   if (order.status === 'cancelled' || order.status === 'delivered') {
     return null;
   }
+  const etaMinutes = Number.parseInt(order.eta?.value ?? '', 10);
+  const etaRangeLabel = order.eta ? `${order.eta.value} ${order.eta.unit}`.trim() : '';
   const known = TRACKING_BY_ORDER[order.id];
   if (known) {
-    return known;
+    return {
+      ...known,
+      etaMinutes: Number.isFinite(etaMinutes) ? etaMinutes : known.etaMinutes,
+      etaRangeLabel: etaRangeLabel || known.etaRangeLabel,
+      statusChipLabel: statusChipFor(order.status),
+    };
   }
   return {
     orderId: order.id,
     ...FALLBACK_TRACKING,
-    etaMinutes: Number.parseInt(order.eta?.value ?? '', 10) || FALLBACK_TRACKING.etaMinutes,
-    etaRangeLabel: order.eta ? `${order.eta.value} ${order.eta.unit}` : FALLBACK_TRACKING.etaRangeLabel,
+    etaMinutes: Number.isFinite(etaMinutes) ? etaMinutes : 0,
+    etaRangeLabel,
     statusChipLabel: statusChipFor(order.status),
   };
 }

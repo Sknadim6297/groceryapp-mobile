@@ -1,11 +1,11 @@
 export const orderStatuses = [
-  'placed',
-  'confirmed',
-  'packing',
-  'picked_up',
-  'out_for_delivery',
-  'delivered',
-  'cancelled',
+  "placed",
+  "confirmed",
+  "packing",
+  "picked_up",
+  "out_for_delivery",
+  "delivered",
+  "cancelled",
 ] as const;
 
 export type OrderStatus = (typeof orderStatuses)[number];
@@ -57,10 +57,10 @@ export type CustomerOrder = {
 };
 
 export type ActiveOrderState =
-  | { kind: 'loading' }
-  | { kind: 'empty' }
-  | { kind: 'error'; message: string }
-  | { kind: 'ready'; order: CustomerOrder };
+  | { kind: "loading" }
+  | { kind: "empty" }
+  | { kind: "error"; message: string }
+  | { kind: "ready"; order: CustomerOrder };
 
 /**
  * Frontend demo / preview session order.
@@ -74,4 +74,8 @@ export type SimulatedOrder = CustomerOrder & {
   /** Preview-only return request captured from the return & refund modal. */
   returnRequested?: boolean;
   returnReasonIds?: string[];
+  /** Catalogue line ids included in the return request. */
+  returnItemIds?: string[];
+  /** Local photo URIs attached as return evidence (preview only — never uploaded to a bank). */
+  returnPhotoUris?: string[];
 };

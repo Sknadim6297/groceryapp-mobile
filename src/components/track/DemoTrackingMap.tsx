@@ -1,25 +1,34 @@
-import { Image } from 'expo-image';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Circle, Defs, G, Path, Rect, LinearGradient, Stop } from 'react-native-svg';
 
 import { AppIcon } from '@/components/ui/AppIcon';
-import { brandLogo } from '@/constants/brand';
 import { colors, fonts } from '@/constants/theme';
 import { pointAlongRoute, splitRouteAtProgress } from '@/data/demoOrderTracking';
 import type { DemoMapPoint, DemoOrderTracking } from '@/types/orderTracking';
 
 type DemoTrackingMapProps = {
   tracking: DemoOrderTracking;
+  /** Show rider scooter on the demo polyline. */
+  showRider?: boolean;
+  /** Extra bottom inset so the recenter control clears the sheet. */
+  bottomClearance?: number;
+  /** Extra top inset so overlays clear the floating header. */
+  topClearance?: number;
 };
 
-const MIN_ZOOM = 0.9;
-const MAX_ZOOM = 1.85;
-const ZOOM_STEP = 0.18;
-
-export function DemoTrackingMap({ tracking }: DemoTrackingMapProps) {
+/**
+ * Canvas demo map for preview orders — not GPS, traffic, or live routing.
+ * Used when a real MapLibre tracking feed is unavailable.
+ */
+export function DemoTrackingMap({
+  tracking,
+  showRider = true,
+  bottomClearance = 24,
+  topClearance = 12,
+}: DemoTrackingMapProps) {
   const [layout, setLayout] = useState({ width: 0, height: 0 });
-  const [zoom, setZoom] = useState(1.15);
+  const [zoom, setZoom] = useState(1.12);
 
   const rider = useMemo(
     () => pointAlongRoute(tracking.route, tracking.riderProgress),
@@ -35,24 +44,18 @@ export function DemoTrackingMap({ tracking }: DemoTrackingMapProps) {
     layout.width > 0 && layout.height > 0
       ? Math.max(layout.width / mapW, layout.height / mapH) * zoom
       : 1;
-  const offsetX = layout.width / 2 - ((rider.x + tracking.delivery.x) / 2) * fit;
-  const offsetY = layout.height / 2 - ((rider.y + tracking.store.y) / 2) * fit;
+  const focusX = showRider ? (rider.x + tracking.delivery.x) / 2 : (tracking.store.x + tracking.delivery.x) / 2;
+  const focusY = showRider ? (rider.y + tracking.store.y) / 2 : (tracking.store.y + tracking.delivery.y) / 2;
+  const offsetX = layout.width / 2 - focusX * fit;
+  const offsetY = layout.height / 2 - focusY * fit;
 
   function onLayout(event: LayoutChangeEvent) {
     const { width, height } = event.nativeEvent.layout;
     setLayout({ width, height });
   }
 
-  function zoomIn() {
-    setZoom((value) => Math.min(MAX_ZOOM, Number((value + ZOOM_STEP).toFixed(2))));
-  }
-
-  function zoomOut() {
-    setZoom((value) => Math.max(MIN_ZOOM, Number((value - ZOOM_STEP).toFixed(2))));
-  }
-
   function recenter() {
-    setZoom(1.15);
+    setZoom(1.12);
   }
 
   return (
@@ -66,7 +69,7 @@ export function DemoTrackingMap({ tracking }: DemoTrackingMapProps) {
             </LinearGradient>
           </Defs>
           <G transform={`translate(${offsetX}, ${offsetY}) scale(${fit})`}>
-            <Rect x={0} y={0} width={mapW} height={mapH} fill="#F1F5F9" />
+            <Rect x={0} y={0} width={mapW} height={mapH} fill="#F3F4F6" />
             {STREETS.map((street) => (
               <Rect
                 key={street.id}
@@ -92,28 +95,68 @@ export function DemoTrackingMap({ tracking }: DemoTrackingMapProps) {
             {PARKS.map((park) => (
               <Rect key={park.id} x={park.x} y={park.y} width={park.w} height={park.h} fill="url(#parkA)" rx={18} />
             ))}
-            <Path d={polylinePath(completed)} stroke="#F59E0B" strokeWidth={14} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            <Path d={polylinePath(remaining)} stroke="#16A34A" strokeWidth={14} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            <Path d={polylinePath(completed)} stroke="#FDE68A" strokeWidth={5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-            <Path d={polylinePath(remaining)} stroke="#86EFAC" strokeWidth={5} fill="none" strokeLinecap="round" strokeLinejoin="round" />
 
-            <MarkerCircle cx={tracking.store.x} cy={tracking.store.y} fill={colors.primary} />
+            {tracking.route.length >= 2 ? (
+              <>
+                <Path
+                  d={polylinePath(showRider ? completed : tracking.route)}
+                  stroke={showRider ? colors.primaryDark : '#94A3B8'}
+                  strokeWidth={14}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                {showRider ? (
+                  <Path
+                    d={polylinePath(remaining)}
+                    stroke="#16A34A"
+                    strokeWidth={14}
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                ) : null}
+                <Path
+                  d={polylinePath(showRider ? completed : tracking.route)}
+                  stroke={showRider ? '#FDE68A' : '#CBD5E1'}
+                  strokeWidth={5}
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                {showRider ? (
+                  <Path
+                    d={polylinePath(remaining)}
+                    stroke="#86EFAC"
+                    strokeWidth={5}
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                ) : null}
+              </>
+            ) : null}
+
+            <MarkerCircle cx={tracking.store.x} cy={tracking.store.y} fill="#16A34A" />
             <MarkerCircle cx={tracking.delivery.x} cy={tracking.delivery.y} fill="#16A34A" />
-            <Circle cx={rider.x} cy={rider.y} r={18} fill={colors.white} stroke="#16A34A" strokeWidth={6} />
-            <Circle cx={rider.x} cy={rider.y} r={7} fill="#16A34A" />
+            {showRider ? (
+              <>
+                <Circle cx={rider.x} cy={rider.y} r={26} fill={colors.ink} opacity={0.92} />
+                <Circle cx={rider.x} cy={rider.y} r={18} fill={colors.ink} />
+              </>
+            ) : null}
           </G>
         </Svg>
       ) : null}
 
-      {/* Marker icons layered in RN coords for crisp Lucide icons */}
       {layout.width > 0 ? (
         <>
           <MapIconBadge
             x={tracking.store.x * fit + offsetX}
             y={tracking.store.y * fit + offsetY}
-            bg={colors.primary}
+            bg="#16A34A"
             icon="shop"
-            iconColor={colors.text}
+            iconColor={colors.white}
           />
           <MapIconBadge
             x={tracking.delivery.x * fit + offsetX}
@@ -122,58 +165,43 @@ export function DemoTrackingMap({ tracking }: DemoTrackingMapProps) {
             icon="home"
             iconColor={colors.white}
           />
-          <View
-            pointerEvents="none"
-            style={[
-              styles.etaBubble,
-              {
-                left: rider.x * fit + offsetX - 62,
-                top: rider.y * fit + offsetY - 58,
-              },
-            ]}>
-            <AppIcon name="bike" color="#4ADE80" size={14} />
-            <Text style={styles.etaBubbleText}>{tracking.etaMinutes} min away</Text>
-          </View>
+          {showRider ? (
+            <View
+              pointerEvents="none"
+              style={[
+                styles.riderBadge,
+                {
+                  left: rider.x * fit + offsetX - 18,
+                  top: rider.y * fit + offsetY - 18,
+                },
+              ]}>
+              <AppIcon name="bike" color={colors.white} size={18} />
+            </View>
+          ) : null}
         </>
       ) : null}
 
-      <View style={styles.brand} pointerEvents="none">
-        <Image source={brandLogo} style={styles.brandLogo} contentFit="contain" />
+      <View style={[styles.demoPill, { top: topClearance + 8 }]} pointerEvents="none">
+        <Text style={styles.demoPillText}>
+          {tracking.route.length >= 2
+            ? 'Demo route preview — not live GPS'
+            : 'Location only — route unavailable'}
+        </Text>
       </View>
 
-      <View style={styles.demoPill} pointerEvents="none">
-        <Text style={styles.demoPillText}>Demo Tracking</Text>
-      </View>
-
-      <View style={styles.controls}>
-        <MapControl accessibilityLabel="Zoom in" icon="plus" onPress={zoomIn} testID="map-zoom-in" />
-        <MapControl accessibilityLabel="Zoom out" icon="minus" onPress={zoomOut} testID="map-zoom-out" />
-        <MapControl accessibilityLabel="Recenter map" icon="crosshair" onPress={recenter} testID="map-recenter" />
-      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Recenter map"
+        onPress={recenter}
+        style={({ pressed }) => [
+          styles.locateBtn,
+          { bottom: bottomClearance },
+          pressed && styles.controlPressed,
+        ]}
+        testID="map-recenter">
+        <AppIcon name="crosshair" color="#16A34A" size={20} />
+      </Pressable>
     </View>
-  );
-}
-
-function MapControl({
-  icon,
-  onPress,
-  accessibilityLabel,
-  testID,
-}: {
-  icon: 'plus' | 'minus' | 'crosshair';
-  onPress: () => void;
-  accessibilityLabel: string;
-  testID: string;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      onPress={onPress}
-      style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
-      testID={testID}>
-      <AppIcon name={icon} color={colors.text} size={18} />
-    </Pressable>
   );
 }
 
@@ -200,7 +228,7 @@ function MapIconBadge({
 function MarkerCircle({ cx, cy, fill }: { cx: number; cy: number; fill: string }) {
   return (
     <>
-      <Circle cx={cx} cy={cy} r={28} fill={colors.white} opacity={0.9} />
+      <Circle cx={cx} cy={cy} r={28} fill={colors.white} opacity={0.95} />
       <Circle cx={cx} cy={cy} r={22} fill={fill} />
     </>
   );
@@ -250,35 +278,14 @@ const PARKS = [
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#F3F4F6',
     overflow: 'hidden',
-  },
-  brand: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  brandLogo: {
-    width: 30,
-    height: 30,
   },
   demoPill: {
     position: 'absolute',
-    top: 16,
     alignSelf: 'center',
-    left: 70,
-    right: 70,
+    left: 72,
+    right: 72,
     alignItems: 'center',
   },
   demoPillText: {
@@ -292,25 +299,22 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.primaryDark,
     overflow: 'hidden',
+    textAlign: 'center',
   },
-  controls: {
+  locateBtn: {
     position: 'absolute',
-    right: 12,
-    top: '28%',
-    gap: 8,
-  },
-  control: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    right: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#0F172A',
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    elevation: 4,
   },
   controlPressed: {
     opacity: 0.85,
@@ -323,26 +327,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#0F172A',
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.14,
     shadowRadius: 4,
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
-  etaBubble: {
+  riderBadge: {
     position: 'absolute',
-    flexDirection: 'row',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.ink,
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#1F2937',
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 999,
-    minWidth: 124,
     justifyContent: 'center',
-  },
-  etaBubbleText: {
-    fontFamily: fonts.semibold,
-    fontSize: 12,
-    color: colors.white,
   },
 });

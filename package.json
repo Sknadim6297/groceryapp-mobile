@@ -7,6 +7,7 @@
     "@expo-google-fonts/inter": "^0.4.2",
     "@expo/ui": "~58.0.27",
     "@maplibre/maplibre-react-native": "^11.5.1",
+    "@pushpendersingh/react-native-otp-verify": "^1.2.0",
     "axios": "^1.21.0",
     "babel-preset-expo": "~58.0.0",
     "expo": "~58.0.23",
@@ -29,6 +30,7 @@
     "expo-status-bar": "~58.0.4",
     "expo-system-ui": "~58.0.7",
     "expo-web-browser": "~58.0.7",
+    "http-proxy-middleware": "^3.0.10",
     "lucide-react-native": "0.544.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -46,7 +48,6 @@
     "@types/react": "~19.3.0",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~58.0.4",
-    "http-proxy-middleware": "^3.0.10",
     "typescript": "~6.0.3"
   },
   "scripts": {

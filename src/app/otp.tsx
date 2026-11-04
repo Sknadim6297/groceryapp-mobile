@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router, useIsFocused } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -25,6 +25,7 @@ import { DevOtpPanel } from '@/components/auth/DevOtpPanel';
 import { useAuthFlow } from '@/context/AuthFlowContext';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useCustomerAccount } from '@/context/CustomerAccountContext';
+import { useAndroidSmsOtpAutofill } from '@/hooks/useAndroidSmsOtpAutofill';
 import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
 import { resendCustomerOtp, verifyCustomerOtp } from '@/services/customerAuth';
 import {
@@ -43,6 +44,8 @@ import { screenAfterCustomerCall } from '@/types/customerApi';
 import { INDIA_CALLING_CODE, OTP_LENGTH } from '@/types/auth';
 import { formatIndiaMobileDisplay, isValidIndiaMobile } from '@/utils/phoneValidation';
 
+const INCORRECT_OTP_MESSAGE = 'Incorrect verification code. Please try again.';
+
 function developmentFailure(reason: DevOtpFailure): string {
   if (reason === 'expired') {
     return 'That development code has expired. Resend OTP creates a new one.';
@@ -56,7 +59,22 @@ function developmentFailure(reason: DevOtpFailure): string {
   if (reason === 'disabled') {
     return 'Development OTP is not available in this build.';
   }
-  return 'That development code does not match.';
+  return INCORRECT_OTP_MESSAGE;
+}
+
+function liveIncorrectMessage(message: string): string {
+  const lower = message.toLowerCase();
+  if (
+    lower.includes('incorrect') ||
+    lower.includes('invalid') ||
+    lower.includes('wrong') ||
+    lower.includes('mismatch') ||
+    lower.includes('does not match') ||
+    lower.includes('not match')
+  ) {
+    return INCORRECT_OTP_MESSAGE;
+  }
+  return message;
 }
 
 export default function OtpScreen() {
@@ -78,6 +96,23 @@ export default function OtpScreen() {
   const ready = isValidIndiaMobile(nationalNumber);
   const complete = code.length === OTP_LENGTH;
   const leaving = useRef(false);
+  const mountedRef = useRef(true);
+  const verifyingRef = useRef(false);
+  const requestIdRef = useRef(0);
+  const lastFailedCodeRef = useRef<string | null>(null);
+  const lastAutoSubmittedCodeRef = useRef<string | null>(null);
+  const codeRef = useRef(code);
+  codeRef.current = code;
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      // Invalidate any in-flight verification when leaving the screen.
+      requestIdRef.current += 1;
+      verifyingRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!focused || !hydrated || leaving.current) {
@@ -102,122 +137,240 @@ export default function OtpScreen() {
     router.replace('/login');
   }
 
-  async function onVerify() {
-    if (busy) {
-      return;
-    }
-
-    if (!ready) {
-      showToast('error', 'Enter a valid 10-digit mobile number.');
-      router.replace('/login');
-      return;
-    }
-
-    if (!complete) {
-      showToast('error', 'Enter the 6-digit code.');
-      return;
-    }
-
-    setBusy(true);
-    setVerifyMessage(null);
-    let holdLoading = false;
-    try {
-      // Dev OTP mode: never call live verify-otp.
-      if (isDevOtpEnabled()) {
-        if (!hasDevOtpRecord(nationalNumber)) {
-          showToast('error', 'No development OTP is active. Go back and request a new one.');
-          return;
-        }
-        const outcome = verifyDevTestOtp(nationalNumber, code);
-        if (!outcome.ok) {
-          const message = developmentFailure(outcome.reason);
-          showToast('error', message);
-          setVerifyMessage(message);
-          setDevOtp(peekDevTestOtp(nationalNumber));
-          return;
-        }
-        leaving.current = true;
-        const saved = await keepDevelopmentLogin();
-        if (!saved) {
-          leaving.current = false;
-          showToast('warning', 'This development sign-in could not be saved on this device.');
-          return;
-        }
-        const verification = {
-          mobile: nationalNumber,
-          standing: (outcome.destination === 'home' ? 'registered' : 'unregistered') as 'registered' | 'unregistered',
-          source: 'development-test' as const,
-          credential: null,
-        };
-        setMobileVerification(verification);
-        void saveMobileOtpVerification(verification);
-        setStanding(verification.standing);
-        holdLoading = true;
-        setTimeout(() => {
-          router.replace(outcome.destination === 'home' ? '/home' : '/complete-profile');
-          setBusy(false);
-        }, 60);
-        return;
-      }
-      const result = await verifyCustomerOtp(nationalNumber, code);
-      showToast(result.tone, result.message);
-      setVerifyMessage(result.message);
-      const screen = screenAfterCustomerCall(result, 'verify');
-      if (screen === 'home' && result.temporaryLogin) {
-        const saved = await signIn(result.temporaryLogin);
-        if (!saved) {
-          showToast('warning', 'This sign-in could not be saved on this device.');
-          return;
-        }
-        setMobileVerification(null);
-        void clearMobileOtpVerification();
-        setStanding('registered');
-        if (result.temporaryLogin.customerId && result.temporaryLogin.name) {
-          setAccount({
-            customerId: result.temporaryLogin.customerId,
-            name: result.temporaryLogin.name,
-            mobile: result.temporaryLogin.mobile,
-            companyMobile: null,
-          });
-        }
-        holdLoading = true;
-        setTimeout(() => {
-          router.replace('/home');
-          setBusy(false);
-        }, 60);
-        return;
-      }
-      if (screen === 'complete-profile') {
-        leaving.current = true;
-        setStanding('unregistered');
-        // Keep otpDispatched true so a verified OTP-first identity is not treated as "never sent".
-        setOtpDispatched(true);
-        const verification = {
-          mobile: nationalNumber,
-          standing: 'unregistered' as const,
-          source: 'verify-otp' as const,
-          credential: result.session
-            ? { ...result.session, mobile: nationalNumber }
-            : null,
-        };
-        setMobileVerification(verification);
-        void saveMobileOtpVerification(verification);
-        holdLoading = true;
-        setTimeout(() => {
-          router.replace('/complete-profile');
-          setBusy(false);
-        }, 60);
-        return;
-      }
-    } finally {
-      if (!holdLoading) {
-        setBusy(false);
-      }
-    }
+  function invalidatePendingVerification() {
+    requestIdRef.current += 1;
+    verifyingRef.current = false;
+    lastFailedCodeRef.current = null;
+    lastAutoSubmittedCodeRef.current = null;
   }
 
+  const applyIncomingCode = useCallback((next: string) => {
+    if (leaving.current || verifyingRef.current || busy) {
+      return;
+    }
+    const digits = next.replace(/\D/g, '').slice(0, OTP_LENGTH);
+    if (digits.length !== OTP_LENGTH) {
+      return;
+    }
+    lastFailedCodeRef.current = null;
+    lastAutoSubmittedCodeRef.current = null;
+    setVerifyMessage(null);
+    setResendMessage(null);
+    setCode(digits);
+  }, [busy]);
+
+  const { restart: restartSmsOtpListener } = useAndroidSmsOtpAutofill({
+    enabled: focused && hydrated && ready && otpDispatched,
+    onCode: applyIncomingCode,
+  });
+
+  const runVerify = useCallback(
+    async (source: 'auto' | 'manual') => {
+      const submittedCode = codeRef.current;
+
+      if (verifyingRef.current || leaving.current) {
+        return;
+      }
+
+      if (!ready) {
+        showToast('error', 'Enter a valid 10-digit mobile number.');
+        router.replace('/login');
+        return;
+      }
+
+      if (submittedCode.length !== OTP_LENGTH) {
+        if (source === 'manual') {
+          showToast('error', 'Enter the 6-digit code.');
+        }
+        return;
+      }
+
+      // Auto-verify only once per distinct complete code; manual can retry the same digits.
+      if (source === 'auto') {
+        if (lastFailedCodeRef.current === submittedCode) {
+          return;
+        }
+        if (lastAutoSubmittedCodeRef.current === submittedCode) {
+          return;
+        }
+        lastAutoSubmittedCodeRef.current = submittedCode;
+      }
+
+      const requestId = requestIdRef.current + 1;
+      requestIdRef.current = requestId;
+      verifyingRef.current = true;
+      setBusy(true);
+      setVerifyMessage(null);
+      setResendMessage(null);
+
+      const isStale = () => !mountedRef.current || requestId !== requestIdRef.current;
+
+      let holdLoading = false;
+      try {
+        // Dev OTP mode: never call live verify-otp.
+        if (isDevOtpEnabled()) {
+          if (!hasDevOtpRecord(nationalNumber)) {
+            if (!isStale()) {
+              showToast('error', 'No development OTP is active. Go back and request a new one.');
+            }
+            return;
+          }
+          const outcome = verifyDevTestOtp(nationalNumber, submittedCode);
+          if (isStale()) {
+            return;
+          }
+          if (!outcome.ok) {
+            const message = developmentFailure(outcome.reason);
+            lastFailedCodeRef.current = submittedCode;
+            showToast('error', message);
+            setVerifyMessage(message);
+            setDevOtp(peekDevTestOtp(nationalNumber));
+            return;
+          }
+          leaving.current = true;
+          const saved = await keepDevelopmentLogin();
+          if (isStale()) {
+            return;
+          }
+          if (!saved) {
+            leaving.current = false;
+            showToast('warning', 'This development sign-in could not be saved on this device.');
+            return;
+          }
+          const verification = {
+            mobile: nationalNumber,
+            standing: (outcome.destination === 'home' ? 'registered' : 'unregistered') as 'registered' | 'unregistered',
+            source: 'development-test' as const,
+            credential: null,
+          };
+          setMobileVerification(verification);
+          void saveMobileOtpVerification(verification);
+          setStanding(verification.standing);
+          holdLoading = true;
+          setTimeout(() => {
+            if (!mountedRef.current || requestId !== requestIdRef.current) {
+              return;
+            }
+            router.replace(outcome.destination === 'home' ? '/home' : '/complete-profile');
+            verifyingRef.current = false;
+            setBusy(false);
+          }, 60);
+          return;
+        }
+
+        const result = await verifyCustomerOtp(nationalNumber, submittedCode);
+        if (isStale()) {
+          return;
+        }
+
+        const screen = screenAfterCustomerCall(result, 'verify');
+        if (screen === 'home' && result.temporaryLogin) {
+          showToast(result.tone, result.message);
+          setVerifyMessage(result.message);
+          const saved = await signIn(result.temporaryLogin);
+          if (isStale()) {
+            return;
+          }
+          if (!saved) {
+            showToast('warning', 'This sign-in could not be saved on this device.');
+            return;
+          }
+          setMobileVerification(null);
+          void clearMobileOtpVerification();
+          setStanding('registered');
+          if (result.temporaryLogin.customerId && result.temporaryLogin.name) {
+            setAccount({
+              customerId: result.temporaryLogin.customerId,
+              name: result.temporaryLogin.name,
+              mobile: result.temporaryLogin.mobile,
+              companyMobile: null,
+            });
+          }
+          leaving.current = true;
+          holdLoading = true;
+          setTimeout(() => {
+            if (!mountedRef.current || requestId !== requestIdRef.current) {
+              return;
+            }
+            router.replace('/home');
+            verifyingRef.current = false;
+            setBusy(false);
+          }, 60);
+          return;
+        }
+
+        if (screen === 'complete-profile') {
+          showToast(result.tone, result.message);
+          setVerifyMessage(result.message);
+          leaving.current = true;
+          setStanding('unregistered');
+          // Keep otpDispatched true so a verified OTP-first identity is not treated as "never sent".
+          setOtpDispatched(true);
+          const verification = {
+            mobile: nationalNumber,
+            standing: 'unregistered' as const,
+            source: 'verify-otp' as const,
+            credential: result.session
+              ? { ...result.session, mobile: nationalNumber }
+              : null,
+          };
+          setMobileVerification(verification);
+          void saveMobileOtpVerification(verification);
+          holdLoading = true;
+          setTimeout(() => {
+            if (!mountedRef.current || requestId !== requestIdRef.current) {
+              return;
+            }
+            router.replace('/complete-profile');
+            verifyingRef.current = false;
+            setBusy(false);
+          }, 60);
+          return;
+        }
+
+        // Failed / stay — map common wrong-code responses to the shared customer copy.
+        const message = liveIncorrectMessage(result.message || INCORRECT_OTP_MESSAGE);
+        lastFailedCodeRef.current = submittedCode;
+        showToast(result.tone, message);
+        setVerifyMessage(message);
+      } finally {
+        if (!holdLoading && !isStale()) {
+          verifyingRef.current = false;
+          setBusy(false);
+        } else if (!holdLoading) {
+          verifyingRef.current = false;
+        }
+      }
+    },
+    [
+      keepDevelopmentLogin,
+      nationalNumber,
+      ready,
+      setAccount,
+      setMobileVerification,
+      setOtpDispatched,
+      setStanding,
+      showToast,
+      signIn,
+    ],
+  );
+
+  // Auto-verify as soon as six digits are present — still goes through trusted verify only.
+  useEffect(() => {
+    if (!focused || !hydrated || !ready || !otpDispatched || leaving.current) {
+      return;
+    }
+    if (code.length !== OTP_LENGTH || busy || verifyingRef.current) {
+      return;
+    }
+    if (lastFailedCodeRef.current === code || lastAutoSubmittedCodeRef.current === code) {
+      return;
+    }
+    void runVerify('auto');
+  }, [busy, code, focused, hydrated, otpDispatched, ready, runVerify]);
+
   async function onResend() {
-    if (busy) {
+    if (busy || verifyingRef.current) {
       return;
     }
 
@@ -225,6 +378,7 @@ export default function OtpScreen() {
       return;
     }
 
+    invalidatePendingVerification();
     setBusy(true);
     try {
       // Dev OTP mode: never call live resend-otp.
@@ -243,11 +397,14 @@ export default function OtpScreen() {
         return;
       }
       const result = await resendCustomerOtp(nationalNumber);
+      setCode('');
+      setVerifyMessage(null);
       setResendMessage(result.message);
       showToast(result.tone, result.message);
       const screen = screenAfterCustomerCall(result, 'send');
       if (screen === 'otp') {
         setOtpDispatched(true);
+        restartSmsOtpListener();
       }
       if (screen === 'complete-profile') {
         leaving.current = true;
@@ -324,12 +481,31 @@ export default function OtpScreen() {
             ) : null}
             <OtpInput
               value={code}
-              invalid={verifyMessage !== null && !complete}
+              invalid={verifyMessage !== null}
+              editable={!busy}
               onChange={(next) => {
+                if (busy || verifyingRef.current) {
+                  return;
+                }
+                if (next !== code) {
+                  // Changing digits allows a fresh auto-attempt for a new complete code.
+                  if (lastFailedCodeRef.current && !next.startsWith(lastFailedCodeRef.current.slice(0, next.length))) {
+                    lastFailedCodeRef.current = null;
+                  }
+                  if (lastAutoSubmittedCodeRef.current && next !== lastAutoSubmittedCodeRef.current) {
+                    lastAutoSubmittedCodeRef.current = null;
+                  }
+                }
                 setCode(next);
                 setVerifyMessage(null);
               }}
             />
+            {busy ? (
+              <View style={styles.verifyingRow} accessibilityLiveRegion="polite">
+                <ActivityIndicator color={colors.primaryInk} size="small" />
+                <Text style={styles.verifyingLabel}>Verifying...</Text>
+              </View>
+            ) : null}
             {verifyMessage || resendMessage ? (
               <Text accessibilityRole="alert" accessibilityLiveRegion="polite" maxFontSizeMultiplier={1.15} numberOfLines={2} style={styles.message}>
                 {verifyMessage ?? resendMessage}
@@ -354,12 +530,15 @@ export default function OtpScreen() {
                 accessibilityState={{ disabled: !complete || busy, busy }}
                 disabled={!complete || busy}
                 onPress={() => {
-                  void onVerify();
+                  void runVerify('manual');
                 }}
                 testID="verify-otp"
                 style={({ pressed }) => [styles.action, complete && styles.actionReady, pressed && styles.pressed]}>
                 {busy ? (
-                  <ActivityIndicator color={colors.text} />
+                  <View style={styles.verifyBusy}>
+                    <ActivityIndicator color={colors.text} />
+                    <Text style={styles.actionLabel}>Verifying...</Text>
+                  </View>
                 ) : (
                   <Text style={[styles.actionLabel, !complete && styles.actionLabelOff]}>Verify</Text>
                 )}
@@ -480,11 +659,22 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.75,
   },
+  verifyingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  verifyingLabel: {
+    fontFamily: fonts.medium,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.primaryInk,
+  },
   message: {
     fontFamily: fonts.medium,
     fontSize: 14,
     lineHeight: 20,
-    color: colors.text,
+    color: colors.danger,
   },
   spacer: {
     flexGrow: 1,
@@ -514,5 +704,10 @@ const styles = StyleSheet.create({
   },
   actionLabelOff: {
     color: colors.textSecondary,
+  },
+  verifyBusy: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 });

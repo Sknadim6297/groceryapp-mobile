@@ -1,8 +1,14 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import {
+    createContext,
+    useContext,
+    useMemo,
+    useState,
+    type ReactNode,
+} from "react";
 
-import { UI_PREVIEW_MODE } from '@/constants/preview';
-import { DEMO_SEED_ORDERS } from '@/data/demoOrders';
-import type { SimulatedOrder } from '@/types/order';
+import { UI_PREVIEW_MODE } from "@/constants/preview";
+import { DEMO_SEED_ORDERS } from "@/data/demoOrders";
+import type { SimulatedOrder } from "@/types/order";
 
 export type { SimulatedOrder };
 
@@ -12,7 +18,14 @@ type PreviewSessionValue = {
   setCouponId: (id: string | null) => void;
   placeOrder: (order: SimulatedOrder) => void;
   cancelOrder: (id: string, reasonIds: string[]) => boolean;
-  requestReturn: (id: string, reasonIds: string[]) => boolean;
+  requestReturn: (
+    id: string,
+    payload: {
+      reasonIds: string[];
+      itemIds: string[];
+      photoUris: string[];
+    },
+  ) => boolean;
   findOrder: (id: string | undefined | null) => SimulatedOrder | null;
 };
 
@@ -20,7 +33,9 @@ const PreviewSessionContext = createContext<PreviewSessionValue | null>(null);
 
 export function PreviewSessionProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<SimulatedOrder[]>(() =>
-    UI_PREVIEW_MODE ? DEMO_SEED_ORDERS.map((order) => ({ ...order, items: [...order.items] })) : [],
+    UI_PREVIEW_MODE
+      ? DEMO_SEED_ORDERS.map((order) => ({ ...order, items: [...order.items] }))
+      : [],
   );
   const [couponId, setCouponId] = useState<string | null>(null);
 
@@ -33,7 +48,10 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
         if (!UI_PREVIEW_MODE) {
           return;
         }
-        setOrders((current) => [order, ...current.filter((item) => item.id !== order.id)]);
+        setOrders((current) => [
+          order,
+          ...current.filter((item) => item.id !== order.id),
+        ]);
         setCouponId(null);
       },
       cancelOrder: (id, reasonIds) => {
@@ -41,7 +59,11 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
           return false;
         }
         const target = orders.find((order) => order.id === id);
-        if (!target || target.status === 'cancelled' || target.status === 'delivered') {
+        if (
+          !target ||
+          target.status === "cancelled" ||
+          target.status === "delivered"
+        ) {
           return false;
         }
         setOrders((current) =>
@@ -50,17 +72,17 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
               ? order
               : {
                   ...order,
-                  status: 'cancelled',
+                  status: "cancelled",
                   statusDetail:
-                    'Cancelled by you. Refund timing depends on the payment method once live checkout is connected.',
+                    "Cancelled by you. Refund timing depends on the payment method once live checkout is connected.",
                   cancelReasonIds: [...reasonIds],
                   statusAt: {
                     ...order.statusAt,
-                    cancelled: new Date().toLocaleString('en-IN', {
-                      day: 'numeric',
-                      month: 'short',
-                      hour: 'numeric',
-                      minute: '2-digit',
+                    cancelled: new Date().toLocaleString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      hour: "numeric",
+                      minute: "2-digit",
                     }),
                   },
                 },
@@ -68,12 +90,22 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
         );
         return true;
       },
-      requestReturn: (id, reasonIds) => {
+      requestReturn: (id, payload) => {
         if (!UI_PREVIEW_MODE || !id) {
           return false;
         }
         const target = orders.find((order) => order.id === id);
-        if (!target || target.status !== 'delivered' || target.returnRequested) {
+        if (
+          !target ||
+          target.status !== "delivered" ||
+          target.returnRequested
+        ) {
+          return false;
+        }
+        const reasonIds = payload.reasonIds.filter(Boolean);
+        const itemIds = payload.itemIds.filter(Boolean);
+        const photoUris = payload.photoUris.filter(Boolean).slice(0, 4);
+        if (reasonIds.length === 0 || itemIds.length === 0 || photoUris.length === 0) {
           return false;
         }
         setOrders((current) =>
@@ -84,8 +116,10 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
                   ...order,
                   returnRequested: true,
                   returnReasonIds: [...reasonIds],
+                  returnItemIds: [...itemIds],
+                  returnPhotoUris: [...photoUris],
                   statusDetail:
-                    'Return requested. Our team will review this preview request — live refunds are not connected yet.',
+                    "Return requested with product photos. Our team will review this preview request — live refunds are not connected yet.",
                 },
           ),
         );
@@ -101,13 +135,19 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
     [couponId, orders],
   );
 
-  return <PreviewSessionContext.Provider value={value}>{children}</PreviewSessionContext.Provider>;
+  return (
+    <PreviewSessionContext.Provider value={value}>
+      {children}
+    </PreviewSessionContext.Provider>
+  );
 }
 
 export function usePreviewSession(): PreviewSessionValue {
   const value = useContext(PreviewSessionContext);
   if (!value) {
-    throw new Error('usePreviewSession must be used within PreviewSessionProvider');
+    throw new Error(
+      "usePreviewSession must be used within PreviewSessionProvider",
+    );
   }
   return value;
 }

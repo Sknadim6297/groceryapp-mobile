@@ -109,6 +109,7 @@ export default function RootLayout() {
         <Stack.Screen name="terms" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="privacy" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="category/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="collection/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="product/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="orders" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="order/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />

@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -8,10 +9,11 @@ import { OrderCancelModal } from '@/components/orders/OrderCancelModal';
 import { OrderReturnRefundModal } from '@/components/orders/OrderReturnRefundModal';
 import { OrderTimeline } from '@/components/orders/OrderTimeline';
 import { DemoBanner } from '@/components/preview/DemoBanner';
+import { AppIcon } from '@/components/ui/AppIcon';
 import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
 import { useToast } from '@/components/ui/AppToast';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
-import { colors, fonts, homeLayout } from '@/constants/theme';
+import { colors, fonts, homeLayout, radii, shadow, space } from '@/constants/theme';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { usePreviewSession } from '@/context/PreviewSessionContext';
 import { canCancelOrderStatus } from '@/data/orderCancelReasons';
@@ -22,7 +24,14 @@ import { profileRoutes } from '@/navigation/profileRoutes';
 import { canUseDevelopmentHome } from '@/services/devOtp';
 import type { SimulatedOrder } from '@/types/order';
 import { formatRupee } from '@/utils/cartBill';
-import { buildOrderTimeline, orderItemCount, orderStatusLabel } from '@/utils/orderListing';
+import {
+  buildOrderTimeline,
+  isActiveOrder,
+  orderItemCount,
+  orderStatusIcon,
+  orderStatusLabel,
+  statusPillColors,
+} from '@/utils/orderListing';
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -55,11 +64,15 @@ export default function OrderDetailScreen() {
     return <Redirect href={profileRoutes.login} />;
   }
 
+  const pill = order ? statusPillColors(order.status) : null;
+  const statusIcon = order ? orderStatusIcon(order.status) : 'box';
+  const active = order ? isActiveOrder(order) : false;
+
   return (
     <View style={styles.screen}>
       <AppScreenHeader title="Order details" fallbackHref="/orders" />
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 24) }]}
+        contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 28) }]}
         showsVerticalScrollIndicator={false}>
         {!order ? (
           <View style={styles.card}>
@@ -73,22 +86,71 @@ export default function OrderDetailScreen() {
         ) : (
           <>
             {UI_PREVIEW_MODE ? <DemoBanner /> : null}
-            <View style={styles.card}>
-              <Text style={styles.orderId}>Order ID: #{order.id}</Text>
-              <Text style={styles.meta}>Placed on {order.placedAtLabel}</Text>
-              <Text style={styles.status}>{orderStatusLabel[order.status]}</Text>
-              {order.statusDetail ? <Text style={styles.body}>{order.statusDetail}</Text> : null}
-            </View>
 
-            <Text style={styles.section}>Items · {orderItemCount(order)}</Text>
+            <LinearGradient
+              colors={['#FFFBEB', '#FEF3C7', '#FDE68A']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.heroCard}>
+              <View style={styles.heroTop}>
+                <View style={[styles.heroIcon, pill ? { backgroundColor: pill.background } : null]}>
+                  <AppIcon name={statusIcon} color={pill?.text ?? colors.primaryInk} size={22} />
+                </View>
+                <View style={styles.heroCopy}>
+                  <Text style={styles.orderId}>#{order.id}</Text>
+                  <Text style={styles.meta}>Placed on {order.placedAtLabel}</Text>
+                </View>
+              </View>
+
+              {pill ? (
+                <View style={[styles.statusPill, { backgroundColor: pill.background, borderColor: pill.border }]}>
+                  <Text style={[styles.statusPillLabel, { color: pill.text }]}>
+                    {orderStatusLabel[order.status]}
+                  </Text>
+                </View>
+              ) : null}
+
+              {order.statusDetail ? <Text style={styles.statusDetail}>{order.statusDetail}</Text> : null}
+
+              {active && order.eta ? (
+                <View style={styles.etaRow}>
+                  <AppIcon name="clock" color={colors.primaryInk} size={16} />
+                  <Text style={styles.etaText}>
+                    Arriving in {order.eta.value} {order.eta.unit}
+                  </Text>
+                </View>
+              ) : null}
+
+              <View style={styles.heroStats}>
+                <View style={styles.heroStat}>
+                  <Text style={styles.heroStatValue}>{orderItemCount(order)}</Text>
+                  <Text style={styles.heroStatLabel}>Items</Text>
+                </View>
+                <View style={styles.heroStatDivider} />
+                <View style={styles.heroStat}>
+                  <Text style={styles.heroStatValue}>
+                    {typeof order.totalAmount === 'number'
+                      ? formatRupee(order.totalAmount)
+                      : 'total' in order && typeof order.total === 'number'
+                        ? formatRupee(order.total)
+                        : '—'}
+                  </Text>
+                  <Text style={styles.heroStatLabel}>Total</Text>
+                </View>
+              </View>
+            </LinearGradient>
+
+            <Text style={styles.section}>Items</Text>
             <View style={styles.card}>
               {order.items.length === 0 ? <Text style={styles.body}>No items were included with this order.</Text> : null}
-              {order.items.map((item) => {
+              {order.items.map((item, index) => {
                 const product = findDemoProduct(item.id);
                 const lineTotal =
                   product && Number.isFinite(product.price) ? product.price * item.quantity : null;
                 return (
-                  <View key={`${item.id}-${item.name}`} style={styles.line}>
+                  <View
+                    key={`${item.id}-${item.name}`}
+                    style={[styles.line, index > 0 ? styles.lineBorder : null]}>
                     <View style={styles.thumb}>
                       {product ? (
                         <CatalogImage source={product.image} style={styles.thumbImage} contentFit="cover" />
@@ -115,20 +177,30 @@ export default function OrderDetailScreen() {
 
             <Text style={styles.section}>Delivery address</Text>
             <View style={styles.card}>
-              <Text style={styles.heading}>{order.addressTitle || 'Delivery'}</Text>
-              <Text style={styles.body}>{order.addressLine || 'Address was not included.'}</Text>
+              <View style={styles.addressRow}>
+                <View style={styles.addressIcon}>
+                  <AppIcon name="stores" color={colors.primaryInk} size={18} />
+                </View>
+                <View style={styles.addressCopy}>
+                  <Text style={styles.heading}>{order.addressTitle || 'Delivery'}</Text>
+                  <Text style={styles.body}>{order.addressLine || 'Address was not included.'}</Text>
+                </View>
+              </View>
             </View>
 
             <Text style={styles.section}>Payment</Text>
             <View style={styles.card}>
-              <Text style={styles.body}>
-                {'paymentLabel' in order && order.paymentLabel
-                  ? order.paymentLabel
-                  : 'Payment method not published'}
-              </Text>
+              <View style={styles.paymentRow}>
+                <AppIcon name="card" color={colors.primaryInk} size={18} />
+                <Text style={styles.body}>
+                  {'paymentLabel' in order && order.paymentLabel
+                    ? order.paymentLabel
+                    : 'Payment method not published'}
+                </Text>
+              </View>
               <View style={styles.billRow}>
                 <Text style={styles.heading}>Order total</Text>
-                <Text style={styles.heading}>
+                <Text style={styles.totalValue}>
                   {typeof order.totalAmount === 'number'
                     ? formatRupee(order.totalAmount)
                     : 'total' in order && typeof order.total === 'number'
@@ -150,6 +222,7 @@ export default function OrderDetailScreen() {
                 accessibilityLabel="Track Order"
                 onPress={() => router.push({ pathname: '/track', params: { id: order.id } })}
                 style={({ pressed }) => [styles.trackButton, pressed && styles.pressed]}>
+                <AppIcon name="truck" color={colors.text} size={18} />
                 <Text style={styles.trackLabel}>Track Order</Text>
               </Pressable>
             ) : null}
@@ -191,12 +264,14 @@ export default function OrderDetailScreen() {
                 onPress={() => setReturnOpen(true)}
                 style={({ pressed }) => [styles.returnOutline, pressed && styles.pressed]}
                 testID="order-return-open">
+                <AppIcon name="returns" color={colors.primaryInk} size={18} />
                 <Text style={styles.returnOutlineLabel}>Return & Refund</Text>
               </Pressable>
             ) : null}
 
             {previewOrder?.returnRequested ? (
               <View style={styles.returnNote}>
+                <AppIcon name="check" color={colors.success} size={16} />
                 <Text style={styles.returnNoteText}>Return request submitted for this order.</Text>
               </View>
             ) : null}
@@ -232,19 +307,20 @@ export default function OrderDetailScreen() {
         <OrderReturnRefundModal
           visible={returnOpen}
           orderId={order.id}
+          items={order.items}
           submitting={returning}
           onClose={() => {
             if (!returning) {
               setReturnOpen(false);
             }
           }}
-          onConfirm={(reasonIds) => {
+          onConfirm={(payload) => {
             setReturning(true);
-            const ok = requestReturn(order.id, reasonIds);
+            const ok = requestReturn(order.id, payload);
             setReturning(false);
             setReturnOpen(false);
             if (ok) {
-              showToast('success', 'Return request submitted. We’ll review it shortly.');
+              showToast('success', 'Return request submitted with product photos.');
             } else {
               showToast('error', 'A return cannot be requested for this order.');
             }
@@ -258,7 +334,7 @@ export default function OrderDetailScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.softBackground,
+    backgroundColor: colors.warmBackground,
   },
   content: {
     padding: homeLayout.gutter,
@@ -268,36 +344,117 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   section: {
-    marginTop: 4,
+    marginTop: 6,
     fontFamily: fonts.bold,
     fontSize: 15,
     lineHeight: 20,
     color: colors.text,
   },
-  card: {
-    backgroundColor: colors.white,
+  heroCard: {
+    borderRadius: radii.sheet,
+    padding: space.lg,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    overflow: 'hidden',
+    ...shadow.soft,
+  },
+  heroTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  heroIcon: {
+    width: 48,
+    height: 48,
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: 14,
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.softYellow,
+  },
+  heroCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
   },
   orderId: {
     fontFamily: fonts.bold,
-    fontSize: 17,
+    fontSize: 20,
+    lineHeight: 26,
     color: colors.text,
   },
-  status: {
+  statusPill: {
     alignSelf: 'flex-start',
-    fontFamily: fonts.semibold,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  statusPillLabel: {
+    fontFamily: fonts.bold,
     fontSize: 12,
     lineHeight: 16,
+  },
+  statusDetail: {
+    fontFamily: fonts.medium,
+    fontSize: 14,
+    lineHeight: 20,
     color: colors.primaryInk,
-    backgroundColor: colors.softYellow,
-    overflow: 'hidden',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  },
+  etaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.72)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  etaText: {
+    flex: 1,
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.primaryInk,
+  },
+  heroStats: {
+    marginTop: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.78)',
+    borderRadius: radii.md,
+    paddingVertical: 12,
+  },
+  heroStat: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  heroStatDivider: {
+    width: StyleSheet.hairlineWidth,
+    alignSelf: 'stretch',
+    backgroundColor: colors.border,
+  },
+  heroStatValue: {
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    lineHeight: 20,
+    color: colors.text,
+  },
+  heroStatLabel: {
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    lineHeight: 14,
+    color: colors.textSecondary,
+  },
+  card: {
+    backgroundColor: colors.white,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+    padding: space.md,
+    gap: 8,
+    ...shadow.soft,
   },
   heading: {
     fontFamily: fonts.bold,
@@ -326,20 +483,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingVertical: 6,
+    paddingVertical: 8,
+  },
+  lineBorder: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
   },
   thumb: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 52,
+    height: 52,
+    borderRadius: 14,
     backgroundColor: colors.softYellow,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
   thumbImage: {
-    width: 48,
-    height: 48,
+    width: 52,
+    height: 52,
   },
   thumbFallback: {
     fontFamily: fonts.bold,
@@ -360,17 +521,53 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
   },
+  addressRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  addressIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.softYellow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addressCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+  paymentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   billRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     gap: 12,
+    marginTop: 4,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  totalValue: {
+    fontFamily: fonts.bold,
+    fontSize: 17,
+    color: colors.text,
   },
   trackButton: {
     minHeight: 52,
-    borderRadius: 28,
+    borderRadius: radii.pill,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    ...shadow.soft,
   },
   trackLabel: {
     fontFamily: fonts.bold,
@@ -388,8 +585,8 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     minHeight: 52,
-    borderRadius: 28,
-    borderWidth: 1,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
     borderColor: colors.primaryDark,
     backgroundColor: colors.white,
     alignItems: 'center',
@@ -403,7 +600,7 @@ const styles = StyleSheet.create({
   },
   cancelOutline: {
     minHeight: 52,
-    borderRadius: 28,
+    borderRadius: radii.pill,
     borderWidth: 1.5,
     borderColor: colors.danger,
     backgroundColor: colors.white,
@@ -418,12 +615,14 @@ const styles = StyleSheet.create({
   },
   returnOutline: {
     minHeight: 52,
-    borderRadius: 28,
+    borderRadius: radii.pill,
     borderWidth: 1.5,
     borderColor: colors.primaryDark,
     backgroundColor: colors.softYellow,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
   },
   returnOutlineLabel: {
     fontFamily: fonts.bold,
@@ -433,17 +632,20 @@ const styles = StyleSheet.create({
   },
   returnNote: {
     borderRadius: 14,
-    backgroundColor: colors.warmBackground,
+    backgroundColor: '#DCFCE7',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderColor: '#86EFAC',
     paddingHorizontal: 14,
     paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   returnNoteText: {
+    flex: 1,
     fontFamily: fonts.medium,
     fontSize: 13,
-    color: colors.textSecondary,
-    textAlign: 'center',
+    color: '#166534',
   },
   pressed: {
     opacity: 0.8,

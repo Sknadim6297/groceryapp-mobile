@@ -7,7 +7,7 @@ import { DailyEssentials } from '@/components/home/DailyEssentials';
 import { DeliveryHeader } from '@/components/home/DeliveryHeader';
 import { ExploreMore } from '@/components/home/ExploreMore';
 import { FreeCashPromoBanner } from '@/components/home/FreeCashPromoBanner';
-import { FreeDeliveryBanner, FruitsBanner, MinutesBanner, SavingsBanner } from '@/components/home/HomeBanners';
+import { HomePromoCarousel } from '@/components/home/HomePromoCarousel';
 import { NewUserOffers } from '@/components/home/NewUserOffers';
 import { OfferRow } from '@/components/home/OfferRow';
 import { PopularPicks } from '@/components/home/PopularPicks';
@@ -50,12 +50,11 @@ export default function HomeScreen() {
           ) : null}
           <FreeCashPromoBanner />
           <DailyEssentials />
-          <SavingsBanner />
+          <HomePromoCarousel />
           <ProductSection title="Recommended for you" products={recommendedProducts} columns={2} />
           <ProductSection title="Recently viewed" products={recentProducts} columns={2} showHeart />
           <OfferRow />
           <ProductSection title="In the spotlight" products={spotlightProducts} columns={2} />
-          <MinutesBanner />
           <ExploreMore />
           <PopularPicks />
           {linkedProducts.length > 0 ? (
@@ -64,9 +63,7 @@ export default function HomeScreen() {
           <CategoryGrid />
           <StoreRow />
           <BrandCarousel />
-          <FreeDeliveryBanner />
           <ProductSection title="Recently bought" subtitle="Buy again, quickly" products={boughtAgain} columns={2} icon="refresh" />
-          <FruitsBanner />
           <ProductSection title="Top selling today" products={topSelling} columns={4} />
           <NewUserOffers />
         </View>

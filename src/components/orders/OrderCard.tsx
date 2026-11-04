@@ -1,22 +1,27 @@
 import { router } from 'expo-router';
 import { LayoutAnimation, Platform, Pressable, StyleSheet, Text, UIManager, View } from 'react-native';
 
+import { CatalogImage } from '@/components/home/CatalogImage';
 import { OrderTimeline } from '@/components/orders/OrderTimeline';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { colors, fonts, radii, shadow, space } from '@/constants/theme';
+import { findDemoProduct } from '@/data/findDemoProduct';
 import type { CustomerOrder } from '@/types/order';
 import { formatRupee } from '@/utils/cartBill';
 import {
   buildOrderTimeline,
   isActiveOrder,
   orderItemCount,
+  orderStatusIcon,
   orderStatusLabel,
-  statusDotColor,
+  statusPillColors,
 } from '@/utils/orderListing';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
+
+const PREVIEW_THUMBS = 3;
 
 type OrderCardProps = {
   order: CustomerOrder;
@@ -27,7 +32,11 @@ type OrderCardProps = {
 export function OrderCard({ order, expanded, onToggle }: OrderCardProps) {
   const items = orderItemCount(order);
   const timeline = buildOrderTimeline(order);
-  const statusColor = statusDotColor(order.status);
+  const pill = statusPillColors(order.status);
+  const statusIcon = orderStatusIcon(order.status);
+  const active = isActiveOrder(order);
+  const previewItems = order.items.slice(0, PREVIEW_THUMBS);
+  const extraItems = Math.max(0, order.items.length - PREVIEW_THUMBS);
 
   function toggle() {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -39,65 +48,129 @@ export function OrderCard({ order, expanded, onToggle }: OrderCardProps) {
   }
 
   return (
-    <View style={styles.card} testID={`order-card-${order.id}`}>
+    <View style={[styles.card, active && styles.cardActive]} testID={`order-card-${order.id}`}>
+      <View style={[styles.accent, { backgroundColor: pill.border }]} />
+
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded }}
         accessibilityLabel={`Order ${order.id}, ${orderStatusLabel[order.status]}`}
         onPress={toggle}
         style={({ pressed }) => [styles.summary, pressed && styles.pressed]}>
-        <View style={styles.iconPlate}>
-          <AppIcon name="bag" color={colors.text} size={20} />
-        </View>
+        <View style={styles.topRow}>
+          <View style={[styles.iconPlate, { backgroundColor: pill.background }]}>
+            <AppIcon name={statusIcon} color={pill.text} size={20} />
+          </View>
 
-        <View style={styles.summaryCopy}>
-          <Text style={styles.orderId} numberOfLines={1}>
-            Order ID: {formatOrderId(order.id)}
-          </Text>
-          <Text style={styles.placed} numberOfLines={1}>
-            Placed on {order.placedAtLabel || '—'}
-          </Text>
-          <Text style={styles.meta} numberOfLines={1}>
-            Items: {items}
-            {typeof order.totalAmount === 'number' && Number.isFinite(order.totalAmount)
-              ? `  ·  Total: ${formatRupee(order.totalAmount)}`
-              : ''}
-          </Text>
-          <View style={styles.statusRow}>
-            <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-            <Text style={styles.statusLabel}>{orderStatusLabel[order.status]}</Text>
+          <View style={styles.summaryCopy}>
+            <View style={styles.idRow}>
+              <Text style={styles.orderId} numberOfLines={1}>
+                {formatOrderId(order.id)}
+              </Text>
+              <View style={[styles.statusPill, { backgroundColor: pill.background, borderColor: pill.border }]}>
+                <Text style={[styles.statusLabel, { color: pill.text }]} numberOfLines={1}>
+                  {orderStatusLabel[order.status]}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.placed} numberOfLines={1}>
+              Placed {order.placedAtLabel || '—'}
+            </Text>
+
+            {order.statusDetail && active ? (
+              <Text style={styles.detailLine} numberOfLines={1}>
+                {order.statusDetail}
+              </Text>
+            ) : null}
+          </View>
+
+          <View style={[styles.chevronBtn, expanded && styles.chevronOpen]} accessibilityElementsHidden>
+            <AppIcon name="chevronDown" color={colors.textSecondary} size={16} />
           </View>
         </View>
 
-        <View style={[styles.chevronBtn, expanded && styles.chevronOpen]} accessibilityElementsHidden>
-          <AppIcon name="chevronDown" color={colors.textSecondary} size={18} />
+        <View style={styles.previewRow}>
+          <View style={styles.thumbs}>
+            {previewItems.length === 0 ? (
+              <View style={styles.thumbEmpty}>
+                <AppIcon name="bag" color={colors.primaryInk} size={16} />
+              </View>
+            ) : (
+              previewItems.map((item, index) => {
+                const product = findDemoProduct(item.id);
+                return (
+                  <View
+                    key={`${item.id}-${index}`}
+                    style={[styles.thumb, index > 0 ? styles.thumbOverlap : null]}>
+                    {product ? (
+                      <CatalogImage source={product.image} style={styles.thumbImage} contentFit="cover" />
+                    ) : (
+                      <Text style={styles.thumbFallback}>{item.name.slice(0, 1).toUpperCase()}</Text>
+                    )}
+                  </View>
+                );
+              })
+            )}
+            {extraItems > 0 ? (
+              <View style={[styles.thumb, styles.thumbMore, styles.thumbOverlap]}>
+                <Text style={styles.thumbMoreLabel}>+{extraItems}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          <View style={styles.totals}>
+            <Text style={styles.itemsLabel}>
+              {items} {items === 1 ? 'item' : 'items'}
+            </Text>
+            <Text style={styles.totalAmount}>
+              {typeof order.totalAmount === 'number' && Number.isFinite(order.totalAmount)
+                ? formatRupee(order.totalAmount)
+                : '—'}
+            </Text>
+          </View>
         </View>
+
+        {active && order.eta ? (
+          <View style={styles.etaBanner}>
+            <AppIcon name="clock" color={colors.primaryInk} size={14} />
+            <Text style={styles.etaText} numberOfLines={1}>
+              Arriving in {order.eta.value} {order.eta.unit}
+            </Text>
+          </View>
+        ) : null}
       </Pressable>
 
       {expanded ? (
         <View style={styles.expanded}>
           <View style={styles.divider} />
+          <Text style={styles.progressTitle}>Delivery progress</Text>
           <OrderTimeline steps={timeline} />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="View Order Details"
-            onPress={openDetails}
-            style={({ pressed }) => [styles.detailsButton, pressed && styles.pressed]}
-            testID={`order-details-${order.id}`}>
-            <Text style={styles.detailsLabel}>View Order Details</Text>
-            <AppIcon name="chevron" color={colors.primaryInk} size={16} />
-          </Pressable>
-          {isActiveOrder(order) ? (
+          <View style={styles.actions}>
+            {active ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Track Order"
+                onPress={() => router.push({ pathname: '/track', params: { id: order.id } })}
+                style={({ pressed }) => [styles.trackButton, pressed && styles.pressed]}
+                testID={`order-track-${order.id}`}>
+                <AppIcon name="truck" color={colors.text} size={16} />
+                <Text style={styles.trackLabel}>Track Order</Text>
+              </Pressable>
+            ) : null}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Track Order"
-              onPress={() => router.push({ pathname: '/track', params: { id: order.id } })}
-              style={({ pressed }) => [styles.trackButton, pressed && styles.pressed]}
-              testID={`order-track-${order.id}`}>
-              <Text style={styles.trackLabel}>Track Order</Text>
-              <AppIcon name="truck" color={colors.text} size={16} />
+              accessibilityLabel="View Order Details"
+              onPress={openDetails}
+              style={({ pressed }) => [
+                active ? styles.detailsButton : styles.trackButton,
+                pressed && styles.pressed,
+              ]}
+              testID={`order-details-${order.id}`}>
+              <Text style={active ? styles.detailsLabel : styles.trackLabel}>View Details</Text>
+              <AppIcon name="chevron" color={active ? colors.primaryInk : colors.text} size={16} />
             </Pressable>
-          ) : null}
+          </View>
         </View>
       ) : null}
     </View>
@@ -115,35 +188,64 @@ function formatOrderId(id: string): string {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.white,
-    borderRadius: radii.md,
+    borderRadius: radii.lg,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
     ...shadow.card,
   },
+  cardActive: {
+    borderColor: '#FDE68A',
+  },
+  accent: {
+    height: 4,
+    width: '100%',
+  },
   summary: {
+    paddingHorizontal: space.md,
+    paddingTop: space.md,
+    paddingBottom: space.md,
+    gap: space.md,
+  },
+  topRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: space.md,
-    paddingHorizontal: space.md,
-    paddingVertical: space.md,
   },
   iconPlate: {
-    width: 44,
-    height: 44,
-    borderRadius: radii.sm,
-    backgroundColor: colors.softYellow,
+    width: 46,
+    height: 46,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
   summaryCopy: {
     flex: 1,
     minWidth: 0,
-    gap: 3,
+    gap: 4,
+  },
+  idRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
   },
   orderId: {
     fontFamily: fonts.bold,
-    fontSize: 15,
+    fontSize: 16,
     lineHeight: 20,
     color: colors.text,
+  },
+  statusPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+  },
+  statusLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    lineHeight: 14,
   },
   placed: {
     fontFamily: fonts.regular,
@@ -151,56 +253,133 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     color: colors.textSecondary,
   },
-  meta: {
-    marginTop: 2,
-    fontFamily: fonts.semibold,
-    fontSize: 13,
-    lineHeight: 17,
-    color: colors.text,
+  detailLine: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.primaryInk,
   },
-  statusRow: {
-    marginTop: 6,
+  chevronBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: colors.softBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chevronOpen: {
+    transform: [{ rotate: '180deg' }],
+  },
+  previewRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
+    gap: space.md,
   },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  thumbs: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
   },
-  statusLabel: {
+  thumb: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.softYellow,
+    borderWidth: 2,
+    borderColor: colors.white,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbOverlap: {
+    marginLeft: -10,
+  },
+  thumbImage: {
+    width: 40,
+    height: 40,
+  },
+  thumbFallback: {
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    color: colors.primaryInk,
+  },
+  thumbEmpty: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.softYellow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  thumbMore: {
+    backgroundColor: colors.ink,
+    borderColor: colors.white,
+  },
+  thumbMoreLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    color: colors.white,
+  },
+  totals: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  itemsLabel: {
     fontFamily: fonts.medium,
     fontSize: 12,
     lineHeight: 16,
     color: colors.textSecondary,
   },
-  chevronBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{ rotate: '0deg' }],
+  totalAmount: {
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    lineHeight: 20,
+    color: colors.text,
   },
-  chevronOpen: {
-    transform: [{ rotate: '180deg' }],
+  etaBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'stretch',
+    backgroundColor: colors.warmBackground,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#FDE68A',
+  },
+  etaText: {
+    flex: 1,
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.primaryInk,
   },
   expanded: {
-    paddingHorizontal: 14,
-    paddingBottom: 14,
+    paddingHorizontal: space.md,
+    paddingBottom: space.md,
     gap: 10,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.border,
   },
+  progressTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    lineHeight: 17,
+    color: colors.text,
+  },
+  actions: {
+    gap: 8,
+  },
   detailsButton: {
-    minHeight: 44,
-    borderRadius: 12,
+    minHeight: 46,
+    borderRadius: 14,
     backgroundColor: colors.cream,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 1,
     borderColor: colors.primaryDark,
     paddingHorizontal: 14,
     flexDirection: 'row',
@@ -214,16 +393,17 @@ const styles = StyleSheet.create({
     color: colors.primaryInk,
   },
   trackButton: {
-    minHeight: 44,
-    borderRadius: 12,
+    minHeight: 46,
+    borderRadius: 14,
     backgroundColor: colors.primary,
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    gap: 8,
   },
   trackLabel: {
-    fontFamily: fonts.semibold,
+    fontFamily: fonts.bold,
     fontSize: 14,
     lineHeight: 18,
     color: colors.text,
