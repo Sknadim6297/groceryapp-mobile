@@ -17,6 +17,8 @@ import { AppIcon } from '@/components/ui/AppIcon';
 import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
 import { colors, fonts, homeLayout } from '@/constants/theme';
 import { contentColumnWidth } from '@/utils/contentWidth';
+import { UI_PREVIEW_MODE } from '@/constants/preview';
+import { buildReviewSummary, previewReviewsForProduct } from '@/data/productReviews';
 import { listShopShelves, type ShopShelf } from '@/data/shopCatalog';
 import { resolveParentIdForCategory } from '@/data/subcategoryCatalog';
 import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
@@ -48,7 +50,10 @@ function buildListingPool(shelves: readonly ShopShelf[]): ListedProduct[] {
         continue;
       }
       seen.add(product.id);
-      pool.push({ ...product, shelfId: shelf.id });
+      const ratingAverage = UI_PREVIEW_MODE
+        ? buildReviewSummary(previewReviewsForProduct(product)).average
+        : undefined;
+      pool.push({ ...product, shelfId: shelf.id, ratingAverage });
     }
   }
   return pool;

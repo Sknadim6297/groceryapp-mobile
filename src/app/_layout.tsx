@@ -25,6 +25,7 @@ import { MockCartProvider } from '@/context/MockCartContext';
 import { PreviewSessionProvider } from '@/context/PreviewSessionContext';
 import { ProfileDraftProvider } from '@/context/ProfileDraftContext';
 import { SavedAddressesProvider } from '@/context/SavedAddressesContext';
+import { ProductReviewsProvider } from '@/context/ProductReviewsContext';
 import { WishlistProvider } from '@/context/WishlistContext';
 
 SplashScreen.preventAutoHideAsync();
@@ -83,6 +84,7 @@ export default function RootLayout() {
         <ProfileDraftProvider>
         <MockCartProvider>
         <WishlistProvider>
+        <ProductReviewsProvider>
         <PreviewSessionProvider>
         <Stack
           screenOptions={{
@@ -107,23 +109,33 @@ export default function RootLayout() {
         <Stack.Screen name="terms" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="privacy" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="category/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="product/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="orders" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="order/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="checkout" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="payment" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="my-payment" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="order-confirmed" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="delivery-review" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="product-review" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="coupons" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="buy-again" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="transactions" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="notifications" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="scan-qr" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="settings" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="wallet" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="invite" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="returns" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="complaints/index" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="complaints/new" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="complaints/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="store/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="menu" options={{ headerShown: false, animation: 'slide_from_right' }} />
         </Stack>
         </PreviewSessionProvider>
+        </ProductReviewsProvider>
         </WishlistProvider>
         </MockCartProvider>
         </ProfileDraftProvider>

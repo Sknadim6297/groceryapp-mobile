@@ -1,3 +1,6 @@
+import * as Clipboard from 'expo-clipboard';
+import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { Redirect, router, useIsFocused } from 'expo-router';
 import { useMemo, useState, type ReactNode } from 'react';
 import {
@@ -15,10 +18,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DateOfBirthField } from '@/components/profile/DateOfBirthField';
+import { ProfilePhotoActionSheet } from '@/components/profile/ProfilePhotoActionSheet';
 import { AppIcon, type AppIconName } from '@/components/ui/AppIcon';
 import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
 import { useToast } from '@/components/ui/AppToast';
-import { colors, fonts, homeLayout } from '@/constants/theme';
+import { colors, fonts, homeLayout, radii, shadow } from '@/constants/theme';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useCustomerAccount } from '@/context/CustomerAccountContext';
 import { useCustomerProfile } from '@/context/CustomerProfileContext';
@@ -27,8 +31,9 @@ import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
 import { profileRoutes } from '@/navigation/profileRoutes';
 import { canUseDevelopmentHome } from '@/services/devOtp';
 import { displayCustomer } from '@/services/rememberedCustomer';
-import type { CustomerProfileDraft } from '@/types/customerProfile';
+import type { CustomerProfileDraft, ProfileAvatarPresetId } from '@/types/customerProfile';
 import { formatIndiaMobileDisplay, isValidIndiaMobile } from '@/utils/phoneValidation';
+import { formatProfileIdDisplay, profileAvatarPreset } from '@/utils/profileAvatar';
 import { formatDateOfBirth, isValidEmail } from '@/utils/profileValidation';
 
 export default function EditProfileScreen() {
@@ -55,16 +60,34 @@ export default function EditProfileScreen() {
 
   const identity = displayCustomer(session, account, remembered);
   const mobile = session?.mobile ?? devSession?.mobile ?? identity?.mobile ?? '';
+  const customerId = session?.customerId ?? account?.customerId ?? remembered?.customerId ?? '';
   const initial: CustomerProfileDraft = {
     name: profile?.name || identity?.name || session?.name || remembered?.name || '',
     email: profile?.email ?? '',
     dateOfBirth: profile?.dateOfBirth ?? '',
+    avatarUri: profile?.avatarUri ?? null,
+    avatarPreset: profile?.avatarPreset ?? null,
   };
 
-  return <EditProfileBody key={`${mobile}:${profile?.updatedAt ?? 'base'}`} mobile={mobile} initial={initial} />;
+  return (
+    <EditProfileBody
+      key={`${mobile}:${profile?.updatedAt ?? 'base'}`}
+      mobile={mobile}
+      customerId={customerId}
+      initial={initial}
+    />
+  );
 }
 
-function EditProfileBody({ mobile, initial }: { mobile: string; initial: CustomerProfileDraft }) {
+function EditProfileBody({
+  mobile,
+  customerId,
+  initial,
+}: {
+  mobile: string;
+  customerId: string;
+  initial: CustomerProfileDraft;
+}) {
   const insets = useSafeAreaInsets();
   const keyboardCover = useKeyboardOverlap();
   const keyboardOverlap = Platform.OS === 'android' ? keyboardCover : 0;
@@ -76,12 +99,18 @@ function EditProfileBody({ mobile, initial }: { mobile: string; initial: Custome
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
+  const [photoSheetOpen, setPhotoSheetOpen] = useState(false);
+  const [avatarPicker, setAvatarPicker] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [picking, setPicking] = useState(false);
 
   const dirty = useMemo(
     () =>
       draft.name.trim() !== initial.name.trim() ||
       draft.email.trim() !== initial.email.trim() ||
-      draft.dateOfBirth.trim() !== initial.dateOfBirth.trim(),
+      draft.dateOfBirth.trim() !== initial.dateOfBirth.trim() ||
+      (draft.avatarUri ?? null) !== (initial.avatarUri ?? null) ||
+      (draft.avatarPreset ?? null) !== (initial.avatarPreset ?? null),
     [draft, initial],
   );
 
@@ -89,6 +118,8 @@ function EditProfileBody({ mobile, initial }: { mobile: string; initial: Custome
   const mobileLabel = isValidIndiaMobile(mobile)
     ? `+91 ${formatIndiaMobileDisplay(mobile)}`
     : mobile || 'Not available';
+  const idDisplay = formatProfileIdDisplay(customerId, mobile);
+  const preset = profileAvatarPreset(draft.avatarPreset);
   const ready = draft.name.trim().length >= 2 && (draft.email.trim().length === 0 || isValidEmail(draft.email));
   const canSave = ready && dirty && !saving;
 
@@ -120,6 +151,86 @@ function EditProfileBody({ mobile, initial }: { mobile: string; initial: Custome
     router.replace(profileRoutes.profile);
   }
 
+  async function copyId() {
+    if (!idDisplay || idDisplay === 'Not assigned') {
+      showToast('info', 'No customer id is available to copy yet.');
+      return;
+    }
+    await Clipboard.setStringAsync(idDisplay.replace(/\s+/g, ''));
+    showToast('success', 'Customer id copied.');
+  }
+
+  async function takePhoto() {
+    setPicking(true);
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        showToast('error', 'Camera access is needed to take a profile photo.');
+        return;
+      }
+      const picked = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        quality: 0.75,
+        allowsEditing: true,
+        aspect: [1, 1],
+      });
+      if (picked.canceled || !picked.assets[0]?.uri) {
+        return;
+      }
+      setDraft((current) => ({
+        ...current,
+        avatarUri: picked.assets[0]!.uri,
+        avatarPreset: null,
+      }));
+      setPhotoSheetOpen(false);
+      setAvatarPicker(false);
+      showToast('success', 'Profile photo updated. Save to keep it on this device.');
+    } finally {
+      setPicking(false);
+    }
+  }
+
+  async function pickFromDevice() {
+    setPicking(true);
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        showToast('error', 'Photo access is needed to choose a profile picture.');
+        return;
+      }
+      const picked = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.75,
+        allowsEditing: true,
+        aspect: [1, 1],
+      });
+      if (picked.canceled || !picked.assets[0]?.uri) {
+        return;
+      }
+      setDraft((current) => ({
+        ...current,
+        avatarUri: picked.assets[0]!.uri,
+        avatarPreset: null,
+      }));
+      setPhotoSheetOpen(false);
+      setAvatarPicker(false);
+      showToast('success', 'Profile photo updated. Save to keep it on this device.');
+    } finally {
+      setPicking(false);
+    }
+  }
+
+  function selectPreset(id: ProfileAvatarPresetId) {
+    setDraft((current) => ({
+      ...current,
+      avatarPreset: id,
+      avatarUri: null,
+    }));
+    setPhotoSheetOpen(false);
+    setAvatarPicker(false);
+    showToast('success', 'Avatar selected. Save to keep it on this device.');
+  }
+
   async function submit() {
     if (saving || !dirty) {
       return;
@@ -146,6 +257,8 @@ function EditProfileBody({ mobile, initial }: { mobile: string; initial: Custome
       name,
       email,
       dateOfBirth: draft.dateOfBirth.trim(),
+      avatarUri: draft.avatarUri ?? null,
+      avatarPreset: draft.avatarPreset ?? null,
     });
     setSaving(false);
 
@@ -171,44 +284,77 @@ function EditProfileBody({ mobile, initial }: { mobile: string; initial: Custome
 
   return (
     <View style={styles.screen}>
-      <AppScreenHeader title="Edit Profile" onBack={requestBack} fallbackHref={profileRoutes.profile} />
+      <AppScreenHeader title="Profile" onBack={requestBack} fallbackHref={profileRoutes.profile} />
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
-          contentContainerStyle={[
-            styles.scroll,
-            { paddingBottom: 24 + keyboardOverlap },
-          ]}
+          contentContainerStyle={[styles.scroll, { paddingBottom: 24 + keyboardOverlap }]}
           showsVerticalScrollIndicator={false}>
           <View style={styles.column}>
-            <View style={styles.avatarBlock}>
-              <View style={styles.avatar} accessibilityLabel="Profile initials">
-                {mark ? (
-                  <Text style={styles.avatarText}>{mark}</Text>
-                ) : (
-                  <AppIcon name="profile" color={colors.text} size={36} />
-                )}
+            <View style={styles.hero}>
+              <View style={styles.avatarWrap}>
+                <View style={[styles.avatar, preset ? { backgroundColor: preset.wash } : null]}>
+                  {draft.avatarUri ? (
+                    <Image source={{ uri: draft.avatarUri }} style={styles.avatarImage} contentFit="cover" />
+                  ) : preset ? (
+                    <Text style={styles.avatarEmoji}>{preset.emoji}</Text>
+                  ) : mark ? (
+                    <Text style={styles.avatarText}>{mark}</Text>
+                  ) : (
+                    <AppIcon name="profile" color={colors.primaryInk} size={36} />
+                  )}
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Change profile photo"
+                  onPress={() => {
+                    setAvatarPicker(false);
+                    setPhotoSheetOpen(true);
+                  }}
+                  style={({ pressed }) => [styles.cameraBadge, pressed && styles.pressed]}
+                  testID="profile-photo-open">
+                  <AppIcon name="camera" color={colors.text} size={16} />
+                </Pressable>
               </View>
-              <Text style={styles.avatarHint}>Personal account details</Text>
+
+              <Text style={styles.heroName} numberOfLines={1}>
+                {draft.name.trim() || 'Your account'}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Copy customer id"
+                onPress={() => void copyId()}
+                style={({ pressed }) => [styles.idRow, pressed && styles.pressed]}
+                testID="profile-copy-id">
+                <Text style={styles.idText}>{idDisplay}</Text>
+                <AppIcon name="copy" color={colors.textSecondary} size={16} />
+              </Pressable>
             </View>
 
-            <Text style={styles.sectionTitle}>Personal Details</Text>
-            <View style={styles.sectionStack}>
-              <DetailRow icon="profile" label="Full Name" error={nameError}>
+            <View style={styles.infoCard}>
+              <InfoRow icon="profile" error={nameError}>
                 <TextInput
                   value={draft.name}
                   onChangeText={(next) => update('name', next)}
-                  placeholder="Your full name"
+                  placeholder="Full name"
                   placeholderTextColor={colors.textSecondary}
                   autoCapitalize="words"
                   autoCorrect={false}
                   accessibilityLabel="Full Name"
                   style={[styles.rowInput, nameError ? styles.rowInputError : null]}
                 />
-              </DetailRow>
-
-              <DetailRow icon="mail" label="Email Address" error={emailError}>
+              </InfoRow>
+              <View style={styles.rowDivider} />
+              <InfoRow icon="card">
+                <Text style={styles.rowValue}>{idDisplay}</Text>
+              </InfoRow>
+              <View style={styles.rowDivider} />
+              <InfoRow icon="phone">
+                <Text style={styles.rowValue}>{mobileLabel}</Text>
+              </InfoRow>
+              <View style={styles.rowDivider} />
+              <InfoRow icon="mail" error={emailError}>
                 <TextInput
                   value={draft.email}
                   onChangeText={(next) => update('email', next)}
@@ -220,27 +366,18 @@ function EditProfileBody({ mobile, initial }: { mobile: string; initial: Custome
                   accessibilityLabel="Email Address"
                   style={[styles.rowInput, emailError ? styles.rowInputError : null]}
                 />
-              </DetailRow>
+              </InfoRow>
+            </View>
 
-              <DetailRow
-                icon="phone"
-                label="Mobile Number"
-                trailing={<AppIcon name="lock" color={colors.textSecondary} size={16} />}
-                accessibilityHint="Verified mobile number. Read only.">
-                <Text style={styles.rowValue} accessibilityLabel={`Mobile number ${mobileLabel}`}>
-                  {mobileLabel}
-                </Text>
-                <Text style={styles.rowMeta}>Verified mobile number</Text>
-              </DetailRow>
-
-              <DetailRow icon="calendar" label="Date of Birth">
+            <View style={styles.infoCard}>
+              <InfoRow icon="calendar">
                 <DateOfBirthField
                   embedded
                   value={draft.dateOfBirth || null}
                   displayValue={draft.dateOfBirth ? formatDateOfBirth(draft.dateOfBirth) : ''}
                   onChange={(next) => update('dateOfBirth', next ?? '')}
                 />
-              </DetailRow>
+              </InfoRow>
             </View>
 
             <Text style={styles.notice}>
@@ -283,6 +420,51 @@ function EditProfileBody({ mobile, initial }: { mobile: string; initial: Custome
         </View>
       </KeyboardAvoidingView>
 
+      <ProfilePhotoActionSheet
+        visible={photoSheetOpen}
+        picking={picking}
+        showAvatarPicker={avatarPicker}
+        onClose={() => {
+          if (!picking) {
+            setPhotoSheetOpen(false);
+            setAvatarPicker(false);
+          }
+        }}
+        onShowPicture={() => {
+          setPhotoSheetOpen(false);
+          setAvatarPicker(false);
+          setPreviewOpen(true);
+        }}
+        onTakePhoto={() => void takePhoto()}
+        onPickFromDevice={() => void pickFromDevice()}
+        onChooseExisting={() => setAvatarPicker((open) => !open)}
+        onSelectPreset={selectPreset}
+      />
+
+      <Modal visible={previewOpen} transparent animationType="fade" onRequestClose={() => setPreviewOpen(false)}>
+        <Pressable style={styles.previewBackdrop} onPress={() => setPreviewOpen(false)}>
+          <View style={styles.previewCard}>
+            <Text style={styles.previewTitle}>Profile Picture</Text>
+            <View style={[styles.previewAvatar, preset ? { backgroundColor: preset.wash } : null]}>
+              {draft.avatarUri ? (
+                <Image source={{ uri: draft.avatarUri }} style={styles.previewImage} contentFit="cover" />
+              ) : preset ? (
+                <Text style={styles.previewEmoji}>{preset.emoji}</Text>
+              ) : (
+                <Text style={styles.previewInitials}>{mark || '?'}</Text>
+              )}
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close preview"
+              onPress={() => setPreviewOpen(false)}
+              style={({ pressed }) => [styles.previewClose, pressed && styles.pressed]}>
+              <Text style={styles.previewCloseLabel}>Close</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
       <Modal visible={leaveOpen} transparent animationType="fade" onRequestClose={() => setLeaveOpen(false)}>
         <Pressable style={styles.sheetBackdrop} onPress={() => setLeaveOpen(false)}>
           <Pressable style={styles.sheet} onPress={(event) => event.stopPropagation()}>
@@ -311,31 +493,21 @@ function EditProfileBody({ mobile, initial }: { mobile: string; initial: Custome
   );
 }
 
-function DetailRow({
+function InfoRow({
   icon,
-  label,
   children,
-  trailing,
   error,
-  accessibilityHint,
 }: {
   icon: AppIconName;
-  label: string;
   children: ReactNode;
-  trailing?: ReactNode;
   error?: string | null;
-  accessibilityHint?: string;
 }) {
   return (
-    <View
-      style={[styles.detailRow, error ? styles.detailRowError : null]}
-      accessibilityHint={accessibilityHint}
-      accessibilityLabel={label}>
+    <View style={styles.infoRow}>
       <View style={styles.iconBadge}>
         <AppIcon name={icon} color={colors.text} size={18} />
       </View>
-      <View style={styles.detailBody}>
-        <Text style={styles.detailLabel}>{label}</Text>
+      <View style={styles.infoBody}>
         {children}
         {error ? (
           <Text accessibilityRole="alert" style={styles.fieldError}>
@@ -343,7 +515,6 @@ function DetailRow({
           </Text>
         ) : null}
       </View>
-      {trailing ? <View style={styles.trailing}>{trailing}</View> : null}
     </View>
   );
 }
@@ -356,7 +527,7 @@ function initials(name: string): string {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.white,
+    backgroundColor: colors.warmBackground,
   },
   flex: {
     flex: 1,
@@ -367,83 +538,117 @@ const styles = StyleSheet.create({
   },
   scroll: {
     alignItems: 'center',
-    paddingTop: 20,
+    paddingTop: 12,
   },
   column: {
     width: '100%',
     maxWidth: homeLayout.maxWidth,
     paddingHorizontal: homeLayout.gutter,
-    gap: 12,
+    gap: 14,
   },
-  avatarBlock: {
+  hero: {
     alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
+    gap: 8,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
-  avatar: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: colors.softYellow,
+  avatarWrap: {
+    width: 112,
+    height: 112,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  avatar: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    backgroundColor: colors.softYellow,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    borderWidth: 3,
+    borderColor: colors.white,
+    ...shadow.soft,
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
   avatarText: {
     fontFamily: fonts.bold,
-    fontSize: 32,
-    lineHeight: 38,
+    fontSize: 34,
+    lineHeight: 40,
     color: colors.primaryInk,
   },
-  avatarHint: {
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textSecondary,
+  avatarEmoji: {
+    fontSize: 42,
+  },
+  cameraBadge: {
+    position: 'absolute',
+    right: 2,
+    bottom: 4,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.primary,
+    borderWidth: 2,
+    borderColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroName: {
+    marginTop: 6,
+    fontFamily: fonts.bold,
+    fontSize: 22,
+    lineHeight: 28,
+    color: colors.text,
     textAlign: 'center',
   },
-  sectionTitle: {
-    marginTop: 10,
-    marginBottom: 2,
-    fontFamily: fonts.bold,
-    fontSize: 16,
-    lineHeight: 22,
-    color: colors.text,
+  idRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
-  sectionStack: {
-    gap: 10,
+  idText: {
+    fontFamily: fonts.medium,
+    fontSize: 14,
+    color: colors.textSecondary,
   },
-  detailRow: {
+  infoCard: {
+    backgroundColor: colors.white,
+    borderRadius: radii.lg,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    ...shadow.soft,
+  },
+  infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    minHeight: 64,
+    minHeight: 58,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    borderRadius: 16,
-    backgroundColor: '#F3F4F6',
   },
-  detailRowError: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.danger,
+  rowDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginLeft: 66,
   },
   iconBadge: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.softYellow,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  detailBody: {
+  infoBody: {
     flex: 1,
     minWidth: 0,
     gap: 2,
-  },
-  detailLabel: {
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.textSecondary,
   },
   rowInput: {
     padding: 0,
@@ -463,15 +668,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: colors.text,
   },
-  rowMeta: {
-    fontFamily: fonts.regular,
-    fontSize: 11,
-    lineHeight: 14,
-    color: colors.textSecondary,
-  },
-  trailing: {
-    marginLeft: 4,
-  },
   fieldError: {
     marginTop: 2,
     fontFamily: fonts.medium,
@@ -480,7 +676,6 @@ const styles = StyleSheet.create({
     color: colors.danger,
   },
   notice: {
-    marginTop: 8,
     fontFamily: fonts.regular,
     fontSize: 12,
     lineHeight: 17,
@@ -508,7 +703,7 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     minHeight: 54,
-    borderRadius: 28,
+    borderRadius: radii.pill,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -521,6 +716,62 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: 17,
     lineHeight: 22,
+    color: colors.text,
+  },
+  previewBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(17, 24, 39, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  previewCard: {
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: colors.white,
+    borderRadius: radii.lg,
+    padding: 20,
+    alignItems: 'center',
+    gap: 14,
+    ...shadow.card,
+  },
+  previewTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 18,
+    color: colors.text,
+  },
+  previewAvatar: {
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: colors.softYellow,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  previewEmoji: {
+    fontSize: 72,
+  },
+  previewInitials: {
+    fontFamily: fonts.bold,
+    fontSize: 56,
+    color: colors.primaryInk,
+  },
+  previewClose: {
+    minHeight: 44,
+    paddingHorizontal: 24,
+    borderRadius: radii.pill,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewCloseLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 15,
     color: colors.text,
   },
   sheetBackdrop: {

@@ -45,8 +45,8 @@ async function main() {
   if (profileRoutes.myPayment !== '/my-payment') {
     throw new Error('My Payment route must stay separate from checkout /payment');
   }
-  if (sideMenuItems.find((item) => item.label === 'My Payment')?.href !== '/my-payment') {
-    throw new Error('sidebar My Payment must open /my-payment');
+  if (sideMenuItems.find((item) => item.label === 'Payment Methods')?.href !== '/my-payment') {
+    throw new Error('sidebar Payment Methods must open /my-payment');
   }
 
   console.log('payment preference fixtures passed');

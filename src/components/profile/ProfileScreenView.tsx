@@ -23,6 +23,7 @@ import { useProfileDraft } from "@/context/ProfileDraftContext";
 import { useRememberedCustomer } from "@/context/RememberedCustomerContext";
 import { useSavedAddresses } from "@/context/SavedAddressesContext";
 import { readPastOrders } from "@/data/pastOrders";
+import { accountRoutes } from "@/navigation/accountRoutes";
 import { profileRoutes } from "@/navigation/profileRoutes";
 import { canUseDevelopmentHome, clearDevTestSession } from "@/services/devOtp";
 import { displayCustomer } from "@/services/rememberedCustomer";
@@ -197,10 +198,34 @@ export function ProfileScreenView() {
             onPress={() => router.push(profileRoutes.wishlist)}
           />
           <OptionRow
+            icon="wallet"
+            title="My Wallet"
+            subtitle="Balance and wallet activity"
+            onPress={() => router.push(accountRoutes.wallet)}
+          />
+          <OptionRow
+            icon="users"
+            title="Invite Friends"
+            subtitle="Share MayapurBazaar"
+            onPress={() => router.push(accountRoutes.invite)}
+          />
+          <OptionRow
+            icon="returns"
+            title="Returns & Refunds"
+            subtitle="Request returns for delivered orders"
+            onPress={() => router.push(accountRoutes.returns)}
+          />
+          <OptionRow
             icon="headset"
-            title="Help"
-            subtitle="FAQs, support and useful links"
-            onPress={() => router.push(profileRoutes.help)}
+            title="Help & Support"
+            subtitle="FAQs, chat, and complaints"
+            onPress={() => router.push(accountRoutes.complaints)}
+          />
+          <OptionRow
+            icon="settings"
+            title="Settings"
+            subtitle="Alerts, legal, and account actions"
+            onPress={() => router.push(accountRoutes.settings)}
           />
 
           <Text accessibilityRole="header" style={styles.section}>

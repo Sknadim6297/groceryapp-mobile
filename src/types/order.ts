@@ -69,4 +69,9 @@ export type ActiveOrderState =
 export type SimulatedOrder = CustomerOrder & {
   total: number;
   paymentLabel: string;
+  /** Selected cancel-reason ids when the shopper cancels in preview. */
+  cancelReasonIds?: string[];
+  /** Preview-only return request captured from the return & refund modal. */
+  returnRequested?: boolean;
+  returnReasonIds?: string[];
 };

@@ -4,6 +4,7 @@ import type { DemoProduct } from '@/types/catalog';
 import type { ProductFiltersState, ProductSortId } from '@/types/productFilters';
 import {
   applyProductListing,
+  catalogueHasRatingSignals,
   catalogueHasStockSignals,
   cloneFilters,
   countActiveFilters,
@@ -35,12 +36,15 @@ export function useProductListingControls({ pool, query, activeShelfId, scopeKey
   const [seenScope, setSeenScope] = useState(scopeKey);
 
   const stockFilterSupported = useMemo(() => catalogueHasStockSignals(pool), [pool]);
+  const ratingFilterSupported = useMemo(() => catalogueHasRatingSignals(pool), [pool]);
 
   if (scopeKey !== seenScope) {
     setSeenScope(scopeKey);
     setFilters(createDefaultFilters());
   } else if (!stockFilterSupported && filters.inStockOnly) {
     setFilters({ ...filters, inStockOnly: false });
+  } else if (!ratingFilterSupported && filters.ratingStars.length > 0) {
+    setFilters({ ...filters, ratingStars: [] });
   }
 
   const products = useMemo(
@@ -51,9 +55,10 @@ export function useProductListingControls({ pool, query, activeShelfId, scopeKey
         filters,
         sort,
         stockFilterSupported,
+        ratingFilterSupported,
         activeShelfId,
       }),
-    [activeShelfId, filters, pool, query, sort, stockFilterSupported],
+    [activeShelfId, filters, pool, query, ratingFilterSupported, sort, stockFilterSupported],
   );
 
   const activeFilterCount = countActiveFilters(filters);
@@ -82,9 +87,12 @@ export function useProductListingControls({ pool, query, activeShelfId, scopeKey
     if (!stockFilterSupported) {
       sanitized.inStockOnly = false;
     }
+    if (!ratingFilterSupported) {
+      sanitized.ratingStars = [];
+    }
     setFilters(sanitized);
     setFiltersOpen(false);
-  }, [stockFilterSupported]);
+  }, [ratingFilterSupported, stockFilterSupported]);
 
   const clearFilters = useCallback(() => {
     setFilters(createDefaultFilters());
@@ -104,9 +112,10 @@ export function useProductListingControls({ pool, query, activeShelfId, scopeKey
         filters: draft,
         sort,
         stockFilterSupported,
+        ratingFilterSupported,
         activeShelfId,
       }).length,
-    [activeShelfId, pool, query, sort, stockFilterSupported],
+    [activeShelfId, pool, query, ratingFilterSupported, sort, stockFilterSupported],
   );
 
   return {

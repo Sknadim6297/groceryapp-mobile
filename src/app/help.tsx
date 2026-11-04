@@ -27,6 +27,7 @@ import {
   type SupportCategory,
   type SupportFaqItem,
 } from '@/data/supportFaq';
+import { accountRoutes } from '@/navigation/accountRoutes';
 import { profileRoutes } from '@/navigation/profileRoutes';
 import { contentColumnWidth } from '@/utils/contentWidth';
 import { filterSupportFaqs } from '@/utils/supportFaqSearch';
@@ -128,6 +129,25 @@ export default function HelpScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           showsVerticalScrollIndicator={false}>
+          <AnimatedPressable
+            accessibilityRole="button"
+            accessibilityLabel="Raise a complaint"
+            onPress={() => {
+              void hapticSelection();
+              router.push(accountRoutes.complaints);
+            }}
+            style={styles.complaintBanner}
+            testID="help-raise-complaint">
+            <View style={styles.complaintIcon}>
+              <AppIcon name="chat" color={colors.primaryInk} size={18} />
+            </View>
+            <View style={styles.complaintCopy}>
+              <Text style={styles.complaintTitle}>Raise a complaint</Text>
+              <Text style={styles.complaintBody}>File a local support request or open chat</Text>
+            </View>
+            <AppIcon name="chevron" color={colors.textSecondary} size={18} />
+          </AnimatedPressable>
+
           <Animated.View entering={enter} style={styles.searchRow}>
             <View style={styles.searchField}>
               <AppIcon name="search" color={colors.textSecondary} size={18} />
@@ -382,6 +402,40 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  complaintBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    minHeight: 64,
+    borderRadius: radii.lg,
+    backgroundColor: colors.white,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+    ...shadow.soft,
+  },
+  complaintIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.softYellow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  complaintCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  complaintTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    color: colors.text,
+  },
+  complaintBody: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    color: colors.textSecondary,
   },
   searchRow: {
     flexDirection: 'row',

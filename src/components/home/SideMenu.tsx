@@ -38,7 +38,7 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const pathname = usePathname();
-  const { session } = useAuthSession();
+  const { session, clearAuthSession } = useAuthSession();
   const { account } = useCustomerAccount();
   const { customer: remembered } = useRememberedCustomer();
   const panelWidth = Math.min(300, Math.max(240, Math.round(width * 0.78)));
@@ -93,6 +93,12 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
   }
 
   function openItem(item: SideMenuItem) {
+    if (item.action === 'logout') {
+      onClose();
+      clearAuthSession();
+      router.replace('/login');
+      return;
+    }
     if (item.href) {
       openRoute(item.href);
       return;

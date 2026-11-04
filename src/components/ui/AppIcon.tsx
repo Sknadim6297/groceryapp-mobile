@@ -5,12 +5,14 @@ import {
   Bell,
   Briefcase,
   Calendar,
+  Camera,
   Check,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   Bike,
   Clock,
+  Copy,
   CreditCard,
   Crosshair,
   Crown,
@@ -27,6 +29,7 @@ import {
   Leaf,
   Link,
   Lock,
+  LogOut,
   Mail,
   MapPin,
   Menu,
@@ -59,7 +62,10 @@ import {
   ThumbsUp,
   TicketPercent,
   Truck,
+  Undo2,
   User,
+  Users,
+  Wallet,
   X,
   Zap,
 } from 'lucide-react-native';
@@ -81,6 +87,8 @@ const icons = {
   leaf: Leaf,
   arrow: ArrowRight,
   back: ChevronLeft,
+  camera: Camera,
+  copy: Copy,
   phone: Phone,
   pencil: Pencil,
   check: Check,
@@ -131,6 +139,10 @@ const icons = {
   paperclip: Paperclip,
   send: SendHorizontal,
   info: Info,
+  logout: LogOut,
+  wallet: Wallet,
+  users: Users,
+  returns: Undo2,
 } as const satisfies Record<string, LucideIcon>;
 
 export type AppIconName = keyof typeof icons;
@@ -141,6 +153,8 @@ type AppIconProps = {
   size?: number;
   /** Kept so existing calls compile. Every icon uses the same 2px rounded stroke. */
   weight?: 'medium' | 'light';
+  /** Solid fill for hearts/stars when selected. */
+  filled?: boolean;
 };
 
 const stroke: Pick<LucideProps, 'strokeWidth' | 'strokeLinecap' | 'strokeLinejoin'> = {
@@ -149,14 +163,15 @@ const stroke: Pick<LucideProps, 'strokeWidth' | 'strokeLinecap' | 'strokeLinejoi
   strokeLinejoin: 'round',
 };
 
-export function AppIcon({ name, color, size = 24 }: AppIconProps) {
+export function AppIcon({ name, color, size = 24, filled = false }: AppIconProps) {
   const Icon = icons[name];
   const resolved = typeof color === 'string' ? color : '#171717';
+  const useFill = filled || name === 'heartFill';
   return (
     <Icon
       color={resolved}
       size={size}
-      fill={name === 'heartFill' ? resolved : 'none'}
+      fill={useFill ? resolved : 'none'}
       {...stroke}
     />
   );

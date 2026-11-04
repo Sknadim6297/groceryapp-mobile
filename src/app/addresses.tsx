@@ -14,17 +14,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppIcon, type AppIconName } from '@/components/ui/AppIcon';
 import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { colors, fonts, homeLayout, radii, shadow, space } from '@/constants/theme';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useSavedAddresses } from '@/context/SavedAddressesContext';
-import { canUseDevelopmentHome } from '@/services/devOtp';
 import { locationRoutes } from '@/navigation/locationRoutes';
 import { profileRoutes } from '@/navigation/profileRoutes';
+import { canUseDevelopmentHome } from '@/services/devOtp';
 import type { AddressLabel, SavedAddress } from '@/types/savedAddress';
-import { displayAddressLabel } from '@/utils/savedAddressValidation';
+import { formatIndiaMobileDisplay, isValidIndiaMobile } from '@/utils/phoneValidation';
 import { formatSavedAddressLines } from '@/utils/savedAddressMapping';
+import { displayAddressLabel } from '@/utils/savedAddressValidation';
 
 function firstParam(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -35,6 +35,16 @@ const labelIcon: Record<AddressLabel, AppIconName> = {
   Work: 'briefcase',
   Other: 'stores',
 };
+
+function listTitle(address: SavedAddress): string {
+  if (address.label === 'Home') {
+    return 'Home Address';
+  }
+  if (address.label === 'Work') {
+    return 'Office Address';
+  }
+  return displayAddressLabel(address);
+}
 
 export default function AddressesScreen() {
   const focused = useIsFocused();
@@ -53,6 +63,11 @@ export default function AddressesScreen() {
   const [pendingDelete, setPendingDelete] = useState<SavedAddress | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  const contactPhone = session?.mobile ?? devSession?.mobile ?? '';
+  const phoneLabel = isValidIndiaMobile(contactPhone)
+    ? `+91 ${formatIndiaMobileDisplay(contactPhone)}`
+    : contactPhone || 'Phone not on file';
 
   function openAddAddress() {
     beginAddressBookPick({
@@ -115,18 +130,11 @@ export default function AddressesScreen() {
   }
 
   return (
-    <View style={styles.screen}>
+    <View style={styles.screen} testID="location-addresses-screen">
       <AppScreenHeader
-        title={selectMode ? 'Select address' : 'Saved Addresses'}
+        title={selectMode ? 'Select Address' : 'Location'}
         fallbackHref={profileRoutes.profile}
       />
-      <Text style={styles.count}>
-        {selectMode
-          ? 'Choose where this order should be delivered'
-          : addresses.length === 1
-            ? '1 saved address'
-            : `${addresses.length} saved addresses`}
-      </Text>
 
       {notice ? (
         <Text accessibilityRole="text" style={styles.notice}>
@@ -145,9 +153,14 @@ export default function AddressesScreen() {
               </View>
             }
             action={
-              <View style={styles.emptyAction}>
-                <PrimaryButton label="Add Address" accessibilityLabel="Add Address" onPress={openAddAddress} />
-              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Add New Address"
+                onPress={openAddAddress}
+                style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}
+                testID="addresses-empty-add">
+                <Text style={styles.addButtonLabel}>Add New Address</Text>
+              </Pressable>
             }
           />
         </View>
@@ -157,14 +170,27 @@ export default function AddressesScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={[
             styles.list,
-            { paddingBottom: Math.max(insets.bottom, 24) + 72 },
+            { paddingBottom: Math.max(insets.bottom, 24) + 88 },
           ]}
           showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <AddressCard
+          ListHeaderComponent={
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add Delivery Address"
+              onPress={openAddAddress}
+              style={({ pressed }) => [styles.addRow, pressed && styles.pressed]}
+              testID="addresses-add-delivery">
+              <Text style={styles.addRowLabel}>Add Delivery Address</Text>
+              <AppIcon name="chevron" color={colors.textSecondary} size={20} />
+            </Pressable>
+          }
+          renderItem={({ item, index }) => (
+            <AddressRow
               address={item}
+              phoneLabel={phoneLabel}
               busy={busyId === item.id}
               selectMode={selectMode}
+              showDivider={index < addresses.length - 1}
               onSelect={() => onSelect(item)}
               onEdit={() =>
                 router.push({
@@ -181,11 +207,14 @@ export default function AddressesScreen() {
 
       {addresses.length > 0 ? (
         <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-          <PrimaryButton
-            label="Add new address"
-            accessibilityLabel="Add new address"
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add New Address"
             onPress={openAddAddress}
-          />
+            style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}
+            testID="addresses-add-new">
+            <Text style={styles.addButtonLabel}>Add New Address</Text>
+          </Pressable>
         </View>
       ) : null}
 
@@ -221,90 +250,97 @@ export default function AddressesScreen() {
   );
 }
 
-function AddressCard({
+function AddressRow({
   address,
+  phoneLabel,
   busy,
   selectMode,
+  showDivider,
   onSelect,
   onEdit,
   onDefault,
   onDelete,
 }: {
   address: SavedAddress;
+  phoneLabel: string;
   busy: boolean;
   selectMode: boolean;
+  showDivider: boolean;
   onSelect: () => void;
   onEdit: () => void;
   onDefault: () => void;
   onDelete: () => void;
 }) {
-  const title = displayAddressLabel(address);
+  const title = listTitle(address);
+  const lines = formatSavedAddressLines(address);
+
   return (
-    <View style={[styles.card, address.isDefault && styles.cardDefault]}>
+    <View>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${title}. ${formatSavedAddressLines(address)}`}
+        accessibilityLabel={`${title}. ${phoneLabel}. ${lines}`}
+        accessibilityState={{ disabled: busy, selected: address.isDefault }}
         disabled={busy}
         onPress={onSelect}
-        style={({ pressed }) => [styles.cardMain, pressed && styles.pressed]}>
-        <View style={styles.iconWrap}>
-          <AppIcon name={labelIcon[address.label]} color={colors.primaryInk} size={20} />
+        style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+        testID={`address-row-${address.id}`}>
+        <View style={[styles.iconWrap, address.isDefault && styles.iconWrapDefault]}>
+          <AppIcon name={labelIcon[address.label]} color={colors.primaryInk} size={22} />
         </View>
-        <View style={styles.cardCopy}>
+        <View style={styles.rowCopy}>
           <View style={styles.titleRow}>
-            <Text numberOfLines={1} style={styles.cardTitle}>
+            <Text numberOfLines={1} style={styles.rowTitle}>
               {title}
             </Text>
             {address.isDefault ? (
               <View style={styles.defaultBadge}>
-                <Text style={styles.defaultBadgeLabel}>DEFAULT</Text>
+                <Text style={styles.defaultBadgeLabel}>Default</Text>
               </View>
             ) : null}
           </View>
-          <Text numberOfLines={3} style={styles.cardBody}>
-            {formatSavedAddressLines(address)}
+          <Text numberOfLines={1} style={styles.rowPhone}>
+            {phoneLabel}
           </Text>
-          {address.instructions ? (
-            <Text numberOfLines={2} style={styles.cardHint}>
-              Note: {address.instructions}
-            </Text>
-          ) : null}
+          <Text numberOfLines={3} style={styles.rowBody}>
+            {lines}
+          </Text>
           {selectMode ? (
             <Text style={styles.selectHint}>{busy ? 'Working…' : 'Tap to deliver here'}</Text>
           ) : null}
+          <View style={styles.actions}>
+            {!address.isDefault ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Set ${title} as default`}
+                disabled={busy}
+                onPress={onDefault}
+                hitSlop={6}
+                style={styles.action}>
+                <Text style={styles.actionLabel}>Set default</Text>
+              </Pressable>
+            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Edit ${title}`}
+              disabled={busy}
+              onPress={onEdit}
+              hitSlop={6}
+              style={styles.action}>
+              <Text style={styles.actionLabel}>Edit</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Delete ${title}`}
+              disabled={busy}
+              onPress={onDelete}
+              hitSlop={6}
+              style={styles.action}>
+              <Text style={[styles.actionLabel, styles.danger]}>{busy ? '…' : 'Delete'}</Text>
+            </Pressable>
+          </View>
         </View>
       </Pressable>
-      <View style={styles.actions}>
-        {!address.isDefault ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Set ${title} as default`}
-            disabled={busy}
-            onPress={onDefault}
-            hitSlop={6}
-            style={styles.action}>
-            <Text style={styles.actionLabel}>Set default</Text>
-          </Pressable>
-        ) : null}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Edit ${title}`}
-          disabled={busy}
-          onPress={onEdit}
-          hitSlop={6}
-          style={styles.action}>
-          <Text style={styles.actionLabel}>Edit</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Delete ${title}`}
-          disabled={busy}
-          onPress={onDelete}
-          hitSlop={6}
-          style={styles.action}>
-          <Text style={[styles.actionLabel, styles.danger]}>{busy ? '…' : 'Delete'}</Text>
-        </Pressable>
-      </View>
+      {showDivider ? <View style={styles.divider} /> : null}
     </View>
   );
 }
@@ -312,110 +348,117 @@ function AddressCard({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.warmBackground,
+    backgroundColor: colors.white,
   },
   loading: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  count: {
-    paddingHorizontal: space.lg,
-    paddingTop: space.md,
-    paddingBottom: 2,
-    fontFamily: fonts.medium,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textSecondary,
-  },
   notice: {
     marginTop: space.sm,
-    marginHorizontal: space.lg,
+    marginHorizontal: homeLayout.gutter,
     fontFamily: fonts.medium,
     fontSize: 13,
     lineHeight: 18,
     color: colors.primaryInk,
+    backgroundColor: colors.softYellow,
+    borderRadius: radii.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   list: {
-    paddingHorizontal: space.lg,
-    paddingTop: space.md,
-    gap: space.md,
+    paddingTop: 4,
     width: '100%',
     maxWidth: homeLayout.maxWidth,
     alignSelf: 'center',
   },
-  card: {
-    borderRadius: radii.md,
-    backgroundColor: colors.white,
-    padding: space.md,
-    gap: space.md,
-    ...shadow.card,
-  },
-  cardDefault: {
-    backgroundColor: colors.cream,
-  },
-  cardMain: {
+  addRow: {
     flexDirection: 'row',
-    gap: space.md,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 56,
+    paddingHorizontal: homeLayout.gutter,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.white,
+  },
+  addRowLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 16,
+    color: colors.text,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 14,
+    paddingHorizontal: homeLayout.gutter,
+    paddingVertical: 16,
+    backgroundColor: colors.white,
   },
   iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: radii.sm,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.softYellow,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardCopy: {
+  iconWrapDefault: {
+    backgroundColor: colors.primary,
+  },
+  rowCopy: {
     flex: 1,
     minWidth: 0,
-    gap: space.xs,
+    gap: 4,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.sm,
+    gap: 8,
   },
-  cardTitle: {
+  rowTitle: {
     flexShrink: 1,
     fontFamily: fonts.bold,
-    fontSize: 15,
-    lineHeight: 19,
+    fontSize: 16,
+    lineHeight: 22,
     color: colors.text,
   },
   defaultBadge: {
     borderRadius: radii.pill,
-    backgroundColor: colors.primary,
-    paddingHorizontal: space.sm,
+    backgroundColor: colors.softYellow,
+    paddingHorizontal: 8,
     paddingVertical: 2,
   },
   defaultBadgeLabel: {
     fontFamily: fonts.bold,
     fontSize: 10,
     lineHeight: 12,
-    color: colors.text,
+    color: colors.primaryInk,
   },
-  cardBody: {
+  rowPhone: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
+  },
+  rowBody: {
     fontFamily: fonts.regular,
     fontSize: 13,
     lineHeight: 18,
-    color: colors.text,
-  },
-  cardHint: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    lineHeight: 16,
     color: colors.textSecondary,
+  },
+  selectHint: {
+    marginTop: 2,
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.primaryInk,
   },
   actions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
-    gap: space.md,
-  },
-  selectHint: {
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    color: colors.primaryInk,
+    gap: 14,
+    marginTop: 6,
   },
   action: {
     minHeight: 28,
@@ -430,6 +473,11 @@ const styles = StyleSheet.create({
   danger: {
     color: colors.danger,
   },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginLeft: homeLayout.gutter + 58,
+  },
   emptyIcon: {
     width: 72,
     height: 72,
@@ -438,20 +486,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emptyAction: {
-    width: '100%',
-    maxWidth: 320,
-  },
   footer: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    paddingHorizontal: space.lg,
+    paddingHorizontal: homeLayout.gutter,
     paddingTop: space.md,
     backgroundColor: colors.white,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
+    ...shadow.soft,
+  },
+  addButton: {
+    minHeight: 54,
+    borderRadius: radii.md,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  addButtonLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    color: colors.text,
   },
   sheetBackdrop: {
     flex: 1,

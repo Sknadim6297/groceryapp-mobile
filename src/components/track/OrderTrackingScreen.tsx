@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { OrderCancelModal } from '@/components/orders/OrderCancelModal';
+import { OrderReturnRefundModal } from '@/components/orders/OrderReturnRefundModal';
 import { DemoTrackingMap } from '@/components/track/DemoTrackingMap';
 import { AppIcon, type AppIconName } from '@/components/ui/AppIcon';
 import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
@@ -19,6 +21,8 @@ import { colors, fonts } from '@/constants/theme';
 import { useMockCart } from '@/context/MockCartContext';
 import { usePreviewSession } from '@/context/PreviewSessionContext';
 import { readActiveOrder } from '@/data/activeOrder';
+import { canCancelOrderStatus } from '@/data/orderCancelReasons';
+import { canReturnOrderStatus } from '@/data/orderReturnReasons';
 import { buildTrackPanelTimeline, getDemoOrderTracking } from '@/data/demoOrderTracking';
 import type { CustomerOrder } from '@/types/order';
 import type { TrackTimelineStep } from '@/types/orderTracking';
@@ -35,8 +39,12 @@ export function OrderTrackingScreen() {
   const { totalCount } = useMockCart();
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const orderId = firstParam(id);
-  const { findOrder, orders } = usePreviewSession();
+  const { findOrder, orders, cancelOrder, requestReturn } = usePreviewSession();
   const [panelExpanded, setPanelExpanded] = useState(true);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [returning, setReturning] = useState(false);
 
   const previewOrder = UI_PREVIEW_MODE
     ? findOrder(orderId) ??
@@ -50,6 +58,10 @@ export function OrderTrackingScreen() {
   const tracking = order ? getDemoOrderTracking(order) : null;
   const mapHeight = Math.max(280, Math.round(height * 0.58));
   const timeline = useMemo(() => (order ? buildTrackPanelTimeline(order) : []), [order]);
+  const canCancel = Boolean(previewOrder && order && canCancelOrderStatus(order.status));
+  const canReturn = Boolean(
+    previewOrder && order && canReturnOrderStatus(order.status, previewOrder.returnRequested),
+  );
 
   return (
     <View style={styles.screen} testID="track-order-screen">
@@ -182,6 +194,49 @@ export function OrderTrackingScreen() {
                     <Text style={styles.detailsBtnLabel}>View Order Details</Text>
                   </Pressable>
 
+                  {canCancel ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Cancel order"
+                      onPress={() => setCancelOpen(true)}
+                      style={({ pressed }) => [styles.cancelBtn, pressed && styles.pressed]}
+                      testID="track-cancel-order">
+                      <Text style={styles.cancelBtnLabel}>Cancel Order</Text>
+                    </Pressable>
+                  ) : null}
+
+                  {order.status === 'delivered' ? (
+                    <>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Rate delivery"
+                        onPress={() => router.push({ pathname: '/delivery-review', params: { id: order.id } })}
+                        style={({ pressed }) => [styles.reviewBtn, pressed && styles.pressed]}
+                        testID="track-rate-delivery">
+                        <Text style={styles.reviewBtnLabel}>Rate Delivery</Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Rate products"
+                        onPress={() => router.push({ pathname: '/product-review', params: { id: order.id } })}
+                        style={({ pressed }) => [styles.reviewBtn, pressed && styles.pressed]}
+                        testID="track-rate-products">
+                        <Text style={styles.reviewBtnLabel}>Rate Products</Text>
+                      </Pressable>
+                    </>
+                  ) : null}
+
+                  {canReturn ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Return and refund"
+                      onPress={() => setReturnOpen(true)}
+                      style={({ pressed }) => [styles.returnBtn, pressed && styles.pressed]}
+                      testID="track-return-order">
+                      <Text style={styles.returnBtnLabel}>Return & Refund</Text>
+                    </Pressable>
+                  ) : null}
+
                   <Text style={styles.demoFootnote}>{tracking.demoNotice}</Text>
                 </>
               ) : (
@@ -197,6 +252,55 @@ export function OrderTrackingScreen() {
           </View>
         </View>
       )}
+
+      {order && canCancel ? (
+        <OrderCancelModal
+          visible={cancelOpen}
+          orderId={order.id}
+          submitting={cancelling}
+          onClose={() => {
+            if (!cancelling) {
+              setCancelOpen(false);
+            }
+          }}
+          onConfirm={(reasonIds) => {
+            setCancelling(true);
+            const ok = cancelOrder(order.id, reasonIds);
+            setCancelling(false);
+            setCancelOpen(false);
+            if (ok) {
+              showToast('success', 'Order cancelled. Thanks for the feedback.');
+              router.replace('/orders');
+            } else {
+              showToast('error', 'This order can no longer be cancelled.');
+            }
+          }}
+        />
+      ) : null}
+
+      {order && (canReturn || returnOpen) ? (
+        <OrderReturnRefundModal
+          visible={returnOpen}
+          orderId={order.id}
+          submitting={returning}
+          onClose={() => {
+            if (!returning) {
+              setReturnOpen(false);
+            }
+          }}
+          onConfirm={(reasonIds) => {
+            setReturning(true);
+            const ok = requestReturn(order.id, reasonIds);
+            setReturning(false);
+            setReturnOpen(false);
+            if (ok) {
+              showToast('success', 'Return request submitted. We’ll review it shortly.');
+            } else {
+              showToast('error', 'A return cannot be requested for this order.');
+            }
+          }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -606,6 +710,46 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     fontSize: 14,
     color: colors.text,
+  },
+  cancelBtn: {
+    backgroundColor: colors.white,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: colors.danger,
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  cancelBtnLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.danger,
+  },
+  returnBtn: {
+    backgroundColor: colors.softYellow,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: colors.primaryDark,
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  returnBtnLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.primaryInk,
+  },
+  reviewBtn: {
+    marginTop: 8,
+    backgroundColor: colors.white,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.primaryDark,
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  reviewBtnLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    color: colors.primaryInk,
   },
   demoFootnote: {
     fontFamily: fonts.regular,

@@ -102,7 +102,7 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
       if (!owner?.key) {
         return { ok: false, reason: 'no-owner' };
       }
-      const next = buildCustomerProfile(owner.key, owner.mobile, draft);
+      const next = buildCustomerProfile(owner.key, owner.mobile, draft, Date.now(), profile);
       if (!next) {
         return { ok: false, reason: 'validation' };
       }
@@ -127,7 +127,7 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
       }
       return { ok: true, profile: next, serverSynced: false };
     },
-    [account?.companyMobile, account?.customerId, rememberCustomer, remembered?.customerId, resolveOwner, setAccount, updateSessionName],
+    [account?.companyMobile, account?.customerId, profile, rememberCustomer, remembered?.customerId, resolveOwner, setAccount, updateSessionName],
   );
 
   const clearActiveProfile = useCallback(() => {

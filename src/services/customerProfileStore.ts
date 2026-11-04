@@ -9,6 +9,7 @@ import type {
     CustomerProfileDraft,
 } from "@/types/customerProfile";
 import { isValidIndiaMobile } from "@/utils/phoneValidation";
+import { parseProfileAvatarPreset } from "@/utils/profileAvatar";
 import { isValidEmail, parseIsoDate } from "@/utils/profileValidation";
 
 const STORAGE_KEY = "groceryapp.customer-profiles";
@@ -94,7 +95,19 @@ export function parseCustomerProfile(value: unknown): CustomerProfile | null {
     typeof record.updatedAt === "number" && Number.isFinite(record.updatedAt)
       ? record.updatedAt
       : Date.now();
-  return { ownerKey, mobile, name, email, dateOfBirth, updatedAt };
+  const avatarUriRaw = text(record.avatarUri);
+  const avatarUri = avatarUriRaw.length > 0 ? avatarUriRaw : null;
+  const avatarPreset = parseProfileAvatarPreset(record.avatarPreset);
+  return {
+    ownerKey,
+    mobile,
+    name,
+    email,
+    dateOfBirth,
+    updatedAt,
+    avatarUri,
+    avatarPreset,
+  };
 }
 
 export function parseProfileVault(
@@ -159,6 +172,7 @@ export function buildCustomerProfile(
   mobile: string,
   draft: CustomerProfileDraft,
   updatedAt = Date.now(),
+  previous: CustomerProfile | null = null,
 ): CustomerProfile | null {
   const name = draft.name.trim();
   const email = draft.email.trim();
@@ -172,6 +186,22 @@ export function buildCustomerProfile(
   if (dateOfBirth.length > 0 && !parseIsoDate(dateOfBirth)) {
     return null;
   }
+
+  let avatarUri = previous?.avatarUri ?? null;
+  let avatarPreset = previous?.avatarPreset ?? null;
+  if (draft.avatarUri !== undefined || draft.avatarPreset !== undefined) {
+    if (draft.avatarPreset) {
+      avatarPreset = draft.avatarPreset;
+      avatarUri = null;
+    } else if (draft.avatarUri && draft.avatarUri.trim().length > 0) {
+      avatarUri = draft.avatarUri.trim();
+      avatarPreset = null;
+    } else {
+      avatarUri = null;
+      avatarPreset = null;
+    }
+  }
+
   return {
     ownerKey,
     mobile,
@@ -179,6 +209,8 @@ export function buildCustomerProfile(
     email,
     dateOfBirth,
     updatedAt,
+    avatarUri,
+    avatarPreset,
   };
 }
 

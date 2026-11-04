@@ -1,89 +1,378 @@
+import Constants from 'expo-constants';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from 'react-native';
 
+import { AccountActionRow } from '@/components/account/AccountActionRow';
+import { AccountScreenShell } from '@/components/account/AccountScreenShell';
+import { AccountSectionCard } from '@/components/account/AccountSectionCard';
 import { DemoBanner } from '@/components/preview/DemoBanner';
-import { PreviewScaffold } from '@/components/preview/PreviewScaffold';
-import { PlaceholderScreen } from '@/components/ui/PlaceholderScreen';
-import { UI_PREVIEW_MODE } from '@/constants/preview';
-import { colors, fonts } from '@/constants/theme';
+import { useToast } from '@/components/ui/AppToast';
+import { colors, fonts, radii, space } from '@/constants/theme';
+import { useAuthFlow } from '@/context/AuthFlowContext';
+import { useAuthSession } from '@/context/AuthSessionContext';
+import { useCustomerAccount } from '@/context/CustomerAccountContext';
+import { useCustomerProfile } from '@/context/CustomerProfileContext';
+import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
+import { useProfileDraft } from '@/context/ProfileDraftContext';
+import { useRememberedCustomer } from '@/context/RememberedCustomerContext';
+import { useSavedAddresses } from '@/context/SavedAddressesContext';
+import { accountRoutes } from '@/navigation/accountRoutes';
+import { profileRoutes } from '@/navigation/profileRoutes';
+import { clearDevTestSession } from '@/services/devOtp';
+import {
+  activateDeviceAppSettingsStore,
+  DEFAULT_APP_SETTINGS,
+  loadAppSettings,
+  saveAppSettings,
+  type AppSettingsPrefs,
+} from '@/services/appSettingsStore';
+import { clearSignedInSession } from '@/utils/customerSession';
+
+function appVersion(): string {
+  const version = Constants.expoConfig?.version;
+  return typeof version === 'string' && version.trim().length > 0 ? version.trim() : '1.0.0';
+}
 
 export default function SettingsScreen() {
-  const [orderAlerts, setOrderAlerts] = useState(true);
-  const [offers, setOffers] = useState(false);
+  const { showToast } = useToast();
+  const { clearAuthSession } = useAuthSession();
+  const { clearAccount } = useCustomerAccount();
+  const { clearRememberedCustomer } = useRememberedCustomer();
+  const { setNationalNumber } = useAuthFlow();
+  const { clearDraft } = useProfileDraft();
+  const { clearDelivery } = useDeliveryLocation();
+  const { clearActiveBook } = useSavedAddresses();
+  const { clearActiveProfile } = useCustomerProfile();
 
-  if (!UI_PREVIEW_MODE) {
-    return <PlaceholderScreen title="Settings" message="Settings are not connected yet." withHeader />;
+  const [hydrated, setHydrated] = useState(false);
+  const [prefs, setPrefs] = useState<AppSettingsPrefs>(DEFAULT_APP_SETTINGS);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (Platform.OS !== 'web') {
+        await activateDeviceAppSettingsStore();
+      }
+      const loaded = await loadAppSettings();
+      if (!cancelled) {
+        setPrefs(loaded);
+        setHydrated(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const persist = useCallback(async (next: AppSettingsPrefs) => {
+    setPrefs(next);
+    const ok = await saveAppSettings(next);
+    if (!ok) {
+      showToast('error', 'Could not save settings on this device.');
+    }
+  }, [showToast]);
+
+  function confirmLogout() {
+    clearSignedInSession({
+      clearAuthSession,
+      clearAccount,
+      clearRememberedCustomer,
+      setNationalNumber,
+      clearDraft,
+      clearDelivery,
+      clearDevTestSession,
+      clearSavedAddresses: clearActiveBook,
+      clearCustomerProfile: clearActiveProfile,
+    });
+    setLogoutOpen(false);
+    router.replace(profileRoutes.login);
+  }
+
+  if (!hydrated) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator color={colors.primaryInk} />
+      </View>
+    );
   }
 
   return (
-    <PreviewScaffold title="Settings" subtitle="Local demo preferences. Nothing syncs to a server.">
-      <DemoBanner message="Demo settings only — values stay on this device session." />
+    <AccountScreenShell title="Settings" fallbackHref={profileRoutes.profile}>
+      <DemoBanner message="Notification toggles save on this device only — nothing syncs to a server yet." />
 
-      <View style={styles.card}>
-        <View style={styles.row}>
-          <View style={styles.copy}>
-            <Text style={styles.title}>Order alerts</Text>
-            <Text style={styles.meta}>Preview push preference</Text>
-          </View>
-          <Switch
-            value={orderAlerts}
-            onValueChange={setOrderAlerts}
-            trackColor={{ true: colors.primary, false: '#E5E7EB' }}
-            thumbColor={colors.white}
-          />
-        </View>
-        <View style={styles.row}>
-          <View style={styles.copy}>
-            <Text style={styles.title}>Offer notifications</Text>
-            <Text style={styles.meta}>Demo marketing toggle</Text>
-          </View>
-          <Switch
-            value={offers}
-            onValueChange={setOffers}
-            trackColor={{ true: colors.primary, false: '#E5E7EB' }}
-            thumbColor={colors.white}
-          />
-        </View>
+      <Text style={styles.sectionLabel}>Account</Text>
+      <AccountSectionCard>
+        <AccountActionRow
+          icon="profile"
+          title="Personal Information"
+          subtitle="Name, email, and photo"
+          onPress={() => router.push(profileRoutes.account)}
+        />
+        <View style={styles.divider} />
+        <AccountActionRow
+          icon="stores"
+          title="Saved Addresses"
+          subtitle="Delivery locations"
+          onPress={() => router.push(profileRoutes.addresses)}
+        />
+        <View style={styles.divider} />
+        <AccountActionRow
+          icon="card"
+          title="Payment Methods"
+          subtitle="Saved payment preferences"
+          onPress={() => router.push(profileRoutes.myPayment)}
+        />
+      </AccountSectionCard>
+
+      <Text style={styles.sectionLabel}>Preferences</Text>
+      <AccountSectionCard>
+        <PrefSwitch
+          title="Order alerts"
+          subtitle="Delivery and order updates on this device"
+          value={prefs.orderAlerts}
+          onChange={(orderAlerts) => void persist({ ...prefs, orderAlerts })}
+        />
+        <View style={styles.divider} />
+        <PrefSwitch
+          title="Offer notifications"
+          subtitle="Promos and tips — local preference only"
+          value={prefs.offerAlerts}
+          onChange={(offerAlerts) => void persist({ ...prefs, offerAlerts })}
+        />
+        <View style={styles.divider} />
+        <AccountActionRow
+          icon="bell"
+          title="Notification inbox"
+          subtitle="Open message center"
+          onPress={() => router.push('/notifications')}
+        />
+      </AccountSectionCard>
+
+      <Text style={styles.sectionLabel}>Help & Legal</Text>
+      <AccountSectionCard>
+        <AccountActionRow
+          icon="headset"
+          title="Help & Support"
+          subtitle="FAQs and complaints"
+          onPress={() => router.push(accountRoutes.complaints)}
+        />
+        <View style={styles.divider} />
+        <AccountActionRow
+          icon="shield"
+          title="Privacy Policy"
+          subtitle="How we handle data"
+          onPress={() => router.push(accountRoutes.privacy)}
+        />
+        <View style={styles.divider} />
+        <AccountActionRow
+          icon="info"
+          title="Terms & Conditions"
+          subtitle="Store policies"
+          onPress={() => router.push(accountRoutes.terms)}
+        />
+        <View style={styles.divider} />
+        <AccountActionRow
+          icon="bag"
+          title="About MayapurBazaar"
+          subtitle={`Version ${appVersion()}`}
+          trailing="none"
+          onPress={() => showToast('info', `MayapurBazaar ${appVersion()}`)}
+        />
+      </AccountSectionCard>
+
+      <Text style={styles.sectionLabel}>Account actions</Text>
+      <AccountSectionCard>
+        <AccountActionRow
+          icon="logout"
+          title="Logout"
+          subtitle="Sign out on this device"
+          danger
+          onPress={() => setLogoutOpen(true)}
+          testID="settings-logout"
+        />
+      </AccountSectionCard>
+
+      <Text style={styles.version}>App version {appVersion()}</Text>
+      <Text style={styles.versionHint}>
+        Account deletion is not offered here — a secure deletion API is not published.
+      </Text>
+
+      <Modal visible={logoutOpen} transparent animationType="fade" onRequestClose={() => setLogoutOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setLogoutOpen(false)}>
+          <Pressable style={styles.sheet} onPress={(event) => event.stopPropagation()}>
+            <Text style={styles.sheetTitle}>Log out?</Text>
+            <Text style={styles.sheetCopy}>You’ll need to sign in again to place orders on this device.</Text>
+            <View style={styles.sheetActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Cancel logout"
+                onPress={() => setLogoutOpen(false)}
+                style={({ pressed }) => [styles.sheetBtn, pressed && styles.pressed]}>
+                <Text style={styles.sheetCancel}>Stay signed in</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Confirm logout"
+                onPress={confirmLogout}
+                style={({ pressed }) => [styles.sheetBtn, styles.sheetDanger, pressed && styles.pressed]}
+                testID="settings-logout-confirm">
+                <Text style={styles.sheetDelete}>Logout</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </AccountScreenShell>
+  );
+}
+
+function PrefSwitch({
+  title,
+  subtitle,
+  value,
+  onChange,
+}: {
+  title: string;
+  subtitle: string;
+  value: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <View style={styles.switchRow}>
+      <View style={styles.switchCopy}>
+        <Text style={styles.switchTitle}>{title}</Text>
+        <Text style={styles.switchSubtitle}>{subtitle}</Text>
       </View>
-
-      <Pressable style={styles.linkRow} onPress={() => router.push('/help')}>
-        <Text style={styles.link}>Help & Support</Text>
-      </Pressable>
-      <Pressable style={styles.linkRow} onPress={() => router.push('/privacy')}>
-        <Text style={styles.link}>Privacy</Text>
-      </Pressable>
-      <Pressable style={styles.linkRow} onPress={() => router.push('/terms')}>
-        <Text style={styles.link}>Terms</Text>
-      </Pressable>
-    </PreviewScaffold>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ true: colors.primary, false: '#E5E7EB' }}
+        thumbColor={colors.white}
+        accessibilityLabel={title}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 4,
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.warmBackground,
   },
-  row: {
-    minHeight: 64,
+  sectionLabel: {
+    marginTop: 4,
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginLeft: 52,
+  },
+  switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    gap: space.md,
+    minHeight: 56,
+    paddingVertical: 4,
   },
-  copy: { flex: 1, gap: 2 },
-  title: { fontFamily: fonts.semibold, fontSize: 15, color: colors.text },
-  meta: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSecondary },
-  linkRow: {
-    minHeight: 48,
-    borderRadius: 14,
+  switchCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  switchTitle: {
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+    color: colors.text,
+  },
+  switchSubtitle: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.textSecondary,
+  },
+  version: {
+    textAlign: 'center',
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 8,
+  },
+  versionHint: {
+    textAlign: 'center',
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    lineHeight: 15,
+    color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
     backgroundColor: colors.white,
-    justifyContent: 'center',
-    paddingHorizontal: 14,
+    borderTopLeftRadius: radii.lg,
+    borderTopRightRadius: radii.lg,
+    padding: space.xl,
+    gap: space.md,
   },
-  link: { fontFamily: fonts.semibold, fontSize: 15, color: colors.primaryInk },
+  sheetTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 18,
+    color: colors.text,
+  },
+  sheetCopy: {
+    fontFamily: fonts.regular,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textSecondary,
+  },
+  sheetActions: {
+    flexDirection: 'row',
+    gap: space.md,
+    marginTop: space.sm,
+  },
+  sheetBtn: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: radii.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.softBackground,
+  },
+  sheetDanger: {
+    backgroundColor: '#FEE2E2',
+  },
+  sheetCancel: {
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+    color: colors.text,
+  },
+  sheetDelete: {
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    color: colors.danger,
+  },
+  pressed: {
+    opacity: 0.8,
+  },
 });

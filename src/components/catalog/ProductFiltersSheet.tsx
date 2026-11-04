@@ -5,29 +5,33 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PriceRangeDualSlider } from '@/components/catalog/PriceRangeDualSlider';
 import { AppIcon } from '@/components/ui/AppIcon';
-import { colors, fonts } from '@/constants/theme';
-import type { DemoProduct } from '@/types/catalog';
-import type { CategoryFilterOption, PriceRangeId, ProductFiltersState } from '@/types/productFilters';
+import { colors, fonts, radii, shadow } from '@/constants/theme';
+import type { CategoryFilterOption, FilterStarRating, ProductFiltersState } from '@/types/productFilters';
 import {
-  availablePriceRanges,
+  catalogueHasRatingSignals,
   cloneFilters,
   createDefaultFilters,
+  FILTER_STAR_OPTIONS,
   filtersEqual,
-  PRICE_RANGE_OPTIONS,
+  parsePriceInput,
+  priceBoundsFromPool,
+  type ListedProduct,
 } from '@/utils/productFilters';
 
 type ProductFiltersSheetProps = {
   visible: boolean;
   applied: ProductFiltersState;
   categories: CategoryFilterOption[];
-  /** Pool used to derive which price ranges are meaningful. */
-  pricePool: readonly DemoProduct[];
+  /** Pool used to derive price bounds and rating availability. */
+  pricePool: readonly ListedProduct[];
   stockFilterSupported: boolean;
   previewCount: (draft: ProductFiltersState) => number;
   onApply: (next: ProductFiltersState) => void;
@@ -46,22 +50,32 @@ export function ProductFiltersSheet({
 }: ProductFiltersSheetProps) {
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
-  const sheetHeight = Math.min(Math.round(height * 0.82), 720);
+  const sheetHeight = Math.min(Math.round(height * 0.88), 760);
   const [draft, setDraft] = useState<ProductFiltersState>(() => cloneFilters(applied));
   const [draftForOpen, setDraftForOpen] = useState(false);
   const [syncedApplied, setSyncedApplied] = useState(applied);
+  const [minText, setMinText] = useState('');
+  const [maxText, setMaxText] = useState('');
+
+  const bounds = useMemo(() => priceBoundsFromPool(pricePool), [pricePool]);
+  const ratingSupported = useMemo(() => catalogueHasRatingSignals(pricePool), [pricePool]);
 
   if (visible && (!draftForOpen || !filtersEqual(syncedApplied, applied))) {
     setDraftForOpen(true);
     setSyncedApplied(applied);
-    setDraft(cloneFilters(applied));
+    const next = cloneFilters(applied);
+    setDraft(next);
+    setMinText(String(next.priceMin ?? bounds.min));
+    setMaxText(String(next.priceMax ?? bounds.max));
   } else if (!visible && draftForOpen) {
     setDraftForOpen(false);
   }
 
-  const priceOptions = useMemo(() => availablePriceRanges(pricePool), [pricePool]);
+  const displayLow = draft.priceMin ?? bounds.min;
+  const displayHigh = draft.priceMax ?? bounds.max;
   const matchCount = previewCount(draft);
   const applyDisabled = matchCount === 0;
+  const allCategoriesSelected = draft.categoryIds.length === 0;
 
   function toggleCategory(id: string) {
     setDraft((current) => {
@@ -73,12 +87,56 @@ export function ProductFiltersSheet({
     });
   }
 
-  function setPrice(id: PriceRangeId) {
-    setDraft((current) => ({ ...current, priceRange: id }));
+  function selectAllCategories() {
+    setDraft((current) => ({ ...current, categoryIds: [] }));
+  }
+
+  function setPriceRange(low: number, high: number) {
+    const nextLow = Math.max(bounds.min, Math.min(low, high - 1));
+    const nextHigh = Math.min(bounds.max, Math.max(high, nextLow + 1));
+    setDraft((current) => ({
+      ...current,
+      priceMin: nextLow <= bounds.min && nextHigh >= bounds.max ? null : nextLow,
+      priceMax: nextLow <= bounds.min && nextHigh >= bounds.max ? null : nextHigh,
+    }));
+    setMinText(String(nextLow));
+    setMaxText(String(nextHigh));
+  }
+
+  function commitMinText(raw: string) {
+    const parsed = parsePriceInput(raw);
+    if (parsed == null) {
+      setMinText(String(displayLow));
+      return;
+    }
+    setPriceRange(parsed, displayHigh);
+  }
+
+  function commitMaxText(raw: string) {
+    const parsed = parsePriceInput(raw);
+    if (parsed == null) {
+      setMaxText(String(displayHigh));
+      return;
+    }
+    setPriceRange(displayLow, parsed);
+  }
+
+  function toggleStar(star: FilterStarRating) {
+    setDraft((current) => {
+      const exists = current.ratingStars.includes(star);
+      return {
+        ...current,
+        ratingStars: exists
+          ? current.ratingStars.filter((entry) => entry !== star)
+          : [...current.ratingStars, star],
+      };
+    });
   }
 
   function clearDraft() {
     setDraft(createDefaultFilters());
+    setMinText(String(bounds.min));
+    setMaxText(String(bounds.max));
   }
 
   function apply() {
@@ -121,139 +179,185 @@ export function ProductFiltersSheet({
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled">
-            <Text style={styles.sectionTitle}>Category</Text>
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: draft.categoryIds.length === 0 }}
-              accessibilityLabel="All Categories"
-              onPress={() => setDraft((current) => ({ ...current, categoryIds: [] }))}
-              style={({ pressed }) => [
-                styles.chip,
-                draft.categoryIds.length === 0 && styles.chipActive,
-                pressed && styles.pressed,
-              ]}
-              testID="filter-category-all">
-              <Text style={[styles.chipLabel, draft.categoryIds.length === 0 && styles.chipLabelActive]}>
-                All Categories
-              </Text>
-            </Pressable>
-            <View style={styles.chipWrap}>
+            <Text style={styles.sectionTitle}>Categories:</Text>
+            <View style={styles.categoryGrid}>
+              <FilterCheckRow
+                label="All"
+                checked={allCategoriesSelected}
+                onPress={selectAllCategories}
+                testID="filter-category-all"
+              />
               {categories.map((category) => {
                 const selected = draft.categoryIds.includes(category.id);
                 return (
-                  <Pressable
+                  <FilterCheckRow
                     key={category.id}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: selected }}
-                    accessibilityLabel={`${category.name}, ${category.count} items`}
+                    label={`${category.name} (${category.count})`}
+                    checked={selected}
                     onPress={() => toggleCategory(category.id)}
-                    style={({ pressed }) => [styles.chip, selected && styles.chipActive, pressed && styles.pressed]}
-                    testID={`filter-category-${category.id}`}>
-                    <Text style={[styles.chipLabel, selected && styles.chipLabelActive]} numberOfLines={2}>
-                      {category.name}
-                    </Text>
-                    <Text style={[styles.chipCount, selected && styles.chipCountActive]}>{category.count}</Text>
-                  </Pressable>
+                    testID={`filter-category-${category.id}`}
+                  />
                 );
               })}
             </View>
 
-            <Text style={styles.sectionTitle}>Price Range</Text>
-            <View style={styles.chipWrap}>
-              {(priceOptions.length > 0 ? priceOptions : PRICE_RANGE_OPTIONS).map((option) => {
-                const selected = draft.priceRange === option.id;
-                return (
-                  <Pressable
-                    key={option.id}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected }}
-                    accessibilityLabel={option.label}
-                    onPress={() => setPrice(option.id)}
-                    style={({ pressed }) => [styles.chip, selected && styles.chipActive, pressed && styles.pressed]}
-                    testID={`filter-price-${option.id}`}>
-                    <Text style={[styles.chipLabel, selected && styles.chipLabelActive]}>{option.label}</Text>
-                  </Pressable>
-                );
-              })}
+            <Text style={styles.sectionTitle}>Pricing:</Text>
+            <View style={styles.priceInputs}>
+              <View style={styles.priceField}>
+                <Text style={styles.priceFieldLabel}>Min</Text>
+                <TextInput
+                  value={minText}
+                  onChangeText={setMinText}
+                  onBlur={() => commitMinText(minText)}
+                  onSubmitEditing={() => commitMinText(minText)}
+                  keyboardType="numeric"
+                  returnKeyType="done"
+                  style={styles.priceInput}
+                  accessibilityLabel="Minimum price"
+                  testID="filter-price-min"
+                />
+              </View>
+              <View style={styles.priceField}>
+                <Text style={styles.priceFieldLabel}>Max</Text>
+                <TextInput
+                  value={maxText}
+                  onChangeText={setMaxText}
+                  onBlur={() => commitMaxText(maxText)}
+                  onSubmitEditing={() => commitMaxText(maxText)}
+                  keyboardType="numeric"
+                  returnKeyType="done"
+                  style={styles.priceInput}
+                  accessibilityLabel="Maximum price"
+                  testID="filter-price-max"
+                />
+              </View>
             </View>
+            <PriceRangeDualSlider
+              boundMin={bounds.min}
+              boundMax={bounds.max}
+              low={displayLow}
+              high={displayHigh}
+              onChange={setPriceRange}
+            />
 
-            <Text style={styles.sectionTitle}>Availability</Text>
-            {stockFilterSupported ? (
-              <Pressable
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: draft.inStockOnly }}
-                accessibilityLabel="In Stock Only"
-                onPress={() => setDraft((current) => ({ ...current, inStockOnly: !current.inStockOnly }))}
-                style={({ pressed }) => [
-                  styles.toggleRow,
-                  draft.inStockOnly && styles.toggleRowActive,
-                  pressed && styles.pressed,
-                ]}
-                testID="filter-in-stock">
-                <View style={[styles.checkbox, draft.inStockOnly && styles.checkboxActive]}>
-                  {draft.inStockOnly ? <AppIcon name="check" color={colors.text} size={14} /> : null}
+            <Text style={styles.sectionTitle}>Product Status:</Text>
+            <View style={styles.statusRow}>
+              {stockFilterSupported ? (
+                <FilterCheckRow
+                  label="In Stock"
+                  checked={draft.inStockOnly}
+                  onPress={() => setDraft((current) => ({ ...current, inStockOnly: !current.inStockOnly }))}
+                  testID="filter-in-stock"
+                  compact
+                />
+              ) : (
+                <View style={[styles.checkRow, styles.checkRowCompact, styles.disabledChip]} testID="filter-in-stock-unavailable">
+                  <View style={styles.checkbox} />
+                  <Text style={styles.disabledLabel}>In Stock</Text>
                 </View>
-                <Text style={styles.toggleLabel}>In Stock Only</Text>
-              </Pressable>
-            ) : (
-              <View style={styles.disabledNote} testID="filter-in-stock-unavailable">
-                <Text style={styles.disabledTitle}>In Stock Only</Text>
-                <Text style={styles.disabledBody}>
-                  Live stock is not published on catalogue items yet, so this filter is unavailable.
-                </Text>
-              </View>
-            )}
+              )}
+              <FilterCheckRow
+                label="On Sale"
+                checked={draft.discountedOnly}
+                onPress={() => setDraft((current) => ({ ...current, discountedOnly: !current.discountedOnly }))}
+                testID="filter-discounted"
+                compact
+              />
+            </View>
+            {!stockFilterSupported ? (
+              <Text style={styles.hint}>Live stock is not published on catalogue items yet.</Text>
+            ) : null}
 
-            <Text style={styles.sectionTitle}>Offers</Text>
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: draft.discountedOnly }}
-              accessibilityLabel="Discounted Products Only"
-              onPress={() => setDraft((current) => ({ ...current, discountedOnly: !current.discountedOnly }))}
-              style={({ pressed }) => [
-                styles.toggleRow,
-                draft.discountedOnly && styles.toggleRowActive,
-                pressed && styles.pressed,
-              ]}
-              testID="filter-discounted">
-              <View style={[styles.checkbox, draft.discountedOnly && styles.checkboxActive]}>
-                {draft.discountedOnly ? <AppIcon name="check" color={colors.text} size={14} /> : null}
+            <Text style={styles.sectionTitle}>Rating Stars:</Text>
+            {ratingSupported ? (
+              <View style={styles.statusRow}>
+                {FILTER_STAR_OPTIONS.map((option) => {
+                  const checked = draft.ratingStars.includes(option.id);
+                  return (
+                    <FilterCheckRow
+                      key={option.id}
+                      label={option.label}
+                      checked={checked}
+                      onPress={() => toggleStar(option.id)}
+                      testID={`filter-star-${option.id}`}
+                      compact
+                    />
+                  );
+                })}
               </View>
-              <Text style={styles.toggleLabel}>Discounted Products Only</Text>
-            </Pressable>
+            ) : (
+              <Text style={styles.hint} testID="filter-rating-unavailable">
+                Product ratings are not published on this catalogue yet.
+              </Text>
+            )}
           </ScrollView>
 
           <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Clear all filters"
+              accessibilityLabel="Reset filters"
               onPress={clearDraft}
-              style={({ pressed }) => [styles.clearButton, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.resetButton, pressed && styles.pressed]}
               testID="product-filters-clear">
-              <Text style={styles.clearLabel}>Clear All</Text>
+              <Text style={styles.resetLabel}>Reset</Text>
             </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={
-                applyDisabled ? 'No matching products' : `Apply filters, ${matchCount} products`
+                applyDisabled ? 'No matching products' : `Show results, ${matchCount} products`
               }
               accessibilityState={{ disabled: applyDisabled }}
               disabled={applyDisabled}
               onPress={apply}
               style={({ pressed }) => [
-                styles.applyButton,
-                applyDisabled && styles.applyDisabled,
+                styles.showButton,
+                applyDisabled && styles.showDisabled,
                 pressed && !applyDisabled && styles.pressed,
               ]}
               testID="product-filters-apply">
-              <Text style={styles.applyLabel}>
-                {applyDisabled ? 'No matches' : `Apply Filters · ${matchCount}`}
+              <Text style={styles.showLabel}>
+                {applyDisabled ? 'No matches' : 'Show Results'}
               </Text>
             </Pressable>
           </View>
         </View>
       </View>
     </Modal>
+  );
+}
+
+function FilterCheckRow({
+  label,
+  checked,
+  onPress,
+  testID,
+  compact = false,
+}: {
+  label: string;
+  checked: boolean;
+  onPress: () => void;
+  testID: string;
+  compact?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.checkRow,
+        compact && styles.checkRowCompact,
+        pressed && styles.pressed,
+      ]}
+      testID={testID}>
+      <View style={[styles.checkbox, checked && styles.checkboxChecked]}>
+        {checked ? <AppIcon name="check" color={colors.text} size={12} /> : null}
+      </View>
+      <Text style={styles.checkLabel} numberOfLines={2}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -264,12 +368,13 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    backgroundColor: 'rgba(17, 24, 39, 0.42)',
   },
   sheet: {
     backgroundColor: colors.white,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: radii.sheet,
+    borderTopRightRadius: radii.sheet,
+    ...shadow.card,
   },
   handleWrap: {
     alignItems: 'center',
@@ -285,185 +390,175 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 44,
-    paddingHorizontal: 16,
+    justifyContent: 'space-between',
+    minHeight: 48,
+    paddingHorizontal: 18,
+    paddingBottom: 6,
   },
   title: {
     fontFamily: fonts.bold,
-    fontSize: 17,
-    lineHeight: 22,
+    fontSize: 20,
+    lineHeight: 26,
     color: colors.text,
+    letterSpacing: -0.2,
   },
   close: {
-    position: 'absolute',
-    right: 8,
     width: 40,
     height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: colors.warmBackground,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
   divider: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.border,
-    marginHorizontal: 16,
+    marginHorizontal: 18,
   },
   scroll: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingTop: 14,
     paddingBottom: 20,
-    gap: 10,
-  },
-  sectionTitle: {
-    marginTop: 8,
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    lineHeight: 18,
-    color: colors.text,
-  },
-  chipWrap: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
   },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    maxWidth: '100%',
-    minHeight: 40,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.white,
-  },
-  chipActive: {
-    borderColor: colors.primaryDark,
-    backgroundColor: colors.softYellow,
-  },
-  chipLabel: {
-    flexShrink: 1,
-    fontFamily: fonts.medium,
-    fontSize: 13,
-    lineHeight: 16,
+  sectionTitle: {
+    marginTop: 10,
+    fontFamily: fonts.bold,
+    fontSize: 15,
+    lineHeight: 20,
     color: colors.text,
   },
-  chipLabelActive: {
-    fontFamily: fonts.semibold,
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
-  chipCount: {
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    lineHeight: 14,
-    color: colors.textSecondary,
-  },
-  chipCountActive: {
-    color: colors.primaryInk,
-  },
-  toggleRow: {
+  checkRow: {
+    width: '50%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    minHeight: 48,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.white,
+    gap: 10,
+    minHeight: 44,
+    paddingVertical: 6,
+    paddingRight: 8,
   },
-  toggleRowActive: {
-    borderColor: colors.primaryDark,
-    backgroundColor: colors.softYellow,
+  checkRowCompact: {
+    width: 'auto',
+    flexGrow: 1,
+    flexBasis: '30%',
+    minWidth: 96,
   },
   checkbox: {
     width: 22,
     height: 22,
     borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#CBD5E1',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkboxActive: {
-    borderColor: colors.primaryDark,
+  checkboxChecked: {
     backgroundColor: colors.primary,
+    borderColor: colors.primaryDark,
   },
-  toggleLabel: {
+  checkLabel: {
     flex: 1,
     fontFamily: fonts.medium,
-    fontSize: 15,
-    lineHeight: 20,
-    color: colors.text,
-  },
-  disabledNote: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 14,
-    backgroundColor: '#F8FAFC',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    gap: 4,
-  },
-  disabledTitle: {
-    fontFamily: fonts.semibold,
     fontSize: 14,
     lineHeight: 18,
     color: colors.text,
   },
-  disabledBody: {
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    lineHeight: 18,
+  priceInputs: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  priceField: {
+    flex: 1,
+    gap: 6,
+  },
+  priceFieldLabel: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
     color: colors.textSecondary,
+  },
+  priceInput: {
+    minHeight: 44,
+    borderRadius: radii.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.warmBackground,
+    paddingHorizontal: 12,
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+    color: colors.text,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  disabledChip: {
+    opacity: 0.55,
+  },
+  disabledLabel: {
+    flex: 1,
+    fontFamily: fonts.medium,
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  hint: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.textSecondary,
+    marginTop: -2,
   },
   footer: {
     flexDirection: 'row',
     gap: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
     backgroundColor: colors.white,
   },
-  clearButton: {
+  resetButton: {
     flex: 1,
-    minHeight: 48,
-    borderRadius: 14,
+    minHeight: 52,
+    borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F1F5F9',
   },
-  clearLabel: {
-    fontFamily: fonts.semibold,
+  resetLabel: {
+    fontFamily: fonts.bold,
     fontSize: 15,
-    lineHeight: 20,
     color: colors.text,
   },
-  applyButton: {
-    flex: 1.4,
-    minHeight: 48,
-    borderRadius: 14,
+  showButton: {
+    flex: 1.35,
+    minHeight: 52,
+    borderRadius: radii.md,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
     paddingHorizontal: 10,
   },
-  applyDisabled: {
+  showDisabled: {
     opacity: 0.45,
   },
-  applyLabel: {
+  showLabel: {
     fontFamily: fonts.bold,
-    fontSize: 14,
-    lineHeight: 18,
+    fontSize: 15,
     color: colors.text,
     textAlign: 'center',
   },
   pressed: {
-    opacity: 0.8,
+    opacity: 0.82,
   },
 });

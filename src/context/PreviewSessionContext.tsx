@@ -11,6 +11,8 @@ type PreviewSessionValue = {
   couponId: string | null;
   setCouponId: (id: string | null) => void;
   placeOrder: (order: SimulatedOrder) => void;
+  cancelOrder: (id: string, reasonIds: string[]) => boolean;
+  requestReturn: (id: string, reasonIds: string[]) => boolean;
   findOrder: (id: string | undefined | null) => SimulatedOrder | null;
 };
 
@@ -33,6 +35,61 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
         }
         setOrders((current) => [order, ...current.filter((item) => item.id !== order.id)]);
         setCouponId(null);
+      },
+      cancelOrder: (id, reasonIds) => {
+        if (!UI_PREVIEW_MODE || !id) {
+          return false;
+        }
+        const target = orders.find((order) => order.id === id);
+        if (!target || target.status === 'cancelled' || target.status === 'delivered') {
+          return false;
+        }
+        setOrders((current) =>
+          current.map((order) =>
+            order.id !== id
+              ? order
+              : {
+                  ...order,
+                  status: 'cancelled',
+                  statusDetail:
+                    'Cancelled by you. Refund timing depends on the payment method once live checkout is connected.',
+                  cancelReasonIds: [...reasonIds],
+                  statusAt: {
+                    ...order.statusAt,
+                    cancelled: new Date().toLocaleString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    }),
+                  },
+                },
+          ),
+        );
+        return true;
+      },
+      requestReturn: (id, reasonIds) => {
+        if (!UI_PREVIEW_MODE || !id) {
+          return false;
+        }
+        const target = orders.find((order) => order.id === id);
+        if (!target || target.status !== 'delivered' || target.returnRequested) {
+          return false;
+        }
+        setOrders((current) =>
+          current.map((order) =>
+            order.id !== id
+              ? order
+              : {
+                  ...order,
+                  returnRequested: true,
+                  returnReasonIds: [...reasonIds],
+                  statusDetail:
+                    'Return requested. Our team will review this preview request — live refunds are not connected yet.',
+                },
+          ),
+        );
+        return true;
       },
       findOrder: (id) => {
         if (!id) {
