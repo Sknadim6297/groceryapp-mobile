@@ -25,6 +25,10 @@ import { useAuthSession } from '@/context/AuthSessionContext';
 import { useRememberedCustomer } from '@/context/RememberedCustomerContext';
 import { sendCustomerOtp } from '@/services/customerAuth';
 import { canUseDevelopmentHome, clearDevTestOtp, isDevOtpEnabled, issueDevTestOtp } from '@/services/devOtp';
+import {
+  prepareAndroidSmsOtpListen,
+  stopAndroidSmsOtpListen,
+} from '@/services/androidSmsOtp';
 import { clearMobileOtpVerification } from '@/services/mobileVerificationStore';
 import { screenAfterCustomerCall } from '@/types/customerApi';
 import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
@@ -103,6 +107,9 @@ export default function LoginScreen() {
 
       // Production / normal development without Dev OTP flag: live send-otp contract.
       clearDevTestOtp(mobile);
+      // Google SMS Retriever / User Consent only deliver messages that arrive AFTER
+      // listening starts — arm native listeners before the gateway sends SMS.
+      prepareAndroidSmsOtpListen();
       const result = await sendCustomerOtp(mobile);
       showToast(result.tone, result.message);
       const screen = screenAfterCustomerCall(result, 'send');
@@ -122,6 +129,7 @@ export default function LoginScreen() {
       }
 
       if (screen === 'complete-profile') {
+        stopAndroidSmsOtpListen();
         holdLoading = true;
         setNationalNumber(mobile);
         setStanding('unregistered');
@@ -135,7 +143,11 @@ export default function LoginScreen() {
         return;
       }
 
+      stopAndroidSmsOtpListen();
       setNotice(result.message);
+    } catch {
+      stopAndroidSmsOtpListen();
+      showToast('error', 'Could not send the verification code. Please try again.');
     } finally {
       if (!holdLoading) {
         setSending(false);

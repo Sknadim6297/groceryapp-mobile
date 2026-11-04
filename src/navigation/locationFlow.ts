@@ -66,3 +66,17 @@ export function resolveLocationExitHref(returnTo: Href | null | undefined, fallb
   }
   return '/home';
 }
+
+/**
+ * When "Add address" is opened from the address book, preserve an existing
+ * checkout/payment/cart returnTo instead of hardcoding /cart.
+ */
+export function resolveAddressBookAddReturnTo(options: {
+  selectMode: boolean;
+  existingReturnTo: Href | null | undefined;
+}): Href {
+  if (!options.selectMode) {
+    return '/addresses';
+  }
+  return resolveLocationExitHref(options.existingReturnTo, '/cart');
+}

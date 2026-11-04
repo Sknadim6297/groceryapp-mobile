@@ -1,4 +1,4 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { Redirect, router, useIsFocused, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -28,6 +28,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SoftIcon } from '@/components/ui/SoftIcon';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts, homeLayout, radii, shadow, space } from '@/constants/theme';
+import { useAuthSession } from '@/context/AuthSessionContext';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useMockCart } from '@/context/MockCartContext';
 import { usePreviewSession } from '@/context/PreviewSessionContext';
@@ -36,6 +37,7 @@ import { computeDemoCouponDiscount, demoCouponById, isCouponExpired } from '@/da
 import { findDemoProduct } from '@/data/findDemoProduct';
 import { formatDeliveryAddress } from '@/data/referenceLocations';
 import { addressesSelectHref, locationRoutes } from '@/navigation/locationRoutes';
+import { canUseDevelopmentHome } from '@/services/devOtp';
 import { formatRupee } from '@/utils/cartBill';
 import { isCompleteDeliveryLocation } from '@/utils/deliveryAddress';
 import { buildDemoCheckoutBill, createDemoOrderId } from '@/utils/demoCheckoutBill';
@@ -48,10 +50,12 @@ type ActionError = {
 };
 
 export function PaymentScreen() {
+  const focused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const contentWidth = Math.min(width, homeLayout.maxWidth);
 
+  const { hydrated: authHydrated, session, devSession } = useAuthSession();
   const { quantities, setQuantity } = useMockCart();
   const { confirmed, beginAddressBookPick } = useDeliveryLocation();
   const { addresses, hydrated } = useSavedAddresses();
@@ -97,12 +101,11 @@ export function PaymentScreen() {
     : 'Delivery address';
 
   const openAddressFlow = useCallback(() => {
+    beginAddressBookPick({ selectMode: true, returnTo: '/payment' });
     if (hydrated && addresses.length > 0) {
-      beginAddressBookPick({ selectMode: true, returnTo: '/payment' });
       router.push(addressesSelectHref());
       return;
     }
-    beginAddressBookPick({ selectMode: true, returnTo: '/payment' });
     router.push(locationRoutes.search);
   }, [addresses.length, beginAddressBookPick, hydrated]);
 
@@ -212,6 +215,10 @@ export function PaymentScreen() {
       },
     });
   }, [method.canPlaceDemoOrder, method.title, placeDemoCodOrder, selectMethod]);
+
+  if (authHydrated && focused && !session && !canUseDevelopmentHome(devSession)) {
+    return <Redirect href="/login" />;
+  }
 
   if (!UI_PREVIEW_MODE) {
     return (

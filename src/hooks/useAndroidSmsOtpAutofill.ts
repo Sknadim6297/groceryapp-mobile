@@ -5,7 +5,10 @@ import { isDevOtpEnabled } from '@/services/devOtp';
 import {
   getAndroidAppSmsHash,
   isAndroidSmsOtpSupported,
-  startAndroidSmsOtpSession,
+  prepareAndroidSmsOtpListen,
+  restartAndroidSmsOtpListen,
+  stopAndroidSmsOtpListen,
+  subscribeAndroidSmsOtp,
   type AndroidSmsListenMode,
 } from '@/services/androidSmsOtp';
 import { OTP_LENGTH } from '@/types/auth';
@@ -19,13 +22,15 @@ type UseAndroidSmsOtpAutofillArgs = {
 };
 
 type UseAndroidSmsOtpAutofillResult = {
-  /** Re-arm Retriever → Consent after Resend OTP. */
+  /** Re-arm listening after Resend OTP — call **before** the resend API. */
   restart: () => void;
   supported: boolean;
 };
 
 /**
- * Android SMS Retriever with User Consent fallback.
+ * Android SMS Retriever / User Consent autofill.
+ * Prefer calling prepareAndroidSmsOtpListen() on Login before send-otp so the
+ * SMS is not missed during navigation. This hook subscribes (and prepares if needed).
  * No-ops on iOS/web, Expo Go (module not linked), and Development OTP mode.
  */
 export function useAndroidSmsOtpAutofill({
@@ -35,14 +40,12 @@ export function useAndroidSmsOtpAutofill({
 }: UseAndroidSmsOtpAutofillArgs): UseAndroidSmsOtpAutofillResult {
   const onCodeRef = useRef(onCode);
   onCodeRef.current = onCode;
-  const sessionRef = useRef<{ stop: () => void; restart: () => void } | null>(null);
   const lastFilledRef = useRef<string | null>(null);
   const supported = Platform.OS === 'android' && isAndroidSmsOtpSupported();
 
   useEffect(() => {
     if (!enabled || !supported || isDevOtpEnabled()) {
-      sessionRef.current?.stop();
-      sessionRef.current = null;
+      lastFilledRef.current = null;
       return;
     }
 
@@ -51,48 +54,54 @@ export function useAndroidSmsOtpAutofill({
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       void getAndroidAppSmsHash().then((hash) => {
         if (hash) {
-          console.info('[android-sms-otp] app hash ready for SMS template (value not logged in production builds)');
-          // Hash itself is not secret, but keep noise low: log length only.
-          console.info('[android-sms-otp] hash length', hash.length);
+          // Hash is required in the SMS body for zero-tap Retriever — safe to log in __DEV__.
+          console.info('[android-sms-otp] app hash for SMS template:', hash);
+        } else {
+          console.info('[android-sms-otp] app hash unavailable (Expo Go or native module missing)');
         }
       });
     }
 
-    const session = startAndroidSmsOtpSession({
-      length,
-      onEvent: (event) => {
-        if (event.kind === 'code') {
-          if (lastFilledRef.current === event.code) {
-            return;
-          }
-          lastFilledRef.current = event.code;
-          if (typeof __DEV__ !== 'undefined' && __DEV__) {
-            const mode: AndroidSmsListenMode = event.mode;
-            console.info('[android-sms-otp] code received via', mode);
-          }
-          onCodeRef.current(event.code);
+    // Ensure listening even if Login forgot to prepare (deep link / cold OTP).
+    prepareAndroidSmsOtpListen({ length });
+
+    const unsubscribe = subscribeAndroidSmsOtp((event) => {
+      if (event.kind === 'code') {
+        if (lastFilledRef.current === event.code) {
           return;
         }
-        if (typeof __DEV__ !== 'undefined' && __DEV__ && event.kind !== 'unsupported') {
-          console.info('[android-sms-otp]', event.kind, 'mode' in event ? event.mode : '');
+        lastFilledRef.current = event.code;
+        if (typeof __DEV__ !== 'undefined' && __DEV__) {
+          const mode: AndroidSmsListenMode = event.mode;
+          console.info('[android-sms-otp] code received via', mode);
         }
-      },
+        onCodeRef.current(event.code);
+        return;
+      }
+      if (typeof __DEV__ !== 'undefined' && __DEV__ && event.kind !== 'unsupported') {
+        console.info('[android-sms-otp]', event.kind, 'mode' in event ? event.mode : '');
+      }
     });
 
-    sessionRef.current = session;
     return () => {
-      session.stop();
-      if (sessionRef.current === session) {
-        sessionRef.current = null;
-      }
+      unsubscribe();
     };
   }, [enabled, length, supported]);
+
+  useEffect(() => {
+    if (enabled && supported && !isDevOtpEnabled()) {
+      return;
+    }
+    // Leaving OTP / Dev OTP / unsupported: drop native receivers so the next
+    // Login prepare starts clean.
+    stopAndroidSmsOtpListen();
+  }, [enabled, supported]);
 
   return {
     supported,
     restart: () => {
       lastFilledRef.current = null;
-      sessionRef.current?.restart();
+      restartAndroidSmsOtpListen({ length });
     },
   };
 }

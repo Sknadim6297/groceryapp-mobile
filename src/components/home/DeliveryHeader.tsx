@@ -21,7 +21,7 @@ const SELECT_LOCATION = 'Select delivery location';
 export function DeliveryHeader() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { confirmed, beginLocationEdit } = useDeliveryLocation();
+  const { confirmed, beginAddressBookPick, beginLocationEdit } = useDeliveryLocation();
   const { addresses, hydrated } = useSavedAddresses();
   const compact = width < 360;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -31,6 +31,7 @@ export function DeliveryHeader() {
 
   function openDeliveryPicker() {
     if (hydrated && addresses.length > 0) {
+      beginAddressBookPick({ selectMode: true, returnTo: '/home' });
       router.push(addressesSelectHref());
       return;
     }

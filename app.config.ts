@@ -64,21 +64,27 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   const stableAndroidBuildProps = {
     enableMinifyInReleaseBuilds: true,
+    enableShrinkResourcesInReleaseBuilds: true,
+    enableBundleCompression: true,
     extraProguardRules: workManagerR8KeepRules,
   };
-
-  const withMapsAndBuildProps = (androidProps: Record<string, unknown>): ExpoPlugin[] =>
-    withAndroidBuildProperties(withMapLibrePlugin(config.plugins), androidProps);
 
   if (!isUiPreviewBuild()) {
     return {
       ...config,
       name,
       slug,
-      plugins: withMapsAndBuildProps(stableAndroidBuildProps),
+      plugins: withAndroidBuildProperties(withMapLibrePlugin(config.plugins), stableAndroidBuildProps),
       extra: sharedExtra,
     };
   }
+
+  // Client / preview APK: arm64-only, no MapLibre .so (often 10–20 MB alone),
+  // so the shareable APK can stay under ~20 MB. Maps use the existing fallback UI.
+  const previewPlugins = withoutPlugin(
+    withoutPlugin(config.plugins, 'react-native-maps'),
+    '@maplibre/maplibre-react-native',
+  );
 
   return {
     ...config,
@@ -88,18 +94,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     android: {
       ...config.android,
       package: PREVIEW_ANDROID_PACKAGE,
-      versionCode: 7,
+      versionCode: 8,
     },
-    plugins: withMapsAndBuildProps({
+    plugins: withAndroidBuildProperties(previewPlugins, {
       ...stableAndroidBuildProps,
-      // Phone-only ABI for a smaller sideload APK. Emulators that are x86-only will not install this build.
       buildArchs: ['arm64-v8a'],
-      // Compress native libs inside the APK; Android extracts them on install.
       useLegacyPackaging: true,
     }),
     extra: {
       ...sharedExtra,
       uiPreview: true,
+      deliveryMapProvider: 'unavailable-client-apk',
     },
   };
 };

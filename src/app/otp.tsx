@@ -27,6 +27,7 @@ import { useAuthSession } from '@/context/AuthSessionContext';
 import { useCustomerAccount } from '@/context/CustomerAccountContext';
 import { useAndroidSmsOtpAutofill } from '@/hooks/useAndroidSmsOtpAutofill';
 import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
+import { stopAndroidSmsOtpListen } from '@/services/androidSmsOtp';
 import { resendCustomerOtp, verifyCustomerOtp } from '@/services/customerAuth';
 import {
   canUseDevelopmentHome,
@@ -130,6 +131,7 @@ export default function OtpScreen() {
   }, [devSession, focused, hydrated, otpDispatched, ready, session]);
 
   function goBack() {
+    stopAndroidSmsOtpListen();
     if (router.canGoBack()) {
       router.back();
       return;
@@ -145,7 +147,8 @@ export default function OtpScreen() {
   }
 
   const applyIncomingCode = useCallback((next: string) => {
-    if (leaving.current || verifyingRef.current || busy) {
+    // Allow fill while the resend button is idle; never interrupt an in-flight verify.
+    if (leaving.current || verifyingRef.current) {
       return;
     }
     const digits = next.replace(/\D/g, '').slice(0, OTP_LENGTH);
@@ -157,7 +160,7 @@ export default function OtpScreen() {
     setVerifyMessage(null);
     setResendMessage(null);
     setCode(digits);
-  }, [busy]);
+  }, []);
 
   const { restart: restartSmsOtpListener } = useAndroidSmsOtpAutofill({
     enabled: focused && hydrated && ready && otpDispatched,
@@ -228,6 +231,7 @@ export default function OtpScreen() {
             return;
           }
           leaving.current = true;
+          stopAndroidSmsOtpListen();
           const saved = await keepDevelopmentLogin();
           if (isStale()) {
             return;
@@ -287,6 +291,7 @@ export default function OtpScreen() {
             });
           }
           leaving.current = true;
+          stopAndroidSmsOtpListen();
           holdLoading = true;
           setTimeout(() => {
             if (!mountedRef.current || requestId !== requestIdRef.current) {
@@ -303,6 +308,7 @@ export default function OtpScreen() {
           showToast(result.tone, result.message);
           setVerifyMessage(result.message);
           leaving.current = true;
+          stopAndroidSmsOtpListen();
           setStanding('unregistered');
           // Keep otpDispatched true so a verified OTP-first identity is not treated as "never sent".
           setOtpDispatched(true);
@@ -396,6 +402,8 @@ export default function OtpScreen() {
         showToast('success', 'A new development OTP is ready. It was not sent by SMS.');
         return;
       }
+      // Re-arm native SMS listen BEFORE the gateway sends the next SMS.
+      restartSmsOtpListener();
       const result = await resendCustomerOtp(nationalNumber);
       setCode('');
       setVerifyMessage(null);
@@ -404,7 +412,6 @@ export default function OtpScreen() {
       const screen = screenAfterCustomerCall(result, 'send');
       if (screen === 'otp') {
         setOtpDispatched(true);
-        restartSmsOtpListener();
       }
       if (screen === 'complete-profile') {
         leaving.current = true;

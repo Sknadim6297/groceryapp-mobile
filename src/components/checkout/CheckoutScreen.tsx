@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { Redirect, router, useIsFocused } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -36,6 +36,7 @@ import { computeDemoCouponDiscount, demoCouponById, isCouponExpired } from '@/da
 import { findDemoProduct } from '@/data/findDemoProduct';
 import { formatDeliveryAddress } from '@/data/referenceLocations';
 import { addressesSelectHref, locationRoutes } from '@/navigation/locationRoutes';
+import { canUseDevelopmentHome } from '@/services/devOtp';
 import type { DemoProduct } from '@/types/catalog';
 import { formatRupee } from '@/utils/cartBill';
 import { isCompleteDeliveryLocation } from '@/utils/deliveryAddress';
@@ -46,6 +47,7 @@ type MissingLine = { id: string; quantity: number; product: null };
 type CheckoutLine = KnownLine | MissingLine;
 
 export function CheckoutScreen() {
+  const focused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const contentWidth = Math.min(width, homeLayout.maxWidth);
@@ -55,7 +57,7 @@ export function CheckoutScreen() {
   const { addresses, hydrated } = useSavedAddresses();
   const { couponId, setCouponId } = usePreviewSession();
   const { profile } = useCustomerProfile();
-  const { session, devSession } = useAuthSession();
+  const { hydrated: authHydrated, session, devSession } = useAuthSession();
 
   const [instructions, setInstructions] = useState('');
   const [methodId, setMethodId] = useState<CheckoutPaymentMethodId>('cod');
@@ -100,11 +102,11 @@ export function CheckoutScreen() {
   const canContinue = UI_PREVIEW_MODE && known.length > 0 && complete && !submitting;
 
   const openAddressFlow = useCallback(() => {
+    beginAddressBookPick({ selectMode: true, returnTo: '/checkout' });
     if (hydrated && addresses.length > 0) {
       router.push(addressesSelectHref());
       return;
     }
-    beginAddressBookPick({ selectMode: true, returnTo: '/checkout' });
     router.push(locationRoutes.search);
   }, [addresses.length, beginAddressBookPick, hydrated]);
 
@@ -128,6 +130,10 @@ export function CheckoutScreen() {
       setSubmitting(false);
     }, 800);
   }, [complete, known.length, methodId, openAddressFlow, submitting]);
+
+  if (authHydrated && focused && !session && !canUseDevelopmentHome(devSession)) {
+    return <Redirect href="/login" />;
+  }
 
   if (!UI_PREVIEW_MODE) {
     return <PlaceholderScreen title="Checkout" message="Checkout is not connected yet." withHeader />;

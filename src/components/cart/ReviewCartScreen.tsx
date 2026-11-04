@@ -34,7 +34,7 @@ export function ReviewCartScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { quantities, leaveAtDoor, setQuantity, setLeaveAtDoor } = useMockCart();
   const { couponId } = usePreviewSession();
-  const { confirmed, beginLocationEdit } = useDeliveryLocation();
+  const { confirmed, beginAddressBookPick, beginLocationEdit } = useDeliveryLocation();
   const { addresses, hydrated } = useSavedAddresses();
 
   const lines = Object.entries(quantities).map(([id, quantity]): ReviewLine => {
@@ -54,6 +54,7 @@ export function ReviewCartScreen() {
 
   function openLocation() {
     if (hydrated && addresses.length > 0) {
+      beginAddressBookPick({ selectMode: true, returnTo: '/cart' });
       router.push(addressesSelectHref());
       return;
     }

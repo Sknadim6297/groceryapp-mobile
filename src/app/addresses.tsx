@@ -18,6 +18,7 @@ import { colors, fonts, homeLayout, radii, shadow, space } from '@/constants/the
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useSavedAddresses } from '@/context/SavedAddressesContext';
+import { resolveAddressBookAddReturnTo, resolveLocationExitHref } from '@/navigation/locationFlow';
 import { locationRoutes } from '@/navigation/locationRoutes';
 import { profileRoutes } from '@/navigation/profileRoutes';
 import { canUseDevelopmentHome } from '@/services/devOtp';
@@ -59,7 +60,7 @@ export default function AddressesScreen() {
     setDefaultAddress,
     selectAddressForDelivery,
   } = useSavedAddresses();
-  const { beginAddressBookPick } = useDeliveryLocation();
+  const { beginAddressBookPick, returnTo } = useDeliveryLocation();
   const [pendingDelete, setPendingDelete] = useState<SavedAddress | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -72,7 +73,7 @@ export default function AddressesScreen() {
   function openAddAddress() {
     beginAddressBookPick({
       selectMode,
-      returnTo: selectMode ? '/cart' : '/addresses',
+      returnTo: resolveAddressBookAddReturnTo({ selectMode, existingReturnTo: returnTo }),
     });
     router.push(locationRoutes.search);
   }
@@ -110,7 +111,7 @@ export default function AddressesScreen() {
       if (router.canGoBack()) {
         router.back();
       } else {
-        router.replace('/cart');
+        router.replace(resolveLocationExitHref(returnTo, '/cart'));
       }
       return;
     }

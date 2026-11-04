@@ -219,7 +219,7 @@ export function ProfileScreenView() {
             icon="headset"
             title="Help & Support"
             subtitle="FAQs, chat, and complaints"
-            onPress={() => router.push(accountRoutes.complaints)}
+            onPress={() => router.push(profileRoutes.help)}
           />
           <OptionRow
             icon="settings"
@@ -259,7 +259,7 @@ export function ProfileScreenView() {
         style={[
           styles.logoutDock,
           {
-            paddingBottom: 14,
+            paddingBottom: Math.max(insets.bottom, 14),
             paddingLeft: 16 + insets.left,
             paddingRight: 16 + insets.right,
           },

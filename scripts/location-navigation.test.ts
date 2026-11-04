@@ -1,6 +1,7 @@
 import {
   isLocationPickerHref,
   locationContinueTarget,
+  resolveAddressBookAddReturnTo,
   resolveLocationExitHref,
 } from '../src/navigation/locationFlow';
 
@@ -120,6 +121,33 @@ for (const row of entryExits) {
   if (exit !== row.returnTo) {
     throw new Error(`${row.entry}: expected exit ${row.returnTo}, got ${String(exit)}`);
   }
+}
+
+// Address-book "Add" must preserve checkout/payment returnTo in select mode
+const preserveCheckout = resolveAddressBookAddReturnTo({
+  selectMode: true,
+  existingReturnTo: '/checkout',
+});
+if (preserveCheckout !== '/checkout') {
+  throw new Error(`select-mode Add from checkout must keep /checkout, got ${String(preserveCheckout)}`);
+}
+const preservePayment = resolveAddressBookAddReturnTo({
+  selectMode: true,
+  existingReturnTo: '/payment',
+});
+if (preservePayment !== '/payment') {
+  throw new Error(`select-mode Add from payment must keep /payment, got ${String(preservePayment)}`);
+}
+const defaultCart = resolveAddressBookAddReturnTo({ selectMode: true, existingReturnTo: null });
+if (defaultCart !== '/cart') {
+  throw new Error(`select-mode Add with no returnTo must fall back to /cart, got ${String(defaultCart)}`);
+}
+const manageAddresses = resolveAddressBookAddReturnTo({
+  selectMode: false,
+  existingReturnTo: '/checkout',
+});
+if (manageAddresses !== '/addresses') {
+  throw new Error(`non-select Add must return to /addresses, got ${String(manageAddresses)}`);
 }
 
 console.log('location navigation rules passed');
