@@ -1,0 +1,882 @@
+{
+  "summary": {
+    "mode": "dry-run",
+    "databaseWrites": 0,
+    "company": "8787888888",
+    "liveProducts": 9,
+    "liveFields": 4,
+    "liveCategories": 7,
+    "proposedFields": 10,
+    "proposedCategories": 46,
+    "proposedBanners": 5,
+    "wouldInsertFields": 6,
+    "wouldLinkFields": 4,
+    "wouldInsertCategories": 38,
+    "wouldLinkCategories": 8,
+    "missingAssets": 0,
+    "assetOk": 61,
+    "liveUnmapped": 0,
+    "blockers": [
+      "No ERP catalog write/upload APIs (GET /catalog/categories, /catalog/home, /fields → 404)",
+      "Separate CMS service or ERP content APIs required before any database import",
+      "Managed image storage not available — local assets only in this dry-run"
+    ],
+    "generatedAt": "2026-11-09T11:17:58.920Z"
+  },
+  "rows": [
+    {
+      "kind": "field",
+      "id": "pres-field-groceries-food",
+      "name": "Groceries & Food",
+      "action": "would-link-existing",
+      "detail": "Match live Field \"GROCERIES & FOOD\" via alias; upsert image/sort only (no product changes)"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-field-groceries-food",
+      "name": "assets/images/home/produce.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "field",
+      "id": "pres-field-fruits-vegetables",
+      "name": "Fruits & Vegetables",
+      "action": "would-insert",
+      "detail": "No live Field alias match — insert into CMS / catalog master after approval"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-field-fruits-vegetables",
+      "name": "assets/images/home/fresh-fruits.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "field",
+      "id": "pres-field-dairy-breakfast",
+      "name": "Dairy & Breakfast",
+      "action": "would-insert",
+      "detail": "No live Field alias match — insert into CMS / catalog master after approval"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-field-dairy-breakfast",
+      "name": "assets/images/home/dairy-eggs.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "field",
+      "id": "pres-field-snacks-beverages",
+      "name": "Snacks & Beverages",
+      "action": "would-insert",
+      "detail": "No live Field alias match — insert into CMS / catalog master after approval"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-field-snacks-beverages",
+      "name": "assets/images/home/snacks-drinks.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "field",
+      "id": "pres-field-household-essentials",
+      "name": "Household Essentials",
+      "action": "would-link-existing",
+      "detail": "Match live Field \"HOUSEHOLD ESSENTIALS\" via alias; upsert image/sort only (no product changes)"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-field-household-essentials",
+      "name": "assets/images/home/household.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "field",
+      "id": "pres-field-beauty-personal-care",
+      "name": "Beauty & Personal Care",
+      "action": "would-link-existing",
+      "detail": "Match live Field \"BEAUTY & PERSONAL CARE\" via alias; upsert image/sort only (no product changes)"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-field-beauty-personal-care",
+      "name": "assets/images/home/personal.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "field",
+      "id": "pres-field-baby-care",
+      "name": "Baby Care",
+      "action": "would-insert",
+      "detail": "No live Field alias match — insert into CMS / catalog master after approval"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-field-baby-care",
+      "name": "assets/images/home/baby-care.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "field",
+      "id": "pres-field-health-wellness",
+      "name": "Health & Wellness",
+      "action": "would-insert",
+      "detail": "No live Field alias match — insert into CMS / catalog master after approval"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-field-health-wellness",
+      "name": "assets/images/home/personal.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "field",
+      "id": "pres-field-home-kitchen",
+      "name": "Home & Kitchen",
+      "action": "would-insert",
+      "detail": "No live Field alias match — insert into CMS / catalog master after approval"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-field-home-kitchen",
+      "name": "assets/images/home/household.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "field",
+      "id": "pres-field-chocolates-sweets",
+      "name": "Chocolates & Sweets",
+      "action": "would-link-existing",
+      "detail": "Match live Field \"CHOCOLATE\" via alias; upsert image/sort only (no product changes)"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-field-chocolates-sweets",
+      "name": "assets/images/home/snacks.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-rice-grains",
+      "name": "Rice & Grains",
+      "action": "would-link-existing",
+      "detail": "Match live Subcategory \"ATTA, RICE & GRAINS\" via alias; upsert image/sort only"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-rice-grains",
+      "name": "assets/images/home/grains.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-atta-flour",
+      "name": "Atta & Flour",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-atta-flour",
+      "name": "assets/images/home/grains.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-dals-pulses",
+      "name": "Dals & Pulses",
+      "action": "would-link-existing",
+      "detail": "Match live Subcategory \"DALS & PULSES\" via alias; upsert image/sort only"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-dals-pulses",
+      "name": "assets/images/home/masala.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-cooking-oils",
+      "name": "Cooking Oils",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-cooking-oils",
+      "name": "assets/images/home/cooking-oil.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-spices-masala",
+      "name": "Spices & Masala",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-spices-masala",
+      "name": "assets/images/home/masala.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-sugar-salt",
+      "name": "Sugar & Salt",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-sugar-salt",
+      "name": "assets/images/home/masala.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-dry-fruits",
+      "name": "Dry Fruits",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-dry-fruits",
+      "name": "assets/images/home/grains.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-packaged-foods",
+      "name": "Packaged Foods",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-packaged-foods",
+      "name": "assets/images/home/instant.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-fresh-vegetables",
+      "name": "Fresh Vegetables",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-fresh-vegetables",
+      "name": "assets/images/home/produce.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-fresh-fruits",
+      "name": "Fresh Fruits",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-fresh-fruits",
+      "name": "assets/images/home/fresh-fruits.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-leafy-greens",
+      "name": "Leafy Greens",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-leafy-greens",
+      "name": "assets/images/home/coriander.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-seasonal-produce",
+      "name": "Seasonal Produce",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-seasonal-produce",
+      "name": "assets/images/home/peppers.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-milk",
+      "name": "Milk",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-milk",
+      "name": "assets/images/home/product-milk.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-curd-yogurt",
+      "name": "Curd & Yogurt",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-curd-yogurt",
+      "name": "assets/images/home/curd.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-paneer-cheese",
+      "name": "Paneer & Cheese",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-paneer-cheese",
+      "name": "assets/images/home/dairy.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-butter-ghee",
+      "name": "Butter & Ghee",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-butter-ghee",
+      "name": "assets/images/home/dairy-eggs.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-bread-bakery",
+      "name": "Bread & Bakery",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-bread-bakery",
+      "name": "assets/images/home/bakery.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-cereals-breakfast",
+      "name": "Cereals & Breakfast",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-cereals-breakfast",
+      "name": "assets/images/home/cereal.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-chips-biscuits",
+      "name": "Chips & Biscuits",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-chips-biscuits",
+      "name": "assets/images/home/snacks.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-chocolates-sweets-snack",
+      "name": "Chocolates & Sweets",
+      "action": "would-link-existing",
+      "detail": "Match live Subcategory \"CHOCOLATE\" via alias; upsert image/sort only"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-chocolates-sweets-snack",
+      "name": "assets/images/home/snacks.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-indian-snacks",
+      "name": "Indian Snacks",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-indian-snacks",
+      "name": "assets/images/home/snacks-drinks.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-tea-coffee",
+      "name": "Tea & Coffee",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-tea-coffee",
+      "name": "assets/images/home/tea.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-juices-cold-drinks",
+      "name": "Juices & Cold Drinks",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-juices-cold-drinks",
+      "name": "assets/images/home/drinks.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-noodles-pasta",
+      "name": "Noodles & Pasta",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-noodles-pasta",
+      "name": "assets/images/home/instant.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-sauces-spreads",
+      "name": "Sauces & Spreads",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-sauces-spreads",
+      "name": "assets/images/home/masala.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-laundry-detergents",
+      "name": "Laundry Detergents",
+      "action": "would-link-existing",
+      "detail": "Match live Subcategory \"LAUNDRY DETERGENTS\" via alias; upsert image/sort only"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-laundry-detergents",
+      "name": "assets/images/home/cleaning.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-household-cleaners",
+      "name": "Household Cleaners",
+      "action": "would-link-existing",
+      "detail": "Match live Subcategory \"HOUSEHOLD & TOILET CLEANERS\" via alias; upsert image/sort only"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-household-cleaners",
+      "name": "assets/images/home/cleaning.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-toilet-cleaners",
+      "name": "Toilet Cleaners",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-toilet-cleaners",
+      "name": "assets/images/home/cleaning.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-dishwashing",
+      "name": "Dishwashing",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-dishwashing",
+      "name": "assets/images/home/cleaning.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-home-care",
+      "name": "Home Care",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-home-care",
+      "name": "assets/images/home/household.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-bath-body",
+      "name": "Bath & Body",
+      "action": "would-link-existing",
+      "detail": "Match live Subcategory \"BATH & BODY\" via alias; upsert image/sort only"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-bath-body",
+      "name": "assets/images/home/personal.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-hair-care",
+      "name": "Hair Care",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-hair-care",
+      "name": "assets/images/home/personal.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-skin-care",
+      "name": "Skin Care",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-skin-care",
+      "name": "assets/images/home/personal.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-oral-care",
+      "name": "Oral Care",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-oral-care",
+      "name": "assets/images/home/personal.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-personal-hygiene",
+      "name": "Personal Hygiene",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-personal-hygiene",
+      "name": "assets/images/home/personal.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-baby-food",
+      "name": "Baby Food",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-baby-food",
+      "name": "assets/images/home/baby.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-diapers",
+      "name": "Diapers",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-diapers",
+      "name": "assets/images/home/baby-care.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-baby-skincare",
+      "name": "Baby Skincare",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-baby-skincare",
+      "name": "assets/images/home/baby-care.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-personal-wellness",
+      "name": "Personal Wellness",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-personal-wellness",
+      "name": "assets/images/home/personal.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-hygiene-essentials",
+      "name": "Hygiene Essentials",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-hygiene-essentials",
+      "name": "assets/images/home/cleaning.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-kitchen-essentials",
+      "name": "Kitchen Essentials",
+      "action": "would-link-existing",
+      "detail": "Match live Subcategory \"HOME & KITCHEN\" via alias; upsert image/sort only"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-kitchen-essentials",
+      "name": "assets/images/home/household.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-cleaning-accessories",
+      "name": "Cleaning Accessories",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-cleaning-accessories",
+      "name": "assets/images/home/cleaning.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-home-utility",
+      "name": "Home Utility",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-home-utility",
+      "name": "assets/images/home/household.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-chocolates",
+      "name": "Chocolates",
+      "action": "would-link-existing",
+      "detail": "Match live Subcategory \"CHOCOLATE\" via alias; upsert image/sort only"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-chocolates",
+      "name": "assets/images/home/snacks.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-traditional-sweets",
+      "name": "Traditional Sweets",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-traditional-sweets",
+      "name": "assets/images/home/snacks.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "category",
+      "id": "pres-cat-gift-packs",
+      "name": "Gift Packs",
+      "action": "would-insert",
+      "detail": "Presentation-only until ERP products publish this Subcategory"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-cat-gift-packs",
+      "name": "assets/images/home/snacks-drinks.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "banner",
+      "id": "pres-banner-fresh-groceries",
+      "name": "Fresh Groceries",
+      "action": "would-insert",
+      "detail": "CMS HomeBanner target=field:pres-field-groceries-food"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-banner-fresh-groceries",
+      "name": "assets/images/home/banner-produce.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "banner",
+      "id": "pres-banner-daily-essentials",
+      "name": "Daily Essentials",
+      "action": "would-insert",
+      "detail": "CMS HomeBanner target=field:pres-field-household-essentials"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-banner-daily-essentials",
+      "name": "assets/images/home/household.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "banner",
+      "id": "pres-banner-household-care",
+      "name": "Household Care",
+      "action": "would-insert",
+      "detail": "CMS HomeBanner target=field:pres-field-household-essentials"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-banner-household-care",
+      "name": "assets/images/home/cleaning.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "banner",
+      "id": "pres-banner-snacks-beverages",
+      "name": "Snacks & Beverages",
+      "action": "would-insert",
+      "detail": "CMS HomeBanner target=field:pres-field-snacks-beverages"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-banner-snacks-beverages",
+      "name": "assets/images/home/snacks-drinks.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    },
+    {
+      "kind": "banner",
+      "id": "pres-banner-beauty-personal-care",
+      "name": "Beauty & Personal Care",
+      "action": "would-insert",
+      "detail": "CMS HomeBanner target=field:pres-field-beauty-personal-care"
+    },
+    {
+      "kind": "asset",
+      "id": "pres-banner-beauty-personal-care",
+      "name": "assets/images/home/personal.jpg",
+      "action": "asset-ok",
+      "detail": "Local asset present; remote URL pending managed storage upload"
+    }
+  ]
+}

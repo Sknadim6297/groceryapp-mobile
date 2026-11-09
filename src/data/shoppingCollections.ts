@@ -1,6 +1,7 @@
 import { listCatalogProducts } from '@/data/listCatalogProducts';
 import { productDetailCopy } from '@/data/productDetails';
-import { listShopShelves } from '@/data/shopCatalog';
+import { listShopShelves, type ShopShelf } from '@/data/shopCatalog';
+import type { DemoProduct } from '@/types/catalog';
 import type {
   CollectionProduct,
   ShoppingCollectionChip,
@@ -102,8 +103,8 @@ export function listVisibleHomeShoppingShortcuts(): ShoppingCollectionDefinition
   });
 }
 
-function shelfIdForProduct(productId: string): string | undefined {
-  for (const shelf of listShopShelves()) {
+function shelfIdForProduct(productId: string, shelves: readonly ShopShelf[]): string | undefined {
+  for (const shelf of shelves) {
     if (shelf.products.some((product) => product.id === productId)) {
       return shelf.id;
     }
@@ -112,29 +113,34 @@ function shelfIdForProduct(productId: string): string | undefined {
 }
 
 /**
- * Resolves real catalogue products for a collection.
+ * Resolves catalogue products for a collection.
+ * Pass live `products`/`shelves` from CatalogContext when the API catalogue is connected.
  * Electronics / inactive Diwali may correctly return an empty list.
  */
-export function listCollectionProducts(collectionId: ShoppingCollectionId): CollectionProduct[] {
+export function listCollectionProducts(
+  collectionId: ShoppingCollectionId,
+  catalogue: readonly DemoProduct[] = listCatalogProducts(),
+  shelves: readonly ShopShelf[] = listShopShelves(),
+): CollectionProduct[] {
   const definition = DEFINITIONS[collectionId];
   const diwaliSeasonActive = definition.seasonActive !== false;
 
-  const all = listCatalogProducts();
   const seen = new Set<string>();
   const out: CollectionProduct[] = [];
 
-  for (const product of all) {
+  for (const product of catalogue) {
     if (seen.has(product.id)) {
       continue;
     }
-    const shelfId = shelfIdForProduct(product.id);
-    const brand = productDetailCopy(product).brand;
+    const shelfId = shelfIdForProduct(product.id, shelves);
+    const brand = product.brand?.trim() || productDetailCopy(product).brand;
     const include = productBelongsToCollection({
       collectionId,
       shelfId,
       productName: product.name,
       brand,
       diwaliSeasonActive,
+      category: product.category,
     });
     if (!include) {
       continue;

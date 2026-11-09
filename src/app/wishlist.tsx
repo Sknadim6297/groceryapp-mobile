@@ -14,8 +14,8 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { colors, fonts, homeLayout } from '@/constants/theme';
 import { contentColumnWidth } from '@/utils/contentWidth';
 import { useAuthSession } from '@/context/AuthSessionContext';
+import { useCatalog } from '@/context/CatalogContext';
 import { useWishlist } from '@/context/WishlistContext';
-import { findDemoProduct } from '@/data/findDemoProduct';
 import { resolveWishlistEntries, type WishlistEntry } from '@/data/resolveWishlistProducts';
 import { canUseDevelopmentHome } from '@/services/devOtp';
 import { profileRoutes } from '@/navigation/profileRoutes';
@@ -28,11 +28,12 @@ export default function WishlistScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { hydrated: authHydrated, session, devSession } = useAuthSession();
+  const { findProduct } = useCatalog();
   const { hydrated, ids, count, remove } = useWishlist();
   const columns = productColumns(width, 2, PAGE_PAD, CARD_GAP);
   const cardWidth = productCardWidth(width, columns, PAGE_PAD, CARD_GAP);
   const contentWidth = contentColumnWidth(width);
-  const entries = useMemo(() => resolveWishlistEntries(ids, findDemoProduct), [ids]);
+  const entries = useMemo(() => resolveWishlistEntries(ids, findProduct), [findProduct, ids]);
 
   if (!authHydrated || !hydrated) {
     return null;

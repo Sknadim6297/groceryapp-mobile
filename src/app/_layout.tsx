@@ -11,10 +11,13 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
+import { BrandLogo } from '@/components/ui/BrandLogo';
 import { colors, fonts } from '@/constants/theme';
 import { ToastProvider } from '@/components/ui/AppToast';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { AuthFlowProvider } from '@/context/AuthFlowContext';
 import { AuthSessionProvider } from '@/context/AuthSessionContext';
+import { CatalogProvider } from '@/context/CatalogContext';
 import { CustomerAccountProvider } from '@/context/CustomerAccountContext';
 import { CustomerProfileProvider } from '@/context/CustomerProfileContext';
 import { RememberedCustomerProvider } from '@/context/RememberedCustomerContext';
@@ -68,7 +71,12 @@ export default function RootLayout() {
   }, [loaded, error]);
 
   if (!loaded && !error) {
-    return null;
+    return (
+      <View style={bootStyles.screen} accessibilityLabel="Loading application">
+        <BrandLogo height={56} />
+        <ActivityIndicator color={colors.primaryInk} style={bootStyles.spinner} />
+      </View>
+    );
   }
 
   return (
@@ -83,6 +91,7 @@ export default function RootLayout() {
         <SavedAddressesProvider>
         <ProfileDraftProvider>
         <MockCartProvider>
+        <CatalogProvider>
         <WishlistProvider>
         <ProductReviewsProvider>
         <PreviewSessionProvider>
@@ -138,6 +147,7 @@ export default function RootLayout() {
         </PreviewSessionProvider>
         </ProductReviewsProvider>
         </WishlistProvider>
+        </CatalogProvider>
         </MockCartProvider>
         </ProfileDraftProvider>
         </SavedAddressesProvider>
@@ -151,3 +161,16 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 }
+
+const bootStyles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.cream,
+    gap: 16,
+  },
+  spinner: {
+    marginTop: 8,
+  },
+});

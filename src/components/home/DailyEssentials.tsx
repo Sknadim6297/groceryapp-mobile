@@ -7,42 +7,64 @@ import { AppIcon } from '@/components/ui/AppIcon';
 import { colors, fonts } from '@/constants/theme';
 import { dailyEssentials } from '@/data/homeFeed';
 import { previewDailyEssentialOverride } from '@/data/previewImageCatalog';
+import type { DailyEssentialTile } from '@/utils/liveCatalogMeta';
 
-export function DailyEssentials() {
+type DailyEssentialsProps = {
+  /** When set (live catalogue), only these tiles are shown — derived from product Category. */
+  items?: DailyEssentialTile[];
+};
+
+export function DailyEssentials({ items }: DailyEssentialsProps) {
   const { width } = useWindowDimensions();
   const columns = width < 390 ? 2 : 3;
+  const live = items != null;
+  const tiles = live
+    ? items
+    : dailyEssentials.map((item) => {
+        const override = previewDailyEssentialOverride(item.id);
+        return {
+          id: item.id,
+          name: override?.name ?? item.name,
+          image: override ? { uri: override.uri } : item.image,
+          categoryId: undefined as string | undefined,
+        };
+      });
+
+  if (tiles.length === 0) {
+    return null;
+  }
 
   return (
     <View style={styles.section}>
-      <SectionHeader title="Daily essentials" subtitle="Everything you need, every day" />
+      <SectionHeader
+        title="Daily essentials"
+        subtitle={live ? 'From this store’s catalogue' : 'Everything you need, every day'}
+      />
       <View style={styles.grid}>
-        {dailyEssentials.map((item) => {
-          const override = previewDailyEssentialOverride(item.id);
-          const name = override?.name ?? item.name;
-          return (
+        {tiles.map((item) => (
           <View key={item.id} style={[styles.cell, { width: `${100 / columns}%` }]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={name}
-            onPress={() => router.push('/shop')}
-            style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
-            <CatalogImage
-              source={override ? { uri: override.uri } : item.image}
-              style={styles.image}
-              label={name}
-            />
-            <View style={styles.footer}>
-              <Text numberOfLines={2} style={styles.label}>
-                {name}
-              </Text>
-              <View style={styles.arrow}>
-                <AppIcon name="arrow" color={colors.text} size={16} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={item.name}
+              onPress={() =>
+                router.push({
+                  pathname: '/shop',
+                  params: item.categoryId ? { category: item.categoryId } : undefined,
+                })
+              }
+              style={({ pressed }) => [styles.card, pressed && styles.pressed]}>
+              <CatalogImage source={item.image} style={styles.image} label={item.name} />
+              <View style={styles.footer}>
+                <Text numberOfLines={2} style={styles.label}>
+                  {item.name}
+                </Text>
+                <View style={styles.arrow}>
+                  <AppIcon name="arrow" color={colors.text} size={16} />
+                </View>
               </View>
-            </View>
-          </Pressable>
+            </Pressable>
           </View>
-          );
-        })}
+        ))}
       </View>
     </View>
   );

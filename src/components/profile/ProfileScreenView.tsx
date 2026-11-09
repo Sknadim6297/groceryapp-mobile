@@ -25,8 +25,8 @@ import { useSavedAddresses } from "@/context/SavedAddressesContext";
 import { readPastOrders } from "@/data/pastOrders";
 import { accountRoutes } from "@/navigation/accountRoutes";
 import { profileRoutes } from "@/navigation/profileRoutes";
-import { canUseDevelopmentHome, clearDevTestSession } from "@/services/devOtp";
-import { displayCustomer } from "@/services/rememberedCustomer";
+import { canUseDevelopmentHome, clearDevTestSession, isDevOtpEnabled } from "@/services/devOtp";
+import { activeLoginForDisplay, displayCustomer } from "@/services/rememberedCustomer";
 import type { CustomerOrder, OrderStatus } from "@/types/order";
 import { clearSignedInSession } from "@/utils/customerSession";
 import {
@@ -93,18 +93,13 @@ export function ProfileScreenView() {
     return <Redirect href={profileRoutes.login} />;
   }
 
-  const identity = displayCustomer(session, account, remembered);
-  const mobile = identity
-    ? registeredDisplayPhone(identity)
-    : registeredDisplayPhone({
-        customerId: "session",
-        name: "",
-        mobile: session?.mobile ?? devSession?.mobile ?? "",
-        companyMobile: null,
-      });
-  const mark = initials(
-    identity ? registeredDisplayName(identity) : "Your account",
+  const identity = displayCustomer(
+    activeLoginForDisplay(session, devSession, isDevOtpEnabled()),
+    account,
+    remembered,
   );
+  const mobile = registeredDisplayPhone(identity);
+  const mark = initials(registeredDisplayName(identity));
 
   function goBack() {
     if (router.canGoBack()) {
@@ -153,7 +148,7 @@ export function ProfileScreenView() {
         </View>
         <View style={styles.identity}>
           <Text numberOfLines={1} style={styles.name}>
-            {identity ? registeredDisplayName(identity) : "Your account"}
+            {registeredDisplayName(identity)}
           </Text>
           <Text numberOfLines={1} style={styles.phone}>
             {mobile}

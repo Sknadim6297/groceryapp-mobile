@@ -15,11 +15,14 @@ import type { SearchSuggestion } from '@/data/searchSuggestions';
 import { SideMenu } from '@/components/home/SideMenu';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
+import { CatalogStatusPanel } from '@/components/ui/CatalogStatusPanel';
+import { ShopCatalogSkeleton } from '@/components/ui/LoadingSkeleton';
 import { colors, fonts, homeLayout } from '@/constants/theme';
 import { contentColumnWidth } from '@/utils/contentWidth';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
+import { useCatalog } from '@/context/CatalogContext';
 import { buildReviewSummary, previewReviewsForProduct } from '@/data/productReviews';
-import { listShopShelves, type ShopShelf } from '@/data/shopCatalog';
+import type { ShopShelf } from '@/data/shopCatalog';
 import { resolveParentIdForCategory } from '@/data/subcategoryCatalog';
 import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
 import { useProductListingControls } from '@/hooks/useProductListingControls';
@@ -29,12 +32,12 @@ function firstParam(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function shelfForQuery(value: string): string | undefined {
+function shelfForQuery(shelves: readonly ShopShelf[], value: string): string | undefined {
   const needle = value.trim().toLowerCase();
   if (needle.length === 0) {
     return undefined;
   }
-  return listShopShelves().find((shelf) => shelf.products.some((product) => matchesSearch(product, needle)))?.id;
+  return shelves.find((shelf) => shelf.products.some((product) => matchesSearch(product, needle)))?.id;
 }
 
 function itemLabel(count: number): string {
@@ -60,8 +63,13 @@ function buildListingPool(shelves: readonly ShopShelf[]): ListedProduct[] {
 }
 
 export default function ShopScreen() {
-  const params = useLocalSearchParams<{ category?: string | string[]; q?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    category?: string | string[];
+    q?: string | string[];
+    brand?: string | string[];
+  }>();
   const requested = firstParam(params.category);
+  const brandFilter = (firstParam(params.brand) ?? '').trim().toLowerCase();
   const routeQuery = firstParam(params.q) ?? '';
   const insets = useSafeAreaInsets();
   const keyboardOverlap = useKeyboardOverlap();
@@ -75,13 +83,28 @@ export default function ShopScreen() {
   const pairedWidth = Math.floor((gridInner - cardGap) / 2);
   const columns = pairedWidth >= 96 ? 2 : 1;
   const cardWidth = columns === 2 ? pairedWidth : gridInner;
-  const shelves = useMemo(() => listShopShelves(requested), [requested]);
+  const { listShelves, initialLoading, liveEnabled, state, products: catalogProducts, message, refresh, refreshing } =
+    useCatalog();
+  const shelves = useMemo(() => listShelves(requested), [listShelves, requested]);
   const [overrideId, setOverrideId] = useState<string | null>(null);
   const [seenRequest, setSeenRequest] = useState(requested);
   const [draftQuery, setDraftQuery] = useState<string | null>(null);
   const [seenQuery, setSeenQuery] = useState(routeQuery);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const listRef = useRef<{ scrollToOffset: (options: { offset: number; animated?: boolean }) => void } | null>(null);
+
+  async function handleRetry() {
+    if (retrying) {
+      return;
+    }
+    setRetrying(true);
+    try {
+      await refresh();
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   if (requested !== seenRequest) {
     setSeenRequest(requested);
@@ -94,25 +117,69 @@ export default function ShopScreen() {
   }
 
   const query = draftQuery ?? routeQuery;
-  const selectedId = overrideId ?? requested ?? shelfForQuery(routeQuery);
+  const selectedId = overrideId ?? requested ?? shelfForQuery(shelves, routeQuery);
   const active =
     shelves.find((shelf) => shelf.id === selectedId) ??
     shelves.find((shelf) => shelf.products.length > 0) ??
     shelves[0];
   const needle = query.trim().toLowerCase();
-  const pool = useMemo(() => buildListingPool(shelves), [shelves]);
+  const pool = useMemo(() => {
+    const all = buildListingPool(shelves);
+    if (!brandFilter) {
+      return all;
+    }
+    return all.filter((product) => (product.brand ?? product.unit ?? '').trim().toLowerCase() === brandFilter);
+  }, [brandFilter, shelves]);
   const categoryOptions = useMemo(() => buildCategoryOptions(shelves), [shelves]);
   const listing = useProductListingControls({
     pool,
     query,
-    activeShelfId: active?.id,
-    scopeKey: active?.id ?? 'shop',
+    activeShelfId: brandFilter ? undefined : active?.id,
+    scopeKey: brandFilter ? `brand:${brandFilter}` : (active?.id ?? 'shop'),
   });
   const products = listing.products;
 
   useEffect(() => {
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, [active?.id, needle, listing.filters, listing.sort]);
+
+  if (liveEnabled && initialLoading) {
+    return (
+      <View style={styles.screen}>
+        <AppScreenHeader title="Shop" showBack={false} />
+        <ShopCatalogSkeleton cardWidth={cardWidth} />
+      </View>
+    );
+  }
+
+  if (liveEnabled && state.status === 'error' && catalogProducts.length === 0) {
+    return (
+      <View style={styles.screen}>
+        <AppScreenHeader title="Shop" showBack={false} />
+        <CatalogStatusPanel
+          kind="error"
+          message={message}
+          onRetry={() => void handleRetry()}
+          retrying={retrying || refreshing}
+        />
+      </View>
+    );
+  }
+
+  if (liveEnabled && shelves.every((shelf) => shelf.products.length === 0)) {
+    return (
+      <View style={styles.screen}>
+        <AppScreenHeader title="Shop" showBack={false} />
+        <CatalogStatusPanel
+          kind="empty"
+          title="No products yet"
+          message="No products are available for this store yet."
+          onRetry={() => void handleRetry()}
+          retrying={retrying || refreshing}
+        />
+      </View>
+    );
+  }
 
   function pickSuggestion(item: SearchSuggestion) {
     if (item.kind === 'product' && item.productId) {
@@ -461,5 +528,31 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     color: colors.textSecondary,
     textAlign: 'center',
+  },
+  statusCopy: {
+    marginHorizontal: 16,
+    marginTop: 20,
+    fontFamily: fonts.medium,
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.text,
+  },
+  retry: {
+    alignSelf: 'flex-start',
+    marginHorizontal: 16,
+    marginTop: 12,
+    minHeight: 40,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: colors.cream,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.primaryDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.primaryInk,
   },
 });

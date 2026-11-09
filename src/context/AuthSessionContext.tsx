@@ -6,6 +6,7 @@ import { clearAuthSession as clearStoredCredential } from '@/services/authSessio
 import {
   activateDeviceDevSessionStore,
   clearDevTestSession,
+  isDevOtpEnabled,
   loadDevTestSession,
   readDevTestSession,
   saveDevTestSession,
@@ -58,13 +59,21 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
         await activateDeviceMobileVerificationStore();
       }
       const restored = await loadTemporaryUiLogin();
-      const development = await loadDevTestSession();
-      const verification = await loadMobileOtpVerification();
+      // Dev OTP off → wipe any leftover development-test session (do not treat as live login).
+      const development = isDevOtpEnabled() ? await loadDevTestSession() : null;
+      if (!isDevOtpEnabled()) {
+        await clearDevTestSession();
+      }
+      let verification = await loadMobileOtpVerification();
+      if (verification?.source === 'development-test' && !isDevOtpEnabled()) {
+        await clearMobileOtpVerification();
+        verification = null;
+      }
       if (!cancelled) {
         const login = canEnterTemporaryUi(restored) ? restored : null;
         setSession(login);
         setDevSession(development);
-        if (development) {
+        if (development && isDevOtpEnabled()) {
           commitAuthFlow({
             nationalNumber: development.mobile,
             standing: development.destination === 'home' ? 'registered' : 'unregistered',
@@ -88,7 +97,7 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
             otpDispatched: true,
             mobileVerification: null,
           });
-        } else if (verification) {
+        } else if (verification && verification.source !== 'development-test') {
           commitAuthFlow({
             nationalNumber: verification.mobile,
             standing: verification.standing,

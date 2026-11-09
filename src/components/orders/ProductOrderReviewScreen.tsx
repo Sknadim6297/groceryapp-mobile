@@ -25,10 +25,10 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts, homeLayout, radii, shadow, space } from '@/constants/theme';
 import { useAuthSession } from '@/context/AuthSessionContext';
+import { useCatalog } from '@/context/CatalogContext';
 import { useCustomerProfile } from '@/context/CustomerProfileContext';
 import { usePreviewSession } from '@/context/PreviewSessionContext';
 import { useProductReviews } from '@/context/ProductReviewsContext';
-import { findDemoProduct } from '@/data/findDemoProduct';
 import { findPastOrder } from '@/data/pastOrders';
 import { productDetailCopy } from '@/data/productDetails';
 import {
@@ -36,6 +36,7 @@ import {
   hasOrderProductsReviewed,
   markOrderProductsReviewed,
 } from '@/services/orderProductReviewStore';
+import type { DemoProduct } from '@/types/catalog';
 import { formatRupee } from '@/utils/cartBill';
 
 const MAX_PHOTOS = 4;
@@ -49,6 +50,7 @@ export function ProductOrderReviewScreen() {
   const { width } = useWindowDimensions();
   const contentWidth = Math.min(width, homeLayout.maxWidth);
   const { showToast } = useToast();
+  const { findProduct } = useCatalog();
   const { findOrder } = usePreviewSession();
   const { submitReview } = useProductReviews();
   const { profile } = useCustomerProfile();
@@ -66,14 +68,14 @@ export function ProductOrderReviewScreen() {
     }
     return order.items
       .map((item) => {
-        const product = findDemoProduct(item.id);
+        const product = findProduct(item.id);
         return { item, product };
       })
       .filter((row) => row.product != null) as {
       item: (typeof order.items)[number];
-      product: NonNullable<ReturnType<typeof findDemoProduct>>;
+      product: DemoProduct;
     }[];
-  }, [order]);
+  }, [findProduct, order]);
 
   const [rating, setRating] = useState(0);
   const [body, setBody] = useState('');

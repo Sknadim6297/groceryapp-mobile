@@ -232,6 +232,9 @@ export default function OtpScreen() {
           }
           leaving.current = true;
           stopAndroidSmsOtpListen();
+          setVerifyMessage(null);
+          setResendMessage(null);
+          showToast('success', 'Logged in successfully.');
           const saved = await keepDevelopmentLogin();
           if (isStale()) {
             return;
@@ -269,8 +272,10 @@ export default function OtpScreen() {
 
         const screen = screenAfterCustomerCall(result, 'verify');
         if (screen === 'home' && result.temporaryLogin) {
-          showToast(result.tone, result.message);
-          setVerifyMessage(result.message);
+          // Toast only — do not paint the red under-field error line on success.
+          setVerifyMessage(null);
+          setResendMessage(null);
+          showToast('success', result.message || 'Logged in successfully.');
           const saved = await signIn(result.temporaryLogin);
           if (isStale()) {
             return;
@@ -282,14 +287,12 @@ export default function OtpScreen() {
           setMobileVerification(null);
           void clearMobileOtpVerification();
           setStanding('registered');
-          if (result.temporaryLogin.customerId && result.temporaryLogin.name) {
-            setAccount({
-              customerId: result.temporaryLogin.customerId,
-              name: result.temporaryLogin.name,
-              mobile: result.temporaryLogin.mobile,
-              companyMobile: null,
-            });
-          }
+          setAccount({
+            customerId: result.temporaryLogin.customerId,
+            name: result.temporaryLogin.name,
+            mobile: result.temporaryLogin.mobile,
+            companyMobile: null,
+          });
           leaving.current = true;
           stopAndroidSmsOtpListen();
           holdLoading = true;
@@ -305,8 +308,9 @@ export default function OtpScreen() {
         }
 
         if (screen === 'complete-profile') {
-          showToast(result.tone, result.message);
-          setVerifyMessage(result.message);
+          // Not registered / registration pending → open form silently (toast only for failures).
+          setVerifyMessage(null);
+          setResendMessage(null);
           leaving.current = true;
           stopAndroidSmsOtpListen();
           setStanding('unregistered');
@@ -398,7 +402,7 @@ export default function OtpScreen() {
         setDevOtp(next);
         setCode('');
         setVerifyMessage(null);
-        setResendMessage('A new development OTP is ready. It was not sent by SMS.');
+        setResendMessage(null);
         showToast('success', 'A new development OTP is ready. It was not sent by SMS.');
         return;
       }
@@ -406,21 +410,28 @@ export default function OtpScreen() {
       restartSmsOtpListener();
       const result = await resendCustomerOtp(nationalNumber);
       setCode('');
-      setVerifyMessage(null);
-      setResendMessage(result.message);
-      showToast(result.tone, result.message);
+      setResendMessage(null);
       const screen = screenAfterCustomerCall(result, 'send');
-      if (screen === 'otp') {
-        setOtpDispatched(true);
-      }
       if (screen === 'complete-profile') {
+        // Not registered → registration form without a failure toast.
+        setVerifyMessage(null);
         leaving.current = true;
         setStanding('unregistered');
         setOtpDispatched(false);
         setTimeout(() => {
           router.replace('/complete-profile');
         }, 60);
+        return;
       }
+      if (screen === 'otp' || result.confirmed) {
+        setVerifyMessage(null);
+        showToast('success', result.message || 'OTP sent successfully.');
+        setOtpDispatched(true);
+        return;
+      }
+      const message = result.message || 'Could not resend the code.';
+      setVerifyMessage(message);
+      showToast(result.tone === 'success' ? 'error' : result.tone, message);
     } finally {
       setBusy(false);
     }
@@ -513,9 +524,9 @@ export default function OtpScreen() {
                 <Text style={styles.verifyingLabel}>Verifying...</Text>
               </View>
             ) : null}
-            {verifyMessage || resendMessage ? (
+            {verifyMessage ? (
               <Text accessibilityRole="alert" accessibilityLiveRegion="polite" maxFontSizeMultiplier={1.15} numberOfLines={2} style={styles.message}>
-                {verifyMessage ?? resendMessage}
+                {verifyMessage}
               </Text>
             ) : null}
             <View style={styles.spacer} />

@@ -14,7 +14,13 @@ export const API_BASE_URL = LIVE_API_BASE_URL;
 
 export const CUSTOMER_API = {
   register: '/api/values/customer/register',
+  update: '/api/values/customer/update',
   sendOtp: '/api/values/customer/send-otp',
   resendOtp: '/api/values/customer/resend-otp',
   verifyOtp: '/api/values/customer/verify-otp',
+} as const;
+
+/** Published help page: GET api/values/products?company={company} (Required). */
+export const PRODUCTS_API = {
+  list: '/api/values/products',
 } as const;

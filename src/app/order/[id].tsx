@@ -18,7 +18,7 @@ import { useAuthSession } from '@/context/AuthSessionContext';
 import { usePreviewSession } from '@/context/PreviewSessionContext';
 import { canCancelOrderStatus } from '@/data/orderCancelReasons';
 import { canReturnOrderStatus } from '@/data/orderReturnReasons';
-import { findDemoProduct } from '@/data/findDemoProduct';
+import { useCatalog } from '@/context/CatalogContext';
 import { findPastOrder } from '@/data/pastOrders';
 import { profileRoutes } from '@/navigation/profileRoutes';
 import { canUseDevelopmentHome } from '@/services/devOtp';
@@ -41,6 +41,7 @@ export default function OrderDetailScreen() {
   const insets = useSafeAreaInsets();
   const { showToast } = useToast();
   const { hydrated, session, devSession } = useAuthSession();
+  const { findProduct } = useCatalog();
   const { findOrder, cancelOrder, requestReturn } = usePreviewSession();
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const orderId = firstParam(id)?.trim() ?? '';
@@ -144,7 +145,7 @@ export default function OrderDetailScreen() {
             <View style={styles.card}>
               {order.items.length === 0 ? <Text style={styles.body}>No items were included with this order.</Text> : null}
               {order.items.map((item, index) => {
-                const product = findDemoProduct(item.id);
+                const product = findProduct(item.id);
                 const lineTotal =
                   product && Number.isFinite(product.price) ? product.price * item.quantity : null;
                 return (

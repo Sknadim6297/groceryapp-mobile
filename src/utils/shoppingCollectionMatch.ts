@@ -8,19 +8,27 @@ export function isOrganicCatalogSignal(name: string, brand: string): boolean {
   return /\borganic\b/i.test(name) || /\borganic\b/i.test(brand);
 }
 
-export function isDiwaliCatalogCandidate(shelfId: string | undefined, productName: string): boolean {
+export function isDiwaliCatalogCandidate(
+  shelfId: string | undefined,
+  productName: string,
+  category?: string,
+): boolean {
   if (shelfId && DIWALI_SHELF_IDS.has(shelfId)) {
     return true;
   }
-  return /\b(cashews?|almonds?|makhana|sweets?|mithai|diyas?|namkeen)\b/i.test(productName);
+  const haystack = `${productName} ${category ?? ''}`;
+  return /\b(cashews?|almonds?|makhana|sweets?|mithai|diyas?|namkeen|dry\s*fruit)\b/i.test(haystack);
 }
 
 export function isElectronicsCatalogCandidate(shelfId: string | undefined): boolean {
   return Boolean(shelfId && ELECTRONICS_SHELF_IDS.has(shelfId));
 }
 
-export function isFreshCatalogCandidate(shelfId: string | undefined): boolean {
-  return Boolean(shelfId && FRESH_SHELF_IDS.has(shelfId));
+export function isFreshCatalogCandidate(shelfId: string | undefined, category?: string): boolean {
+  if (shelfId && FRESH_SHELF_IDS.has(shelfId)) {
+    return true;
+  }
+  return Boolean(category && /\b(fruit|veg|vegetable|dairy|egg|fresh)\b/i.test(category));
 }
 
 export function chipIdsForCollectionProduct(args: {
@@ -61,15 +69,16 @@ export function productBelongsToCollection(args: {
   productName: string;
   brand: string;
   diwaliSeasonActive: boolean;
+  category?: string;
 }): boolean {
-  const { collectionId, shelfId, productName, brand, diwaliSeasonActive } = args;
+  const { collectionId, shelfId, productName, brand, diwaliSeasonActive, category } = args;
   switch (collectionId) {
     case 'all':
       return true;
     case 'fresh':
-      return isFreshCatalogCandidate(shelfId);
+      return isFreshCatalogCandidate(shelfId, category);
     case 'diwali':
-      return diwaliSeasonActive && isDiwaliCatalogCandidate(shelfId, productName);
+      return diwaliSeasonActive && isDiwaliCatalogCandidate(shelfId, productName, category);
     case 'electronics':
       return isElectronicsCatalogCandidate(shelfId);
     case 'organic':

@@ -38,9 +38,14 @@ export default function InviteFriendsScreen() {
     );
   }
 
-  const identity = displayCustomer(session, account, remembered);
+  const identity = displayCustomer(
+    session ?? (devSession ? { mobile: devSession.mobile } : null),
+    account,
+    remembered,
+  );
   const seed =
     identity?.customerId?.trim() ||
+    identity?.mobile ||
     session?.customerId?.trim() ||
     session?.mobile ||
     devSession?.mobile ||

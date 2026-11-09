@@ -10,6 +10,7 @@ import { useProfileDraft } from '@/context/ProfileDraftContext';
 import { locationContinueTarget, resolveLocationExitHref } from '@/navigation/locationFlow';
 import { addressFormSelectHref, locationRoutes } from '@/navigation/locationRoutes';
 import { ALREADY_REGISTERED_LOGIN_MESSAGE } from '@/navigation/alreadyRegisteredRecovery';
+import { buildCustomerUpdate, updateCustomer } from '@/services/customerAuth';
 import { canUseDevelopmentHome, isDevOtpEnabled, promoteDevTestSessionToHome } from '@/services/devOtp';
 import { clearMobileOtpVerification } from '@/services/mobileVerificationStore';
 import { isProfileNameReady, submitRegistrationThenOtp } from '@/services/registrationSubmission';
@@ -81,6 +82,20 @@ export function useConfirmDeliveryLocation() {
         onboarding,
         profileNameReady,
       });
+
+      // Signed-in customers: sync the chosen delivery address to POST customer/update.
+      if (signedIn && session?.mobile && !onboarding) {
+        const built = buildCustomerUpdate({
+          mobile: session.mobile,
+          name: session.name || draft.fullName || undefined,
+          location,
+        });
+        if (built.ok) {
+          void updateCustomer(built.body).catch(() => {
+            // Local delivery pick still applies if the update API fails.
+          });
+        }
+      }
 
       if (target === 'submit-registration') {
         submitting.current = true;

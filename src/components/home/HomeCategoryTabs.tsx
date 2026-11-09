@@ -1,10 +1,15 @@
 import { router } from 'expo-router';
+import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 
+import { CatalogImage } from '@/components/home/CatalogImage';
 import { SoftIcon, type SoftIconName } from '@/components/ui/SoftIcon';
 import { colors, fonts } from '@/constants/theme';
+import { useCatalog } from '@/context/CatalogContext';
 import { listVisibleHomeShoppingShortcuts } from '@/data/shoppingCollections';
+import type { LiveCategoryParent } from '@/types/category';
 import type { ShoppingCollectionId } from '@/types/shoppingCollection';
+import { deriveLiveCategoryTree } from '@/utils/liveCatalogMeta';
 
 const CHIP = '#F6E8B8';
 const INK = '#171717';
@@ -17,16 +22,71 @@ const ICON_BY_COLLECTION: Record<ShoppingCollectionId, SoftIconName> = {
   organic: 'plant',
 };
 
+/**
+ * Home header strip.
+ * Live catalogue → real Category parents from products (categories API still in progress).
+ * Demo / preview → Fresh / Diwali / Electronics / Organic collections.
+ */
 export function HomeCategoryTabs() {
   const { width } = useWindowDimensions();
-  const tabs = listVisibleHomeShoppingShortcuts();
-  const tabWidth = Math.max(56, Math.min(72, (Math.min(width, 480) - 20) / 5.15));
+  const { liveEnabled, products } = useCatalog();
+  const liveParents = useMemo(
+    () => (liveEnabled ? deriveLiveCategoryTree(products) : []),
+    [liveEnabled, products],
+  );
+  const demoTabs = listVisibleHomeShoppingShortcuts();
+  const tabs = liveEnabled ? liveParents : demoTabs;
+  const tabWidth = Math.max(56, Math.min(72, (Math.min(width, 480) - 20) / Math.max(4.15, tabs.length + 0.15)));
+
+  function openLiveParent(parent: LiveCategoryParent) {
+    const hasSubcategories = parent.children.some((child) => child.id !== parent.id);
+    if (hasSubcategories || parent.children.length > 1) {
+      router.push({ pathname: '/category/[id]', params: { id: parent.id } });
+      return;
+    }
+    router.push({ pathname: '/shop', params: { category: parent.id } });
+  }
 
   function openCollection(id: ShoppingCollectionId) {
     router.push({
       pathname: '/collection/[id]',
       params: { id },
     });
+  }
+
+  if (liveEnabled) {
+    if (liveParents.length === 0) {
+      return null;
+    }
+    return (
+      <View style={styles.strip}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          nestedScrollEnabled
+          style={styles.scroller}
+          contentContainerStyle={styles.row}>
+          {liveParents.map((parent) => (
+            <Pressable
+              key={parent.id}
+              accessibilityRole="button"
+              accessibilityLabel={parent.name}
+              onPress={() => openLiveParent(parent)}
+              style={[styles.tab, { width: tabWidth }]}
+              testID={`home-category-${parent.id}`}>
+              <View style={styles.iconSlot}>
+                <View style={[styles.chip, width < 360 && styles.chipCompact, styles.chipImage]}>
+                  <CatalogImage source={parent.image} label={parent.name} style={styles.chipFill} contentFit="cover" />
+                </View>
+              </View>
+              <Text numberOfLines={2} style={[styles.label, width < 360 && styles.labelCompact]}>
+                {parent.name}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+    );
   }
 
   return (
@@ -37,7 +97,7 @@ export function HomeCategoryTabs() {
         nestedScrollEnabled
         style={styles.scroller}
         contentContainerStyle={styles.row}>
-        {tabs.map((tab) => (
+        {demoTabs.map((tab) => (
           <Pressable
             key={tab.id}
             accessibilityRole="button"
@@ -131,6 +191,14 @@ const styles = StyleSheet.create({
     backgroundColor: CHIP,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  chipImage: {
+    backgroundColor: colors.softBackground,
+  },
+  chipFill: {
+    width: '100%',
+    height: '100%',
   },
   chipCompact: {
     width: 40,

@@ -16,33 +16,22 @@ import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useMockCart } from '@/context/MockCartContext';
 import { usePreviewSession } from '@/context/PreviewSessionContext';
 import { useSavedAddresses } from '@/context/SavedAddressesContext';
-import { findDemoProduct } from '@/data/findDemoProduct';
 import { computeDemoCouponDiscount, demoCouponById, isCouponExpired } from '@/data/demoCoupons';
 import { formatDeliveryAddress } from '@/data/referenceLocations';
-import type { DemoProduct } from '@/types/catalog';
+import { useResolvedCartLines } from '@/hooks/useResolvedCartLines';
 import { isCompleteDeliveryLocation } from '@/utils/deliveryAddress';
 import { buildCartBill, formatRupee, type CartLine } from '@/utils/cartBill';
-
-type KnownLine = { id: string; quantity: number; product: DemoProduct };
-type MissingLine = { id: string; quantity: number; product: null };
-type ReviewLine = KnownLine | MissingLine;
 
 export function ReviewCartScreen() {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<{ scrollTo: (options: { y: number; animated?: boolean }) => void } | null>(null);
   const billOffset = useRef(0);
   const [menuOpen, setMenuOpen] = useState(false);
-  const { quantities, leaveAtDoor, setQuantity, setLeaveAtDoor } = useMockCart();
+  const { leaveAtDoor, setQuantity, setLeaveAtDoor } = useMockCart();
+  const { lines, known, missing, catalogReady } = useResolvedCartLines();
   const { couponId } = usePreviewSession();
   const { confirmed, beginAddressBookPick, beginLocationEdit } = useDeliveryLocation();
   const { addresses, hydrated } = useSavedAddresses();
-
-  const lines = Object.entries(quantities).map(([id, quantity]): ReviewLine => {
-    const product = findDemoProduct(id);
-    return product ? { id, quantity, product } : { id, quantity, product: null };
-  });
-  const known = lines.filter((line): line is KnownLine => line.product !== null);
-  const missing = lines.filter((line): line is MissingLine => line.product === null);
   const bill = buildCartBill(known.map((line) => ({ product: line.product, quantity: line.quantity }) satisfies CartLine));
   const foundCoupon = UI_PREVIEW_MODE ? demoCouponById(couponId) : undefined;
   const coupon = foundCoupon && !isCouponExpired(foundCoupon) ? foundCoupon : undefined;
@@ -113,6 +102,12 @@ export function ReviewCartScreen() {
             style={({ pressed }) => [styles.emptyButton, pressed && styles.pressed]}>
             <Text style={styles.emptyButtonLabel}>Browse shop</Text>
           </Pressable>
+        </View>
+      ) : !catalogReady && known.length === 0 ? (
+        <View style={styles.empty}>
+          <SoftIcon name="basket" size={56} />
+          <Text style={styles.emptyTitle}>Loading cart</Text>
+          <Text style={styles.emptyCopy}>Fetching products from the catalogue…</Text>
         </View>
       ) : (
         <>

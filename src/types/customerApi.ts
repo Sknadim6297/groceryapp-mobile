@@ -10,14 +10,16 @@ export type CustomerOtpVerifyRequest = {
 };
 
 /**
- * Only fields the app already collects.
- * Company mobile, WhatsApp, anniversary, and GST are omitted because this app does not ask for them.
+ * Help-page CustomerRegistration fields the app can fill from collected data.
+ * WhatsApp / Anniversary / GST are omitted — this app does not collect them.
+ * CompanyMobile is sent only when EXPO_PUBLIC_PRODUCTS_COMPANY is configured.
  */
 export type CustomerRegistrationRequest = {
   Mobile: string;
   Name: string;
   Email: string;
   Address?: string;
+  CompanyMobile?: string;
   DOB?: string;
   Country?: string;
   State?: string;
@@ -28,6 +30,19 @@ export type CustomerRegistrationRequest = {
    * Sent only when verify-otp returned a Token/Session field. Never invented by the client.
    */
   MobileVerificationToken?: string;
+};
+
+/** Help-page CustomerUpdateRequest — address + profile fields the app can sync. */
+export type CustomerUpdateRequest = {
+  Mobile: string;
+  Name?: string;
+  Email?: string;
+  Address?: string;
+  DOB?: string;
+  Country?: string;
+  State?: string;
+  City?: string;
+  Pincode?: string;
 };
 
 /** Customer fields returned by a confirmed registration. This is not a login token. */

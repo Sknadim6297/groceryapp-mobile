@@ -5,7 +5,7 @@ import { CatalogImage } from '@/components/home/CatalogImage';
 import { OrderTimeline } from '@/components/orders/OrderTimeline';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { colors, fonts, radii, shadow, space } from '@/constants/theme';
-import { findDemoProduct } from '@/data/findDemoProduct';
+import { useCatalog } from '@/context/CatalogContext';
 import type { CustomerOrder } from '@/types/order';
 import { formatRupee } from '@/utils/cartBill';
 import {
@@ -30,6 +30,7 @@ type OrderCardProps = {
 };
 
 export function OrderCard({ order, expanded, onToggle }: OrderCardProps) {
+  const { findProduct } = useCatalog();
   const items = orderItemCount(order);
   const timeline = buildOrderTimeline(order);
   const pill = statusPillColors(order.status);
@@ -98,7 +99,7 @@ export function OrderCard({ order, expanded, onToggle }: OrderCardProps) {
               </View>
             ) : (
               previewItems.map((item, index) => {
-                const product = findDemoProduct(item.id);
+                const product = findProduct(item.id);
                 return (
                   <View
                     key={`${item.id}-${index}`}

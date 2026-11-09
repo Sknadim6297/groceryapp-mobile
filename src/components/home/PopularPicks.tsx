@@ -5,16 +5,24 @@ import { ProductCard } from '@/components/home/ProductCard';
 import { productCardWidth, productColumns } from '@/components/home/productLayout';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { colors, fonts } from '@/constants/theme';
-import { mockProducts } from '@/data/mockProducts';
+import type { DemoProduct } from '@/types/catalog';
 
 const SECTION_PAD = 32;
 const GRID_GAP = 8;
 
-export function PopularPicks() {
+type PopularPicksProps = {
+  products?: DemoProduct[];
+};
+
+export function PopularPicks({ products = [] }: PopularPicksProps) {
   const { width } = useWindowDimensions();
   const columns = productColumns(width, 2, SECTION_PAD, GRID_GAP);
   const cardWidth = productCardWidth(width, columns, SECTION_PAD, GRID_GAP);
   const compact = cardWidth < 100;
+
+  if (products.length === 0) {
+    return null;
+  }
 
   return (
     <View style={styles.section}>
@@ -36,7 +44,7 @@ export function PopularPicks() {
         </Pressable>
       </View>
       <View style={styles.row}>
-        {mockProducts.map((product) => (
+        {products.map((product) => (
           <View key={product.id} style={{ width: cardWidth }}>
             <ProductCard product={product} compact={compact} />
           </View>

@@ -230,11 +230,20 @@ function PromoBannerSlide({
       accessibilityRole="summary"
       accessibilityLabel={banner.accessibilityLabel}
       style={[styles.card, { height, backgroundColor: palette.background }]}>
-      {banner.showProduceImage ? (
-        <Image source={produce} style={styles.produce} contentFit="cover" accessible={false} />
+      {banner.presentationImage || banner.showProduceImage ? (
+        <Image
+          source={banner.presentationImage ?? produce}
+          style={styles.produce}
+          contentFit="cover"
+          accessible={false}
+        />
       ) : null}
 
-      <View style={[styles.copy, banner.showProduceImage ? styles.copyWithImage : null]}>
+      <View
+        style={[
+          styles.copy,
+          banner.presentationImage || banner.showProduceImage ? styles.copyWithImage : null,
+        ]}>
         {banner.tone === 'violet' ? (
           <View style={styles.titleRow}>
             <AppIcon name="bolt" color={colors.primary} size={18} />

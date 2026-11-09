@@ -16,8 +16,8 @@ import { CatalogImage } from '@/components/home/CatalogImage';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { useToast } from '@/components/ui/AppToast';
 import { colors, fonts, homeLayout, radii, shadow, space } from '@/constants/theme';
+import { useCatalog } from '@/context/CatalogContext';
 import { ORDER_RETURN_REASONS, type OrderReturnReasonId } from '@/data/orderReturnReasons';
-import { findDemoProduct } from '@/data/findDemoProduct';
 import type { OrderLine } from '@/types/order';
 
 const MAX_PHOTOS = 4;
@@ -48,6 +48,7 @@ export function OrderReturnRefundModal({
 }: OrderReturnRefundModalProps) {
   const insets = useSafeAreaInsets();
   const { showToast } = useToast();
+  const { findProduct } = useCatalog();
   const [step, setStep] = useState(0);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [selectedReasons, setSelectedReasons] = useState<OrderReturnReasonId[]>([]);
@@ -259,7 +260,7 @@ export function OrderReturnRefundModal({
                 ) : (
                   <View style={styles.itemList}>
                     {items.map((item) => {
-                      const product = findDemoProduct(item.id);
+                      const product = findProduct(item.id);
                       const checked = selectedItems.includes(item.id);
                       return (
                         <Pressable
@@ -408,7 +409,7 @@ export function OrderReturnRefundModal({
                 <View style={styles.summaryCard}>
                   <Text style={styles.summaryTitle}>Products</Text>
                   {selectedLines.map((item) => {
-                    const product = findDemoProduct(item.id);
+                    const product = findProduct(item.id);
                     return (
                       <View key={`${item.id}-summary`} style={styles.summaryRow}>
                         <View style={styles.summaryThumb}>

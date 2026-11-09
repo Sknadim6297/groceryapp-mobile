@@ -1,33 +1,28 @@
-import { router, useLocalSearchParams } from "expo-router";
-import { useMemo, useState } from "react";
-import {
-    FlatList,
-    StyleSheet,
-    Text,
-    View,
-    useWindowDimensions,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { router, useLocalSearchParams } from 'expo-router';
+import { useMemo, useState } from 'react';
+import { FlatList, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { BrandCatalogBanner } from "@/components/catalog/BrandCatalogBanner";
-import { CatalogBreadcrumb } from "@/components/catalog/CatalogBreadcrumb";
-import { CatalogSearchField } from "@/components/catalog/CatalogSearchField";
-import { SubcategoryCard } from "@/components/category/SubcategoryCard";
-import { AppScreenHeader } from "@/components/ui/AppScreenHeader";
-import { PrimaryButton } from "@/components/ui/PrimaryButton";
-import { colors, fonts, homeLayout } from "@/constants/theme";
-import {
-    findCatalogParent,
-    listSubcategoriesForParent,
-} from "@/data/subcategoryCatalog";
-import type { CatalogSubcategory } from "@/types/subcategory";
-import { filterSubcategories } from "@/utils/subcategorySearch";
+import { BrandCatalogBanner } from '@/components/catalog/BrandCatalogBanner';
+import { CatalogBreadcrumb } from '@/components/catalog/CatalogBreadcrumb';
+import { CatalogSearchField } from '@/components/catalog/CatalogSearchField';
+import { SubcategoryCard } from '@/components/category/SubcategoryCard';
+import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
+import { CatalogStatusPanel } from '@/components/ui/CatalogStatusPanel';
+import { ProductGridSkeleton } from '@/components/ui/LoadingSkeleton';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { colors, fonts, homeLayout } from '@/constants/theme';
+import { useCatalog } from '@/context/CatalogContext';
+import { findCatalogParent, listSubcategoriesForParent } from '@/data/subcategoryCatalog';
+import type { CatalogSubcategory } from '@/types/subcategory';
+import { findLiveCategoryParent } from '@/utils/liveCatalogMeta';
+import { filterSubcategories } from '@/utils/subcategorySearch';
 
 function paramValue(value: string | string[] | undefined): string {
   if (Array.isArray(value)) {
-    return value[0] ?? "";
+    return value[0] ?? '';
   }
-  return value ?? "";
+  return value ?? '';
 }
 
 export default function SubcategoriesScreen() {
@@ -35,17 +30,35 @@ export default function SubcategoriesScreen() {
   const { width } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const parentId = paramValue(id);
-  const parent = findCatalogParent(parentId);
-  const [query, setQuery] = useState("");
+  const { liveEnabled, products, initialLoading, state, message, refresh, refreshing } = useCatalog();
+  const [query, setQuery] = useState('');
+  const [retrying, setRetrying] = useState(false);
 
-  const subcategories = useMemo(
-    () => listSubcategoriesForParent(parentId),
-    [parentId],
+  const liveParent = useMemo(
+    () => (liveEnabled ? findLiveCategoryParent(products, parentId) : undefined),
+    [liveEnabled, parentId, products],
   );
-  const visible = useMemo(
-    () => filterSubcategories(subcategories, query),
-    [query, subcategories],
-  );
+  const demoParent = liveEnabled ? undefined : findCatalogParent(parentId);
+  const parent = liveParent
+    ? { id: liveParent.id, name: liveParent.name, image: liveParent.image }
+    : demoParent;
+
+  const subcategories = useMemo((): CatalogSubcategory[] => {
+    if (liveEnabled && liveParent) {
+      return liveParent.children.map((child, index) => ({
+        id: child.id,
+        parentId: child.parentId,
+        name: child.name,
+        image: child.image,
+        productCount: child.productCount,
+        order: index,
+        visible: true,
+      }));
+    }
+    return listSubcategoriesForParent(parentId);
+  }, [liveEnabled, liveParent, parentId]);
+
+  const visible = useMemo(() => filterSubcategories(subcategories, query), [query, subcategories]);
 
   const gutter = homeLayout.gutter;
   const columns = 2;
@@ -55,34 +68,56 @@ export default function SubcategoriesScreen() {
 
   function openShop(subcategory: CatalogSubcategory) {
     router.push({
-      pathname: "/shop",
+      pathname: '/shop',
       params: { category: subcategory.id },
     });
+  }
+
+  async function handleRetry() {
+    if (retrying) {
+      return;
+    }
+    setRetrying(true);
+    try {
+      await refresh();
+    } finally {
+      setRetrying(false);
+    }
+  }
+
+  if (liveEnabled && initialLoading) {
+    return (
+      <View style={styles.screen}>
+        <AppScreenHeader title="Subcategories" fallbackHref="/home" titleWeight="semibold" />
+        <ProductGridSkeleton columns={2} count={4} cardWidth={cardWidth} />
+      </View>
+    );
+  }
+
+  if (liveEnabled && state.status === 'error' && products.length === 0) {
+    return (
+      <View style={styles.screen}>
+        <AppScreenHeader title="Subcategories" fallbackHref="/home" titleWeight="semibold" />
+        <CatalogStatusPanel
+          kind="error"
+          message={message}
+          onRetry={() => void handleRetry()}
+          retrying={retrying || refreshing}
+        />
+      </View>
+    );
   }
 
   if (!parent) {
     return (
       <View style={styles.screen}>
-        <AppScreenHeader
-          title="Subcategories"
-          fallbackHref="/home"
-          titleWeight="semibold"
-        />
-        <View
-          style={[
-            styles.fallback,
-            { paddingBottom: Math.max(insets.bottom, 16) },
-          ]}
-        >
+        <AppScreenHeader title="Subcategories" fallbackHref="/home" titleWeight="semibold" />
+        <View style={[styles.fallback, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <Text style={styles.fallbackTitle}>Category unavailable</Text>
           <Text style={styles.fallbackBody}>
-            This category could not be found. Choose another category from Home
-            or Shop.
+            This category could not be found. Choose another category from Home or Shop.
           </Text>
-          <PrimaryButton
-            label="Back to Home"
-            onPress={() => router.replace("/home")}
-          />
+          <PrimaryButton label="Back to Home" onPress={() => router.replace('/home')} />
         </View>
       </View>
     );
@@ -90,11 +125,7 @@ export default function SubcategoriesScreen() {
 
   return (
     <View style={styles.screen}>
-      <AppScreenHeader
-        title="Subcategories"
-        fallbackHref="/home"
-        titleWeight="semibold"
-      />
+      <AppScreenHeader title="Subcategories" fallbackHref="/home" titleWeight="semibold" />
 
       <FlatList
         data={visible}
@@ -106,8 +137,8 @@ export default function SubcategoriesScreen() {
           {
             paddingBottom: Math.max(insets.bottom, 20) + 12,
             maxWidth: homeLayout.maxWidth,
-            alignSelf: "center",
-            width: "100%",
+            alignSelf: 'center',
+            width: '100%',
           },
         ]}
         columnWrapperStyle={styles.row}
@@ -116,7 +147,7 @@ export default function SubcategoriesScreen() {
             <BrandCatalogBanner />
             <CatalogBreadcrumb
               crumbs={[
-                { label: "Shop", onPress: () => router.push("/shop") },
+                { label: 'Shop', onPress: () => router.push('/shop') },
                 { label: parent.name },
               ]}
             />
@@ -133,24 +164,26 @@ export default function SubcategoriesScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyTitle}>
-              {query.trim().length > 0
-                ? "No matching subcategories"
-                : "No subcategories yet"}
+              {query.trim().length > 0 ? 'No matching subcategories' : 'No subcategories yet'}
             </Text>
             <Text style={styles.emptyBody}>
               {query.trim().length > 0
-                ? "Try a different search term."
-                : "This category has no shelves in the on-device catalogue yet."}
+                ? 'Try a different search term.'
+                : liveEnabled
+                  ? 'Subcategories will appear here when the store publishes them on products.'
+                  : 'This category has no shelves in the on-device catalogue yet.'}
             </Text>
             {query.trim().length > 0 ? (
-              <PrimaryButton
-                label="Clear search"
-                onPress={() => setQuery("")}
-              />
+              <PrimaryButton label="Clear search" onPress={() => setQuery('')} />
             ) : (
               <PrimaryButton
                 label="Browse Shop"
-                onPress={() => router.push("/shop")}
+                onPress={() =>
+                  router.push({
+                    pathname: '/shop',
+                    params: { category: parent.id },
+                  })
+                }
               />
             )}
           </View>
@@ -190,7 +223,7 @@ const styles = StyleSheet.create({
   empty: {
     paddingHorizontal: 12,
     paddingTop: 36,
-    alignItems: "center",
+    alignItems: 'center',
     gap: 10,
   },
   emptyTitle: {
@@ -198,20 +231,20 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 22,
     color: colors.text,
-    textAlign: "center",
+    textAlign: 'center',
   },
   emptyBody: {
     fontFamily: fonts.regular,
     fontSize: 14,
     lineHeight: 20,
     color: colors.textSecondary,
-    textAlign: "center",
+    textAlign: 'center',
     marginBottom: 8,
   },
   fallback: {
     flex: 1,
     paddingHorizontal: 24,
-    justifyContent: "center",
+    justifyContent: 'center',
     gap: 12,
   },
   fallbackTitle: {
@@ -219,14 +252,14 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 26,
     color: colors.text,
-    textAlign: "center",
+    textAlign: 'center',
   },
   fallbackBody: {
     fontFamily: fonts.regular,
     fontSize: 15,
     lineHeight: 21,
     color: colors.textSecondary,
-    textAlign: "center",
+    textAlign: 'center',
     marginBottom: 8,
   },
 });

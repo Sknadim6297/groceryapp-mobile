@@ -1,12 +1,15 @@
 import { router } from 'expo-router';
+import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { CatalogImage } from '@/components/home/CatalogImage';
 import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { colors, fonts, radii, shadow, space } from '@/constants/theme';
+import { useCatalog } from '@/context/CatalogContext';
 import { resolveParentIdForCategory } from '@/data/subcategoryCatalog';
 import type { Category } from '@/types/category';
 import { hapticSelection } from '@/utils/haptics';
+import { deriveLiveCategoryTree } from '@/utils/liveCatalogMeta';
 
 type CategoryCardProps = {
   category: Category;
@@ -15,22 +18,44 @@ type CategoryCardProps = {
 };
 
 export function CategoryCard({ category, compact, largeImage = false }: CategoryCardProps) {
+  const { liveEnabled, products } = useCatalog();
+  const liveTree = useMemo(
+    () => (liveEnabled ? deriveLiveCategoryTree(products) : []),
+    [liveEnabled, products],
+  );
+
+  function openCategory() {
+    void hapticSelection();
+
+    if (liveEnabled) {
+      const asParent = liveTree.find((parent) => parent.id === category.id);
+      if (
+        asParent &&
+        (asParent.children.length > 1 || asParent.children.some((child) => child.id !== asParent.id))
+      ) {
+        router.push({ pathname: '/category/[id]', params: { id: asParent.id } });
+        return;
+      }
+      router.push({ pathname: '/shop', params: { category: category.id } });
+      return;
+    }
+
+    const parentId = resolveParentIdForCategory(category.id);
+    if (parentId) {
+      router.push({ pathname: '/category/[id]', params: { id: parentId } });
+      return;
+    }
+    router.push({
+      pathname: '/shop',
+      params: { category: category.id },
+    });
+  }
+
   return (
     <AnimatedPressable
       accessibilityRole="button"
       accessibilityLabel={category.name}
-      onPress={() => {
-        void hapticSelection();
-        const parentId = resolveParentIdForCategory(category.id);
-        if (parentId) {
-          router.push({ pathname: '/category/[id]', params: { id: parentId } });
-          return;
-        }
-        router.push({
-          pathname: '/shop',
-          params: { category: category.id },
-        });
-      }}
+      onPress={openCategory}
       style={[styles.card, compact && styles.cardCompact]}
       testID={`category-${category.id}`}>
       <View style={largeImage ? styles.frameLarge : [styles.frame, compact && styles.frameCompact]}>

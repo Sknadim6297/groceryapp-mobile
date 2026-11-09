@@ -23,7 +23,8 @@ import {
     sideMenuItems,
     type SideMenuItem,
 } from "@/navigation/sideMenuItems";
-import { displayCustomer } from "@/services/rememberedCustomer";
+import { isDevOtpEnabled } from "@/services/devOtp";
+import { activeLoginForDisplay, displayCustomer } from "@/services/rememberedCustomer";
 import {
     registeredDisplayName,
     registeredDisplayPhone,
@@ -38,7 +39,7 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const pathname = usePathname();
-  const { session, clearAuthSession } = useAuthSession();
+  const { session, devSession, clearAuthSession } = useAuthSession();
   const { account } = useCustomerAccount();
   const { customer: remembered } = useRememberedCustomer();
   const panelWidth = Math.min(300, Math.max(240, Math.round(width * 0.78)));
@@ -46,7 +47,11 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
   const [backdrop] = useState(() => new Animated.Value(0));
   const [mounted, setMounted] = useState(visible);
   const nativeDriver = Platform.OS !== "web";
-  const identity = displayCustomer(session, account, remembered);
+  const identity = displayCustomer(
+    activeLoginForDisplay(session, devSession, isDevOtpEnabled()),
+    account,
+    remembered,
+  );
   const name = registeredDisplayName(identity);
   const phone = registeredDisplayPhone(identity);
 

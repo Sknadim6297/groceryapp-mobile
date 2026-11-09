@@ -26,9 +26,11 @@ import { colors, fonts, homeLayout, radii, shadow } from '@/constants/theme';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useCustomerAccount } from '@/context/CustomerAccountContext';
 import { useCustomerProfile } from '@/context/CustomerProfileContext';
+import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useRememberedCustomer } from '@/context/RememberedCustomerContext';
 import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
 import { profileRoutes } from '@/navigation/profileRoutes';
+import { buildCustomerUpdate, updateCustomer } from '@/services/customerAuth';
 import { canUseDevelopmentHome } from '@/services/devOtp';
 import { displayCustomer } from '@/services/rememberedCustomer';
 import type { CustomerProfileDraft, ProfileAvatarPresetId } from '@/types/customerProfile';
@@ -58,8 +60,12 @@ export default function EditProfileScreen() {
     return <Redirect href={profileRoutes.login} />;
   }
 
-  const identity = displayCustomer(session, account, remembered);
-  const mobile = session?.mobile ?? devSession?.mobile ?? identity?.mobile ?? '';
+  const identity = displayCustomer(
+    session ?? (devSession ? { mobile: devSession.mobile } : null),
+    account,
+    remembered,
+  );
+  const mobile = identity?.mobile ?? session?.mobile ?? devSession?.mobile ?? '';
   const customerId = session?.customerId ?? account?.customerId ?? remembered?.customerId ?? '';
   const initial: CustomerProfileDraft = {
     name: profile?.name || identity?.name || session?.name || remembered?.name || '',
@@ -92,6 +98,7 @@ function EditProfileBody({
   const keyboardCover = useKeyboardOverlap();
   const keyboardOverlap = Platform.OS === 'android' ? keyboardCover : 0;
   const { saveProfile } = useCustomerProfile();
+  const { confirmed } = useDeliveryLocation();
   const { showToast } = useToast();
   const [draft, setDraft] = useState<CustomerProfileDraft>(initial);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -260,6 +267,24 @@ function EditProfileBody({
       avatarUri: draft.avatarUri ?? null,
       avatarPreset: draft.avatarPreset ?? null,
     });
+
+    let serverSynced = false;
+    if (result.ok && isValidIndiaMobile(mobile)) {
+      const built = buildCustomerUpdate({
+        mobile,
+        name,
+        email,
+        dateOfBirth: draft.dateOfBirth.trim() || null,
+        location: confirmed,
+      });
+      if (built.ok) {
+        const remote = await updateCustomer(built.body);
+        serverSynced = remote.confirmed;
+        if (!remote.confirmed && remote.message) {
+          showToast('warning', remote.message);
+        }
+      }
+    }
     setSaving(false);
 
     if (!result.ok) {
@@ -274,7 +299,12 @@ function EditProfileBody({
       return;
     }
 
-    showToast('success', 'Profile updated on this device. Server profile sync is not available yet.');
+    showToast(
+      'success',
+      serverSynced
+        ? 'Profile and delivery address updated.'
+        : 'Profile saved on this device. Server sync could not be confirmed.',
+    );
     if (router.canGoBack()) {
       router.back();
       return;
@@ -381,7 +411,7 @@ function EditProfileBody({
             </View>
 
             <Text style={styles.notice}>
-              Changes are saved on this device only. A server profile-update API is not published yet.
+              Name, email, date of birth, and your current delivery address sync to the store when you save.
             </Text>
 
             {error ? (

@@ -111,7 +111,6 @@ export default function LoginScreen() {
       // listening starts — arm native listeners before the gateway sends SMS.
       prepareAndroidSmsOtpListen();
       const result = await sendCustomerOtp(mobile);
-      showToast(result.tone, result.message);
       const screen = screenAfterCustomerCall(result, 'send');
 
       if (screen === 'otp') {
@@ -121,6 +120,7 @@ export default function LoginScreen() {
         setOtpDispatched(true);
         setMobileVerification(null);
         void clearMobileOtpVerification();
+        showToast('success', result.message || 'OTP sent successfully.');
         setTimeout(() => {
           router.push('/otp');
           setSending(false);
@@ -128,6 +128,7 @@ export default function LoginScreen() {
         return;
       }
 
+      // Not registered → open registration form silently (no toast / no error line).
       if (screen === 'complete-profile') {
         stopAndroidSmsOtpListen();
         holdLoading = true;
@@ -136,6 +137,7 @@ export default function LoginScreen() {
         setOtpDispatched(false);
         setMobileVerification(null);
         void clearMobileOtpVerification();
+        setNotice(null);
         setTimeout(() => {
           router.push('/complete-profile');
           setSending(false);
@@ -144,6 +146,7 @@ export default function LoginScreen() {
       }
 
       stopAndroidSmsOtpListen();
+      showToast(result.tone === 'success' ? 'error' : result.tone, result.message);
       setNotice(result.message);
     } catch {
       stopAndroidSmsOtpListen();

@@ -28,6 +28,7 @@ import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useProfileDraft } from '@/context/ProfileDraftContext';
 import { useRememberedCustomer } from '@/context/RememberedCustomerContext';
 import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
+import { formatDeliveryAddress } from '@/data/referenceLocations';
 import { sendCustomerOtp } from '@/services/customerAuth';
 import { ALREADY_REGISTERED_LOGIN_MESSAGE } from '@/navigation/alreadyRegisteredRecovery';
 import { canUseDevelopmentHome, isDevOtpEnabled, promoteDevTestSessionToHome } from '@/services/devOtp';
@@ -367,6 +368,28 @@ export default function CompleteProfileScreen() {
                     />
                   </View>
                 </Field>
+
+                <Field label="Delivery address" error={null}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      confirmed
+                        ? `Change delivery address. ${formatDeliveryAddress(confirmed)}`
+                        : 'Select delivery address'
+                    }
+                    onPress={openLocationForDelivery}
+                    style={({ pressed }) => [styles.inputRow, styles.addressRow, pressed && styles.pressed]}>
+                    <View style={styles.addressCopy}>
+                      <Text style={styles.addressTitle}>{confirmed ? confirmed.label || 'Selected' : 'Not selected'}</Text>
+                      <Text numberOfLines={2} style={styles.addressLine}>
+                        {confirmed
+                          ? formatDeliveryAddress(confirmed)
+                          : 'Required for registration. Tap to choose on the map.'}
+                      </Text>
+                    </View>
+                    <AppIcon name="chevron" color={colors.textSecondary} size={18} />
+                  </Pressable>
+                </Field>
               </>
             )}
             {notice ? (
@@ -546,6 +569,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text,
     paddingVertical: 12,
+  },
+  addressRow: {
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  addressCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  addressTitle: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    lineHeight: 18,
+    color: colors.text,
+  },
+  addressLine: {
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
   },
   error: {
     fontFamily: fonts.medium,

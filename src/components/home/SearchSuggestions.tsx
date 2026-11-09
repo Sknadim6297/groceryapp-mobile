@@ -1,8 +1,10 @@
 import { router } from 'expo-router';
+import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { CatalogImage } from '@/components/home/CatalogImage';
 import { colors, fonts } from '@/constants/theme';
+import { useCatalog } from '@/context/CatalogContext';
 import { searchSuggestions, type SearchSuggestion } from '@/data/searchSuggestions';
 import { resolveParentIdForCategory } from '@/data/subcategoryCatalog';
 
@@ -13,7 +15,12 @@ type SearchSuggestionsProps = {
 };
 
 export function SearchSuggestions({ query, onPick, style }: SearchSuggestionsProps) {
-  const items = searchSuggestions(query);
+  const { products, listShelves } = useCatalog();
+  const shelves = useMemo(() => listShelves(), [listShelves]);
+  const items = useMemo(
+    () => searchSuggestions(query, { products, shelves }),
+    [products, query, shelves],
+  );
   if (items.length === 0) {
     return null;
   }
@@ -21,26 +28,26 @@ export function SearchSuggestions({ query, onPick, style }: SearchSuggestionsPro
   return (
     <View style={[styles.list, style]}>
       <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled style={styles.scroll}>
-      {items.map((item) => (
-        <Pressable
-          key={item.key}
-          accessibilityRole="button"
-          accessibilityLabel={item.subtitle ? `${item.title}, ${item.subtitle}` : item.title}
-          onPress={() => (onPick ? onPick(item) : openSuggestion(item))}
-          style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
-          <CatalogImage source={item.image} style={styles.photo} label={item.title} contentFit="cover" />
-          <View style={styles.copy}>
-            <Text numberOfLines={1} style={styles.title}>
-              {item.title}
-            </Text>
-            {item.subtitle ? (
-              <Text numberOfLines={1} style={styles.subtitle}>
-                {item.subtitle}
+        {items.map((item) => (
+          <Pressable
+            key={item.key}
+            accessibilityRole="button"
+            accessibilityLabel={item.subtitle ? `${item.title}, ${item.subtitle}` : item.title}
+            onPress={() => (onPick ? onPick(item) : openSuggestion(item))}
+            style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+            <CatalogImage source={item.image} style={styles.photo} label={item.title} contentFit="cover" />
+            <View style={styles.copy}>
+              <Text numberOfLines={1} style={styles.title}>
+                {item.title}
               </Text>
-            ) : null}
-          </View>
-        </Pressable>
-      ))}
+              {item.subtitle ? (
+                <Text numberOfLines={1} style={styles.subtitle}>
+                  {item.subtitle}
+                </Text>
+              ) : null}
+            </View>
+          </Pressable>
+        ))}
       </ScrollView>
     </View>
   );
@@ -60,56 +67,55 @@ export function openSuggestion(item: SearchSuggestion) {
     router.push({ pathname: '/shop', params: { category: item.categoryId } });
     return;
   }
-  router.push({ pathname: '/shop', params: { q: item.title } });
+  router.push('/shop');
 }
 
 const styles = StyleSheet.create({
   list: {
-    marginTop: 8,
-    maxHeight: 320,
-    borderRadius: 12,
-    backgroundColor: colors.white,
-    borderWidth: 1,
+    maxHeight: 280,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
+    backgroundColor: colors.white,
     overflow: 'hidden',
   },
   scroll: {
-    flexGrow: 0,
+    maxHeight: 280,
   },
   row: {
-    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.borderSubtle,
+  },
+  pressed: {
+    opacity: 0.82,
+    backgroundColor: colors.softBackground,
   },
   photo: {
     width: 40,
     height: 40,
-    borderRadius: 6,
-    backgroundColor: '#F6F7F9',
+    borderRadius: 10,
+    backgroundColor: colors.softBackground,
   },
   copy: {
     flex: 1,
     minWidth: 0,
+    gap: 2,
   },
   title: {
-    fontFamily: fonts.medium,
-    fontSize: 15,
-    lineHeight: 20,
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    lineHeight: 18,
     color: colors.text,
   },
   subtitle: {
-    marginTop: 1,
-    fontFamily: fonts.medium,
+    fontFamily: fonts.regular,
     fontSize: 12,
     lineHeight: 16,
-    color: colors.primaryInk,
-  },
-  pressed: {
-    backgroundColor: colors.softYellow,
+    color: colors.textSecondary,
   },
 });

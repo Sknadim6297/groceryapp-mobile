@@ -13,16 +13,17 @@ import { ProductTrustBadges } from '@/components/product/ProductTrustBadges';
 import { WriteReviewSheet } from '@/components/product/WriteReviewSheet';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
+import { CatalogStatusPanel } from '@/components/ui/CatalogStatusPanel';
+import { ProductDetailSkeleton } from '@/components/ui/LoadingSkeleton';
 import { colors, fonts, homeLayout, radii, shadow, space } from '@/constants/theme';
 import { useAuthSession } from '@/context/AuthSessionContext';
+import { useCatalog } from '@/context/CatalogContext';
 import { useCustomerProfile } from '@/context/CustomerProfileContext';
 import { useMockCart } from '@/context/MockCartContext';
 import { useProductReviews } from '@/context/ProductReviewsContext';
 import { useWishlist } from '@/context/WishlistContext';
-import { findDemoProduct } from '@/data/findDemoProduct';
 import { productDetailCopy } from '@/data/productDetails';
 import { isProductInStock } from '@/data/resolveWishlistProducts';
-import { relatedCatalogProducts } from '@/data/shopCatalog';
 import type { ReviewSortId } from '@/types/productReviews';
 import { formatRupee } from '@/utils/cartBill';
 
@@ -34,37 +35,84 @@ type AccordionId = 'key' | 'info' | 'review' | null;
 export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const productId = Array.isArray(id) ? id[0] : id;
-  const product = productId ? findDemoProduct(productId) : undefined;
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const { quantities, setQuantity, totalCount } = useMockCart();
   const { isSaved, toggle } = useWishlist();
   const { profile } = useCustomerProfile();
   const { session } = useAuthSession();
+  const { findProduct, relatedProducts, initialLoading, liveEnabled, state, message, refresh, refreshing } =
+    useCatalog();
   const { summaryFor, sortedReviewsFor, voteFor, setVote, submitReview } = useProductReviews();
+  const product = productId ? findProduct(productId) : undefined;
 
   const [openAccordion, setOpenAccordion] = useState<AccordionId>('review');
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [sort, setSort] = useState<ReviewSortId>('newest');
   const [writeOpen, setWriteOpen] = useState(false);
   const [selectQty, setSelectQty] = useState(1);
+  const [retrying, setRetrying] = useState(false);
+
+  async function handleRetry() {
+    if (retrying) {
+      return;
+    }
+    setRetrying(true);
+    try {
+      await refresh();
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   useEffect(() => {
     setSelectQty(1);
   }, [productId]);
 
-  const related = useMemo(() => (product ? relatedCatalogProducts(product.id, 6) : null), [product]);
+  const related = useMemo(
+    () => (product ? relatedProducts(product.id, 6) : null),
+    [product, relatedProducts],
+  );
   const columns = productColumns(width, 2, PAGE_PAD, CARD_GAP);
   const cardWidth = productCardWidth(width, columns, PAGE_PAD, CARD_GAP);
 
   const summary = product ? summaryFor(product.id) : null;
   const reviews = product ? sortedReviewsFor(product.id, sort) : [];
 
+  if (liveEnabled && initialLoading) {
+    return (
+      <View style={styles.screen}>
+        <AppScreenHeader title="Product Details" />
+        <ProductDetailSkeleton />
+      </View>
+    );
+  }
+
+  if (liveEnabled && state.status === 'error' && !product) {
+    return (
+      <View style={styles.screen}>
+        <AppScreenHeader title="Product Details" />
+        <CatalogStatusPanel
+          kind="error"
+          message={message}
+          onRetry={() => void handleRetry()}
+          retrying={retrying || refreshing}
+        />
+      </View>
+    );
+  }
+
   if (!product || !summary) {
     return (
       <View style={styles.screen}>
         <AppScreenHeader title="Product Details" />
-        <Text style={styles.missing}>This item is not in the catalogue.</Text>
+        <CatalogStatusPanel
+          kind="empty"
+          title="Product unavailable"
+          message="This item is not in the catalogue."
+          onRetry={liveEnabled ? () => void handleRetry() : undefined}
+          retrying={retrying || refreshing}
+        />
       </View>
     );
   }
@@ -692,5 +740,19 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: 15,
     color: colors.text,
+  },
+  retry: {
+    alignSelf: 'flex-start',
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: radii.md,
+    backgroundColor: colors.softYellow,
+  },
+  retryLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.primaryInk,
   },
 });

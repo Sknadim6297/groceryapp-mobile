@@ -1,12 +1,17 @@
 import { CUSTOMER_API } from '@/constants/api';
+import { PRODUCTS_COMPANY } from '@/constants/liveData';
 import { postJson } from '@/services/api/http';
 import { interpretCustomerResponse, safeServerMessage, sessionFieldNames } from '@/services/api/interpretCustomerResponse';
 import { isDevOtpEnabled } from '@/services/devOtp';
 import { applyTemporaryUiLogin } from '@/services/temporaryUiLogin';
-import type { CustomerApiResult, CustomerRegistrationRequest } from '@/types/customerApi';
+import type {
+  CustomerApiResult,
+  CustomerRegistrationRequest,
+  CustomerUpdateRequest,
+} from '@/types/customerApi';
 import type { DeliveryLocation } from '@/types/location';
-import { formatDeliveryAddress } from '@/data/referenceLocations';
 import { OTP_LENGTH } from '@/types/auth';
+import { addressFieldsFromDeliveryLocation } from '@/utils/customerAddressPayload';
 import { isValidEmail, parseIsoDate } from '@/utils/profileValidation';
 import { isValidIndiaMobile } from '@/utils/phoneValidation';
 
@@ -109,12 +114,9 @@ export function buildCustomerRegistration(input: {
   if (email.length > 0 && !isValidEmail(email)) {
     return { ok: false, message: 'Enter a valid email address.' };
   }
-  if (!input.location) {
-    return { ok: false, message: 'Select a delivery address before registering.' };
-  }
 
-  const address = formatDeliveryAddress(input.location).trim();
-  if (address.length === 0) {
+  const addressFields = addressFieldsFromDeliveryLocation(input.location);
+  if (!addressFields) {
     return { ok: false, message: 'Select a delivery address before registering.' };
   }
 
@@ -122,27 +124,58 @@ export function buildCustomerRegistration(input: {
     Mobile: input.mobile,
     Name: name,
     Email: email,
-    Address: address,
+    ...addressFields,
   };
 
+  if (PRODUCTS_COMPANY) {
+    body.CompanyMobile = PRODUCTS_COMPANY;
+  }
   if (input.dateOfBirth && parseIsoDate(input.dateOfBirth)) {
     body.DOB = input.dateOfBirth;
-  }
-  if (input.location.country?.trim()) {
-    body.Country = input.location.country.trim();
-  }
-  if (input.location.state?.trim()) {
-    body.State = input.location.state.trim();
-  }
-  if (input.location.city?.trim()) {
-    body.City = input.location.city.trim();
-  }
-  if (input.location.postalCode?.trim()) {
-    body.Pincode = input.location.postalCode.trim();
   }
   const token = input.mobileVerificationToken?.trim();
   if (token) {
     body.MobileVerificationToken = token;
+  }
+
+  return { ok: true, body };
+}
+
+export function buildCustomerUpdate(input: {
+  mobile: string;
+  name?: string;
+  email?: string;
+  dateOfBirth?: string | null;
+  location?: DeliveryLocation | null;
+}): { ok: true; body: CustomerUpdateRequest } | { ok: false; message: string } {
+  if (!isValidIndiaMobile(input.mobile)) {
+    return { ok: false, message: 'Enter a valid 10-digit mobile number.' };
+  }
+
+  const body: CustomerUpdateRequest = { Mobile: input.mobile };
+  const name = input.name?.trim();
+  if (name) {
+    body.Name = name;
+  }
+  if (input.email !== undefined) {
+    const email = input.email.trim();
+    if (email.length > 0 && !isValidEmail(email)) {
+      return { ok: false, message: 'Enter a valid email address.' };
+    }
+    body.Email = email;
+  }
+  if (input.dateOfBirth && parseIsoDate(input.dateOfBirth)) {
+    body.DOB = input.dateOfBirth;
+  }
+  const addressFields = addressFieldsFromDeliveryLocation(input.location ?? null);
+  if (addressFields) {
+    Object.assign(body, addressFields);
+  }
+
+  const hasProfile = Boolean(body.Name || body.Email !== undefined || body.DOB);
+  const hasAddress = Boolean(body.Address);
+  if (!hasProfile && !hasAddress) {
+    return { ok: false, message: 'Nothing to update.' };
   }
 
   return { ok: true, body };
@@ -154,4 +187,17 @@ export async function registerCustomer(body: CustomerRegistrationRequest): Promi
   }
   const response = await postJson(CUSTOMER_API.register, body);
   return interpretCustomerResponse(response.status, response.body, 'The server did not confirm registration.');
+}
+
+export async function updateCustomer(body: CustomerUpdateRequest): Promise<CustomerApiResult> {
+  if (isDevOtpEnabled()) {
+    return {
+      tone: 'info',
+      message: 'Live profile update is blocked while Development OTP mode is on.',
+      confirmed: false,
+      next: 'stay',
+    };
+  }
+  const response = await postJson(CUSTOMER_API.update, body);
+  return interpretCustomerResponse(response.status, response.body, 'The server did not confirm the profile update.');
 }

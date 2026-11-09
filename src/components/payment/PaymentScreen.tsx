@@ -34,7 +34,7 @@ import { useMockCart } from '@/context/MockCartContext';
 import { usePreviewSession } from '@/context/PreviewSessionContext';
 import { useSavedAddresses } from '@/context/SavedAddressesContext';
 import { computeDemoCouponDiscount, demoCouponById, isCouponExpired } from '@/data/demoCoupons';
-import { findDemoProduct } from '@/data/findDemoProduct';
+import { useResolvedCartLines } from '@/hooks/useResolvedCartLines';
 import { formatDeliveryAddress } from '@/data/referenceLocations';
 import { addressesSelectHref, locationRoutes } from '@/navigation/locationRoutes';
 import { canUseDevelopmentHome } from '@/services/devOtp';
@@ -56,7 +56,8 @@ export function PaymentScreen() {
   const contentWidth = Math.min(width, homeLayout.maxWidth);
 
   const { hydrated: authHydrated, session, devSession } = useAuthSession();
-  const { quantities, setQuantity } = useMockCart();
+  const { setQuantity } = useMockCart();
+  const { known } = useResolvedCartLines();
   const { confirmed, beginAddressBookPick } = useDeliveryLocation();
   const { addresses, hydrated } = useSavedAddresses();
   const { couponId, placeOrder } = usePreviewSession();
@@ -74,17 +75,8 @@ export function PaymentScreen() {
   }, [initialMethod]);
 
   const lines = useMemo(
-    () =>
-      Object.entries(quantities)
-        .map(([id, quantity]) => {
-          const product = findDemoProduct(id);
-          return product ? { product, quantity } : null;
-        })
-        .filter(
-          (line): line is { product: NonNullable<ReturnType<typeof findDemoProduct>>; quantity: number } =>
-            line !== null,
-        ),
-    [quantities],
+    () => known.map((line) => ({ product: line.product, quantity: line.quantity })),
+    [known],
   );
 
   const foundCoupon = UI_PREVIEW_MODE ? demoCouponById(couponId) : undefined;

@@ -1,15 +1,11 @@
+import type { ImageSource } from 'expo-image';
 import type { Href } from 'expo-router';
 
 /**
  * Home promotional carousel slides.
- * Copy and destinations reuse existing Home banners — no invented live offers.
+ * Legacy demo banners remain for UI_PREVIEW; live home prefers presentation CMS seed.
  */
-export type HomePromoBannerId =
-  | 'savings'
-  | 'minutes'
-  | 'delivery'
-  | 'fruits'
-  | 'demo-preview';
+export type HomePromoBannerId = string;
 
 export type HomePromoBannerTone = 'warm' | 'violet' | 'green' | 'mint' | 'cream';
 
@@ -28,6 +24,8 @@ export type HomePromoBanner = {
   demoOnly?: boolean;
   /** Use produce photo on the right when true. */
   showProduceImage?: boolean;
+  /** CMS / seed image when available (preferred over default produce cutout). */
+  presentationImage?: ImageSource;
 };
 
 export const HOME_PROMO_BANNERS: readonly HomePromoBanner[] = [

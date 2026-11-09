@@ -21,6 +21,9 @@ import { AppIcon } from '@/components/ui/AppIcon';
 import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { colors, fonts, homeLayout, radii, shadow, space } from '@/constants/theme';
+import { CatalogStatusPanel } from '@/components/ui/CatalogStatusPanel';
+import { ProductGridSkeleton } from '@/components/ui/LoadingSkeleton';
+import { useCatalog } from '@/context/CatalogContext';
 import { useMockCart } from '@/context/MockCartContext';
 import {
   filterCollectionByChip,
@@ -42,14 +45,32 @@ export function CategoryShoppingScreen({ collectionId }: CategoryShoppingScreenP
   const { width } = useWindowDimensions();
   const contentWidth = contentColumnWidth(width);
   const { totalCount } = useMockCart();
+  const { products, listShelves, liveEnabled, initialLoading, state, message, refresh, refreshing } = useCatalog();
+  const [retrying, setRetrying] = useState(false);
   const definition = getShoppingCollection(collectionId);
+
+  async function handleRetry() {
+    if (retrying) {
+      return;
+    }
+    setRetrying(true);
+    try {
+      await refresh();
+    } finally {
+      setRetrying(false);
+    }
+  }
   const [query, setQuery] = useState('');
   const [chipId, setChipId] = useState('all');
   const listRef = useRef<{ scrollToOffset: (options: { offset: number; animated?: boolean }) => void } | null>(
     null,
   );
 
-  const baseProducts = useMemo(() => listCollectionProducts(collectionId), [collectionId]);
+  const shelves = useMemo(() => listShelves(), [listShelves]);
+  const baseProducts = useMemo(
+    () => listCollectionProducts(collectionId, products, shelves),
+    [collectionId, products, shelves],
+  );
   const chips = useMemo(() => listCollectionChips(collectionId, baseProducts), [baseProducts, collectionId]);
 
   useEffect(() => {
@@ -100,6 +121,29 @@ export function CategoryShoppingScreen({ collectionId }: CategoryShoppingScreenP
           <Text style={styles.emptyBody}>This shopping shortcut could not be opened.</Text>
           <PrimaryButton label="Back to Home" onPress={() => router.replace('/home')} />
         </View>
+      </View>
+    );
+  }
+
+  if (liveEnabled && initialLoading) {
+    return (
+      <View style={styles.screen}>
+        <AppScreenHeader title={definition.title} fallbackHref="/home" />
+        <ProductGridSkeleton columns={columns} count={6} cardWidth={cardWidth} />
+      </View>
+    );
+  }
+
+  if (liveEnabled && state.status === 'error' && products.length === 0) {
+    return (
+      <View style={styles.screen}>
+        <AppScreenHeader title={definition.title} fallbackHref="/home" />
+        <CatalogStatusPanel
+          kind="error"
+          message={message}
+          onRetry={() => void handleRetry()}
+          retrying={retrying || refreshing}
+        />
       </View>
     );
   }

@@ -221,8 +221,18 @@ const body = buildCustomerRegistration({
     source: 'manual',
   },
 });
-if (!body.ok || 'CompanyMobile' in body.body || 'WhatsApp' in body.body || 'GSTIN' in body.body) {
+if (!body.ok || 'WhatsApp' in body.body || 'GSTIN' in body.body || 'Anniversary' in body.body) {
   throw new Error('registration body invented fields');
+}
+// CompanyMobile is only included when EXPO_PUBLIC_PRODUCTS_COMPANY is set (real store id).
+if (!body.ok) {
+  throw new Error('registration body should build with a delivery address');
+}
+if (body.body.Address !== '12 Market Road, Lucknow') {
+  throw new Error(`registration must include formatted Address, got ${body.body.Address}`);
+}
+if (body.body.City !== 'Lucknow') {
+  throw new Error('registration must include City from the delivery location');
 }
 
 const withoutEmail = buildCustomerRegistration({

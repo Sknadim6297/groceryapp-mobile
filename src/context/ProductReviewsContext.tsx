@@ -7,7 +7,7 @@ import {
   previewReviewsForProduct,
   sortProductReviews,
 } from '@/data/productReviews';
-import { findDemoProduct } from '@/data/findDemoProduct';
+import { useCatalog } from '@/context/CatalogContext';
 import {
   activateDeviceProductReviewStore,
   createDeviceReviewId,
@@ -37,6 +37,7 @@ type ProductReviewsContextValue = {
 const ProductReviewsContext = createContext<ProductReviewsContextValue | null>(null);
 
 export function ProductReviewsProvider({ children }: { children: ReactNode }) {
+  const { findProduct } = useCatalog();
   const [hydrated, setHydrated] = useState(false);
   const [deviceReviews, setDeviceReviews] = useState<ProductReview[]>([]);
   const [votes, setVotes] = useState<VoteMap>({});
@@ -78,14 +79,14 @@ export function ProductReviewsProvider({ children }: { children: ReactNode }) {
 
   const reviewsForProduct = useCallback(
     (productId: string): ProductReview[] => {
-      const product = findDemoProduct(productId);
+      const product = findProduct(productId);
       const preview = product
         ? previewReviewsForProduct(product).map((review) => previewOverrides[review.id] ?? review)
         : [];
       const own = deviceReviews.filter((review) => review.productId === productId);
       return [...own, ...preview];
     },
-    [deviceReviews, previewOverrides],
+    [deviceReviews, findProduct, previewOverrides],
   );
 
   const summaryFor = useCallback(
@@ -118,7 +119,7 @@ export function ProductReviewsProvider({ children }: { children: ReactNode }) {
 
   const submitReview = useCallback((draft: DeviceReviewDraft) => {
     const productId = draft.productId.trim();
-    if (!productId || !findDemoProduct(productId)) {
+    if (!productId || !findProduct(productId)) {
       return { ok: false as const, reason: 'Product not found.' };
     }
     const rating = Math.round(draft.rating);
@@ -146,7 +147,7 @@ export function ProductReviewsProvider({ children }: { children: ReactNode }) {
     };
     setDeviceReviews((current) => [review, ...current]);
     return { ok: true as const, review };
-  }, []);
+  }, [findProduct]);
 
   const value = useMemo(
     () => ({

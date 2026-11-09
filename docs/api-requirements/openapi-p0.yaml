@@ -1,0 +1,1418 @@
+openapi: 3.0.3
+info:
+  title: MayapurBazaar Customer App — P0 API
+  version: 1.0.0-p0
+  description: |
+    P0 contract for the MayapurBazaar Expo customer app against the existing ASP.NET host.
+    Legacy auth endpoints keep Status/Message responses. New endpoints use the unified envelope.
+    Compatible path root: /api/values/...
+  contact:
+    name: MayapurBazaar Frontend Audit
+servers:
+  - url: https://api.supertrading.online
+    description: Live host (default EXPO_PUBLIC_API_BASE_URL)
+tags:
+  - name: AuthLegacy
+  - name: AuthSession
+  - name: Profile
+  - name: Addresses
+  - name: Delivery
+  - name: Catalog
+  - name: Cart
+  - name: Checkout
+  - name: Payments
+  - name: Orders
+
+paths:
+  /api/values/customer/send-otp:
+    post:
+      tags: [AuthLegacy]
+      summary: Send OTP
+      operationId: sendOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobileOnlyRequest'
+      responses:
+        '200':
+          description: Legacy Status/Message body (array or object)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyStatusBody'
+
+  /api/values/customer/resend-otp:
+    post:
+      tags: [AuthLegacy]
+      summary: Resend OTP
+      operationId: resendOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobileOnlyRequest'
+      responses:
+        '200':
+          description: Legacy Status/Message body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyStatusBody'
+
+  /api/values/customer/verify-otp:
+    post:
+      tags: [AuthLegacy]
+      summary: Verify OTP
+      operationId: verifyOtp
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyOtpRequest'
+      responses:
+        '200':
+          description: Registered returns AccessToken; unregistered returns MobileVerificationToken
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyStatusBody'
+
+  /api/values/customer/register:
+    post:
+      tags: [AuthLegacy]
+      summary: Register customer
+      operationId: registerCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: Success includes AccessToken + RefreshToken
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyStatusBody'
+
+  /api/values/customer/refresh-token:
+    post:
+      tags: [AuthSession]
+      summary: Refresh access token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [RefreshToken]
+              properties:
+                RefreshToken:
+                  type: string
+      responses:
+        '200':
+          description: New tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LegacyStatusBody'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/values/customer/logout:
+    post:
+      tags: [AuthSession]
+      summary: Revoke session
+      operationId: logout
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                RefreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/values/customer/profile:
+    get:
+      tags: [Profile]
+      summary: Get profile
+      operationId: getProfile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Profile
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CustomerProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      tags: [Profile]
+      summary: Update profile
+      operationId: updateProfile
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [Name, Email]
+              properties:
+                Name:
+                  type: string
+                Email:
+                  type: string
+                DOB:
+                  type: string
+                  nullable: true
+                  description: ISO date YYYY-MM-DD
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CustomerProfile'
+        '400':
+          $ref: '#/components/responses/ApiError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/values/customer/addresses:
+    get:
+      tags: [Addresses]
+      summary: List addresses
+      operationId: listAddresses
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Address list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/SavedAddress'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Addresses]
+      summary: Create address
+      operationId: createAddress
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SavedAddress'
+        '400':
+          $ref: '#/components/responses/ApiError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/values/customer/addresses/{addressId}:
+    parameters:
+      - $ref: '#/components/parameters/AddressId'
+    put:
+      tags: [Addresses]
+      summary: Update address
+      operationId: updateAddress
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SavedAddress'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/ApiError'
+    delete:
+      tags: [Addresses]
+      summary: Delete address
+      operationId: deleteAddress
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/ApiError'
+
+  /api/values/customer/addresses/{addressId}/default:
+    parameters:
+      - $ref: '#/components/parameters/AddressId'
+    put:
+      tags: [Addresses]
+      summary: Set default address
+      operationId: setDefaultAddress
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Default updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SavedAddress'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/ApiError'
+
+  /api/values/delivery/serviceability:
+    get:
+      tags: [Delivery]
+      summary: Check delivery serviceability
+      operationId: checkServiceability
+      parameters:
+        - name: postalCode
+          in: query
+          schema:
+            type: string
+        - name: latitude
+          in: query
+          schema:
+            type: number
+        - name: longitude
+          in: query
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Serviceability result
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [serviceable]
+                        properties:
+                          serviceable:
+                            type: boolean
+                          message:
+                            type: string
+                            nullable: true
+                          etaMinutesMin:
+                            type: integer
+                            nullable: true
+                          etaMinutesMax:
+                            type: integer
+                            nullable: true
+                          storeId:
+                            type: string
+                            nullable: true
+
+  /api/values/products:
+    get:
+      tags: [Catalog]
+      summary: List products
+      operationId: listProducts
+      parameters:
+        - name: company
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [catalogue, price-asc, price-desc, name-asc, name-desc]
+        - name: priceMin
+          in: query
+          schema:
+            type: number
+        - name: priceMax
+          in: query
+          schema:
+            type: number
+        - name: inStockOnly
+          in: query
+          schema:
+            type: boolean
+        - name: discountedOnly
+          in: query
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Product page (unified envelope recommended for new clients)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Product'
+                          page:
+                            type: integer
+                          pageSize:
+                            type: integer
+                          totalItems:
+                            type: integer
+
+  /api/values/products/{productId}:
+    get:
+      tags: [Catalog]
+      summary: Get product details
+      operationId: getProduct
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Product
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ProductDetails'
+        '404':
+          $ref: '#/components/responses/ApiError'
+
+  /api/values/catalog/categories:
+    get:
+      tags: [Catalog]
+      summary: List categories tree
+      operationId: listCategories
+      responses:
+        '200':
+          description: Categories
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/CategoryNode'
+
+  /api/values/catalog/home:
+    get:
+      tags: [Catalog]
+      summary: Home feed
+      operationId: getHomeFeed
+      security:
+        - {}
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Home sections
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          banners:
+                            type: array
+                            items:
+                              type: object
+                              additionalProperties: true
+                          recommended:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Product'
+                          spotlight:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Product'
+                          topSelling:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Product'
+                          boughtAgain:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Product'
+                          categories:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/CategoryNode'
+
+  /api/values/cart:
+    get:
+      tags: [Cart]
+      summary: Get cart
+      operationId: getCart
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Cart
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Cart'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    delete:
+      tags: [Cart]
+      summary: Clear cart
+      operationId: clearCart
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Cleared
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/values/cart/items/{productId}:
+    parameters:
+      - $ref: '#/components/parameters/ProductId'
+    put:
+      tags: [Cart]
+      summary: Upsert cart item
+      operationId: upsertCartItem
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [Quantity]
+              properties:
+                Quantity:
+                  type: integer
+                  minimum: 0
+                  maximum: 99
+                  description: 0 removes the line
+      responses:
+        '200':
+          description: Updated cart
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Cart'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ApiError'
+    delete:
+      tags: [Cart]
+      summary: Remove cart item
+      operationId: removeCartItem
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Updated cart
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Cart'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/values/checkout/quote:
+    post:
+      tags: [Checkout]
+      summary: Server-side checkout quote
+      operationId: checkoutQuote
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [AddressId]
+              properties:
+                AddressId:
+                  type: string
+                CouponCode:
+                  type: string
+                  nullable: true
+                LeaveAtDoor:
+                  type: boolean
+                  default: false
+                Instructions:
+                  type: string
+                  nullable: true
+      responses:
+        '200':
+          description: Quote
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CheckoutQuote'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ApiError'
+
+  /api/values/payments/methods:
+    get:
+      tags: [Payments]
+      summary: Available payment methods
+      operationId: listPaymentMethods
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Methods
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          required: [id, title, enabled]
+                          properties:
+                            id:
+                              type: string
+                              enum: [cod, upi, card]
+                            title:
+                              type: string
+                            subtitle:
+                              type: string
+                            enabled:
+                              type: boolean
+
+  /api/values/orders:
+    get:
+      tags: [Orders]
+      summary: List orders
+      operationId: listOrders
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: statusGroup
+          in: query
+          schema:
+            type: string
+            enum: [all, active, delivered]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Orders page
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          items:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Orders]
+      summary: Place order (COD MVP)
+      operationId: placeOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [AddressId, PaymentMethodId, QuoteId]
+              properties:
+                AddressId:
+                  type: string
+                PaymentMethodId:
+                  type: string
+                  enum: [cod, upi, card]
+                CouponCode:
+                  type: string
+                  nullable: true
+                LeaveAtDoor:
+                  type: boolean
+                Instructions:
+                  type: string
+                  nullable: true
+                QuoteId:
+                  type: string
+      responses:
+        '201':
+          description: Order created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/ApiError'
+        '422':
+          $ref: '#/components/responses/ApiError'
+
+  /api/values/orders/active:
+    get:
+      tags: [Orders]
+      summary: Get active order
+      operationId: getActiveOrder
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Active order or null data
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        oneOf:
+                          - $ref: '#/components/schemas/Order'
+                          - type: 'null'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/values/orders/{orderId}:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    get:
+      tags: [Orders]
+      summary: Get order
+      operationId: getOrder
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Order
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/ApiError'
+        '404':
+          $ref: '#/components/responses/ApiError'
+
+  /api/values/orders/{orderId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    post:
+      tags: [Orders]
+      summary: Cancel order
+      operationId: cancelOrder
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ReasonIds]
+              properties:
+                ReasonIds:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 1
+      responses:
+        '200':
+          description: Cancelled order
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/ApiError'
+
+  /api/values/orders/{orderId}/tracking:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    get:
+      tags: [Orders]
+      summary: Order tracking
+      operationId: getOrderTracking
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Tracking payload
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/OrderTracking'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/ApiError'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: AccessToken from verify-otp / register / refresh-token
+
+  parameters:
+    AddressId:
+      name: addressId
+      in: path
+      required: true
+      schema:
+        type: string
+    ProductId:
+      name: productId
+      in: path
+      required: true
+      schema:
+        type: string
+    OrderId:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: string
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid AccessToken
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorBody'
+    ApiError:
+      description: Error envelope
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiErrorBody'
+
+  schemas:
+    MobileOnlyRequest:
+      type: object
+      required: [Mobile]
+      properties:
+        Mobile:
+          type: string
+          example: '9876543210'
+          description: 10-digit India national number
+
+    VerifyOtpRequest:
+      type: object
+      required: [Mobile, OTP]
+      properties:
+        Mobile:
+          type: string
+        OTP:
+          type: string
+          minLength: 6
+          maxLength: 6
+
+    RegisterRequest:
+      type: object
+      required: [Mobile, Name, Email]
+      properties:
+        Mobile:
+          type: string
+        Name:
+          type: string
+        Email:
+          type: string
+        Address:
+          type: string
+        DOB:
+          type: string
+        Country:
+          type: string
+        State:
+          type: string
+        City:
+          type: string
+        Pincode:
+          type: string
+        MobileVerificationToken:
+          type: string
+          description: From OTP-first verify-otp; required when registering after unregistered verify
+
+    LegacyStatusBody:
+      description: Object or one-element array with Status/Message
+      oneOf:
+        - type: object
+          additionalProperties: true
+        - type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    ApiSuccess:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        message:
+          type: string
+          nullable: true
+        data:
+          nullable: true
+
+    ApiErrorBody:
+      type: object
+      required: [success, message, code]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        message:
+          type: string
+        code:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+
+    CustomerProfile:
+      type: object
+      properties:
+        customerId:
+          type: string
+        mobile:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        dateOfBirth:
+          type: string
+          nullable: true
+        avatarUrl:
+          type: string
+          nullable: true
+
+    AddressRequest:
+      type: object
+      required: [Label, AddressLine1, City, State, PostalCode, Country, Source]
+      properties:
+        Label:
+          type: string
+          enum: [Home, Work, Other]
+        CustomLabel:
+          type: string
+          nullable: true
+        HouseNumber:
+          type: string
+        BuildingStreet:
+          type: string
+        Area:
+          type: string
+        AddressLine1:
+          type: string
+        Landmark:
+          type: string
+        City:
+          type: string
+        State:
+          type: string
+        PostalCode:
+          type: string
+        Country:
+          type: string
+        Instructions:
+          type: string
+        Latitude:
+          type: number
+          nullable: true
+        Longitude:
+          type: number
+          nullable: true
+        Source:
+          type: string
+          enum: [gps, manual, saved, search, map]
+
+    SavedAddress:
+      allOf:
+        - $ref: '#/components/schemas/AddressRequest'
+        - type: object
+          properties:
+            id:
+              type: string
+            isDefault:
+              type: boolean
+            updatedAt:
+              type: integer
+              format: int64
+
+    Product:
+      type: object
+      required: [id, name, unit, price]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        unit:
+          type: string
+        price:
+          type: number
+        compareAt:
+          type: number
+          nullable: true
+        discountLabel:
+          type: string
+          nullable: true
+        available:
+          type: boolean
+          nullable: true
+        imageUrl:
+          type: string
+        imageUrls:
+          type: array
+          items:
+            type: string
+        categoryIds:
+          type: array
+          items:
+            type: string
+        brand:
+          type: string
+          nullable: true
+        ratingAverage:
+          type: number
+          nullable: true
+
+    ProductDetails:
+      allOf:
+        - $ref: '#/components/schemas/Product'
+        - type: object
+          properties:
+            about:
+              type: string
+            relatedProductIds:
+              type: array
+              items:
+                type: string
+
+    CategoryNode:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        imageUrl:
+          type: string
+        parentId:
+          type: string
+          nullable: true
+        productCount:
+          type: integer
+        order:
+          type: integer
+        visible:
+          type: boolean
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/CategoryNode'
+
+    Cart:
+      type: object
+      properties:
+        leaveAtDoor:
+          type: boolean
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              productId:
+                type: string
+              quantity:
+                type: integer
+              name:
+                type: string
+              unit:
+                type: string
+              unitPrice:
+                type: number
+              compareAt:
+                type: number
+                nullable: true
+              imageUrl:
+                type: string
+              available:
+                type: boolean
+              lineTotal:
+                type: number
+        bill:
+          type: object
+          properties:
+            itemCount:
+              type: integer
+            mrpTotal:
+              type: number
+            itemTotal:
+              type: number
+            savings:
+              type: number
+            deliveryPartnerFee:
+              type: number
+            handlingFee:
+              type: number
+            subtotal:
+              type: number
+            currency:
+              type: string
+              enum: [INR]
+
+    CheckoutQuote:
+      type: object
+      properties:
+        quoteId:
+          type: string
+        itemTotal:
+          type: number
+        mrpTotal:
+          type: number
+        savings:
+          type: number
+        deliveryFee:
+          type: number
+        handlingFee:
+          type: number
+        discount:
+          type: number
+        tax:
+          type: number
+        grandTotal:
+          type: number
+        currency:
+          type: string
+          enum: [INR]
+        couponCode:
+          type: string
+          nullable: true
+        serviceable:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+
+    OrderStatus:
+      type: string
+      enum:
+        - placed
+        - confirmed
+        - packing
+        - picked_up
+        - out_for_delivery
+        - delivered
+        - cancelled
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+        placedAt:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        statusDetail:
+          type: string
+          nullable: true
+        totalAmount:
+          type: number
+        currency:
+          type: string
+          enum: [INR]
+        paymentMethodId:
+          type: string
+          enum: [cod, upi, card]
+        paymentLabel:
+          type: string
+        statusAt:
+          type: object
+          additionalProperties:
+            type: string
+        eta:
+          type: object
+          nullable: true
+          properties:
+            value:
+              type: string
+            unit:
+              type: string
+        addressTitle:
+          type: string
+        addressLine:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              quantity:
+                type: integer
+              unit:
+                type: string
+        partner:
+          type: object
+          nullable: true
+          properties:
+            name:
+              type: string
+            status:
+              type: string
+            phone:
+              type: string
+              nullable: true
+            ratingLabel:
+              type: string
+              nullable: true
+        leaveAtDoor:
+          type: boolean
+        instructions:
+          type: string
+          nullable: true
+
+    OrderTracking:
+      type: object
+      properties:
+        orderId:
+          type: string
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+        statusAt:
+          type: object
+          additionalProperties:
+            type: string
+        etaMinutes:
+          type: integer
+          nullable: true
+        etaRangeLabel:
+          type: string
+          nullable: true
+        paymentChipLabel:
+          type: string
+          nullable: true
+        partner:
+          type: object
+          nullable: true
+          additionalProperties: true
+        storeLocation:
+          $ref: '#/components/schemas/LatLng'
+        deliveryLocation:
+          $ref: '#/components/schemas/LatLng'
+        riderLocation:
+          allOf:
+            - $ref: '#/components/schemas/LatLng'
+          nullable: true
+        routePolyline:
+          type: string
+          nullable: true
+
+    LatLng:
+      type: object
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number

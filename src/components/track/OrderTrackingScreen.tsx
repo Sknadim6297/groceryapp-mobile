@@ -21,10 +21,10 @@ import { useToast } from '@/components/ui/AppToast';
 import { BRAND_NAME } from '@/constants/brand';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts, radii } from '@/constants/theme';
+import { useCatalog } from '@/context/CatalogContext';
 import { usePreviewSession } from '@/context/PreviewSessionContext';
 import { readActiveOrder } from '@/data/activeOrder';
 import { buildTrackPanelTimeline, getDemoOrderTracking, shouldShowRiderMarker } from '@/data/demoOrderTracking';
-import { findDemoProduct } from '@/data/findDemoProduct';
 import { canCancelOrderStatus } from '@/data/orderCancelReasons';
 import { canReturnOrderStatus } from '@/data/orderReturnReasons';
 import type { CustomerOrder, OrderLine, SimulatedOrder } from '@/types/order';
@@ -451,7 +451,8 @@ function OrderDetailsBlock({ order, compact }: { order: CustomerOrder; compact: 
 }
 
 function OrderLineCard({ item }: { item: OrderLine }) {
-  const product = findDemoProduct(item.id);
+  const { findProduct } = useCatalog();
+  const product = findProduct(item.id);
   const discount =
     product?.discountLabel?.trim() ||
     (product?.compareAt && product.compareAt > product.price

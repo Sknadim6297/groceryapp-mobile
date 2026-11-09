@@ -35,6 +35,8 @@ export type ApiPostResult = {
 
 const SECRET_KEY = /otp|token|password|authorization|secret|cookie|session|jwt|bearer|exception|stack|customerid|customer_id|^name$/i;
 const PHONE_KEY = /mobile|phone|msisdn/i;
+/** Never dump Base64 product photos into Metro logs. */
+const IMAGE_KEY = /^image\d*$|imageurl|photo|thumbnail|avatar/i;
 
 function maskDigits(value: string): string {
   return value.replace(/\d{6,}/g, (digits) => `${'*'.repeat(Math.max(digits.length - 2, 4))}${digits.slice(-2)}`);
@@ -58,6 +60,13 @@ function sanitizeForLog(value: unknown, depth = 0): unknown {
   for (const [key, item] of Object.entries(value).slice(0, 12)) {
     if (SECRET_KEY.test(key)) {
       sanitized[key] = '[redacted]';
+    } else if (IMAGE_KEY.test(key)) {
+      sanitized[key] =
+        typeof item === 'string' && item.trim().length > 0
+          ? `[image ${item.trim().length} chars]`
+          : item == null
+            ? null
+            : '[image]';
     } else if (PHONE_KEY.test(key) && typeof item === 'string') {
       sanitized[key] = maskDigits(item);
     } else {

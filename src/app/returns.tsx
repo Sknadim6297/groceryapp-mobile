@@ -13,9 +13,9 @@ import { useToast } from '@/components/ui/AppToast';
 import { PlaceholderScreen } from '@/components/ui/PlaceholderScreen';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts, radii, shadow, space } from '@/constants/theme';
+import { useCatalog } from '@/context/CatalogContext';
 import { usePreviewSession } from '@/context/PreviewSessionContext';
 import { canReturnOrderStatus } from '@/data/orderReturnReasons';
-import { findDemoProduct } from '@/data/findDemoProduct';
 import { accountRoutes } from '@/navigation/accountRoutes';
 import { profileRoutes } from '@/navigation/profileRoutes';
 import type { SimulatedOrder } from '@/types/order';
@@ -184,12 +184,13 @@ export default function ReturnsRefundsScreen() {
 }
 
 function ProductThumbStack({ order }: { order: SimulatedOrder }) {
+  const { findProduct } = useCatalog();
   const preview = order.items.slice(0, 3);
   const extra = Math.max(0, order.items.length - preview.length);
   return (
     <View style={styles.thumbs}>
       {preview.map((item, index) => {
-        const product = findDemoProduct(item.id);
+        const product = findProduct(item.id);
         return (
           <View key={`${item.id}-${index}`} style={[styles.thumb, index > 0 ? styles.thumbOverlap : null]}>
             {product ? (
@@ -210,6 +211,7 @@ function ProductThumbStack({ order }: { order: SimulatedOrder }) {
 }
 
 function ReturnRequestCard({ order }: { order: SimulatedOrder }) {
+  const { findProduct } = useCatalog();
   const returnedItems = order.items.filter((item) =>
     order.returnItemIds?.length ? order.returnItemIds.includes(item.id) : true,
   );
@@ -226,7 +228,7 @@ function ReturnRequestCard({ order }: { order: SimulatedOrder }) {
 
       <View style={styles.returnedProducts}>
         {returnedItems.slice(0, 4).map((item) => {
-          const product = findDemoProduct(item.id);
+          const product = findProduct(item.id);
           return (
             <View key={`${order.id}-${item.id}`} style={styles.returnedRow}>
               <View style={styles.returnedThumb}>

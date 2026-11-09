@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
+import { buildCustomerUpdate, updateCustomer } from '@/services/customerAuth';
 import {
   activateDeviceSavedAddressStore,
   addressOwnerKey,
@@ -13,6 +14,7 @@ import {
   withDefaultAddress,
 } from '@/services/savedAddressStore';
 import type { SavedAddress, SavedAddressDraft } from '@/types/savedAddress';
+import { addressFieldsFromSavedAddress } from '@/utils/customerAddressPayload';
 import { findDuplicateAddress, isAddressDraftReady } from '@/utils/savedAddressValidation';
 import { savedAddressToDeliveryLocation } from '@/utils/savedAddressMapping';
 
@@ -98,6 +100,31 @@ export function SavedAddressesProvider({ children }: { children: ReactNode }) {
     await saveAddressBook({ ownerKey: nextOwner, addresses: nextAddresses });
   }, []);
 
+  const syncDefaultAddressToServer = useCallback(
+    (address: SavedAddress) => {
+      const mobile = session?.mobile?.trim();
+      if (!mobile) {
+        return;
+      }
+      const fields = addressFieldsFromSavedAddress(address);
+      const built = buildCustomerUpdate({
+        mobile,
+        name: session?.name,
+        location: savedAddressToDeliveryLocation(address),
+      });
+      if (!built.ok) {
+        return;
+      }
+      void updateCustomer({
+        ...built.body,
+        ...fields,
+      }).catch(() => {
+        // Local address book remains the source of truth if update fails.
+      });
+    },
+    [session?.mobile, session?.name],
+  );
+
   const saveAddress = useCallback(
     async (draft: SavedAddressDraft, options?: { id?: string; makeDefault?: boolean }): Promise<SaveAddressResult> => {
       const nextOwner = ownerKey ?? resolveOwner();
@@ -129,6 +156,7 @@ export function SavedAddressesProvider({ children }: { children: ReactNode }) {
         await persist(nextOwner, next);
         if (updated.isDefault) {
           applyConfirmed(savedAddressToDeliveryLocation(updated));
+          syncDefaultAddressToServer(updated);
         }
         return { ok: true, address: updated };
       }
@@ -139,10 +167,11 @@ export function SavedAddressesProvider({ children }: { children: ReactNode }) {
       await persist(nextOwner, next);
       if (created.isDefault) {
         applyConfirmed(savedAddressToDeliveryLocation(created));
+        syncDefaultAddressToServer(created);
       }
       return { ok: true, address: created };
     },
-    [addresses, applyConfirmed, ownerKey, persist, resolveOwner],
+    [addresses, applyConfirmed, ownerKey, persist, resolveOwner, syncDefaultAddressToServer],
   );
 
   const deleteAddress = useCallback(
@@ -180,10 +209,11 @@ export function SavedAddressesProvider({ children }: { children: ReactNode }) {
       const selected = next.find((address) => address.id === addressId);
       if (selected) {
         applyConfirmed(savedAddressToDeliveryLocation(selected));
+        syncDefaultAddressToServer(selected);
       }
       return true;
     },
-    [addresses, applyConfirmed, ownerKey, persist],
+    [addresses, applyConfirmed, ownerKey, persist, syncDefaultAddressToServer],
   );
 
   const selectAddressForDelivery = useCallback(

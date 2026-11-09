@@ -1,5 +1,5 @@
 import { Redirect, router, useIsFocused } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -33,18 +33,13 @@ import { useMockCart } from '@/context/MockCartContext';
 import { usePreviewSession } from '@/context/PreviewSessionContext';
 import { useSavedAddresses } from '@/context/SavedAddressesContext';
 import { computeDemoCouponDiscount, demoCouponById, isCouponExpired } from '@/data/demoCoupons';
-import { findDemoProduct } from '@/data/findDemoProduct';
 import { formatDeliveryAddress } from '@/data/referenceLocations';
+import { useResolvedCartLines } from '@/hooks/useResolvedCartLines';
 import { addressesSelectHref, locationRoutes } from '@/navigation/locationRoutes';
 import { canUseDevelopmentHome } from '@/services/devOtp';
-import type { DemoProduct } from '@/types/catalog';
 import { formatRupee } from '@/utils/cartBill';
 import { isCompleteDeliveryLocation } from '@/utils/deliveryAddress';
 import { buildDemoCheckoutBill } from '@/utils/demoCheckoutBill';
-
-type KnownLine = { id: string; quantity: number; product: DemoProduct };
-type MissingLine = { id: string; quantity: number; product: null };
-type CheckoutLine = KnownLine | MissingLine;
 
 export function CheckoutScreen() {
   const focused = useIsFocused();
@@ -52,7 +47,8 @@ export function CheckoutScreen() {
   const { width } = useWindowDimensions();
   const contentWidth = Math.min(width, homeLayout.maxWidth);
 
-  const { quantities, leaveAtDoor, setQuantity, setLeaveAtDoor } = useMockCart();
+  const { leaveAtDoor, setQuantity, setLeaveAtDoor } = useMockCart();
+  const { lines, known, missing, catalogReady } = useResolvedCartLines();
   const { confirmed, beginAddressBookPick } = useDeliveryLocation();
   const { addresses, hydrated } = useSavedAddresses();
   const { couponId, setCouponId } = usePreviewSession();
@@ -63,17 +59,6 @@ export function CheckoutScreen() {
   const [methodId, setMethodId] = useState<CheckoutPaymentMethodId>('cod');
   const [submitting, setSubmitting] = useState(false);
   const submitLock = useRef(false);
-
-  const lines = useMemo(
-    () =>
-      Object.entries(quantities).map(([id, quantity]): CheckoutLine => {
-        const product = findDemoProduct(id);
-        return product ? { id, quantity, product } : { id, quantity, product: null };
-      }),
-    [quantities],
-  );
-  const known = lines.filter((line): line is KnownLine => line.product !== null);
-  const missing = lines.filter((line): line is MissingLine => line.product === null);
 
   const coupon =
     UI_PREVIEW_MODE && couponId
@@ -159,6 +144,12 @@ export function CheckoutScreen() {
               style={({ pressed }) => [styles.emptyButton, pressed && styles.pressed]}>
               <Text style={styles.emptyButtonLabel}>Browse shop</Text>
             </Pressable>
+          </View>
+        ) : !catalogReady && known.length === 0 ? (
+          <View style={styles.empty}>
+            <SoftIcon name="basket" size={56} />
+            <Text style={styles.emptyTitle}>Loading checkout</Text>
+            <Text style={styles.emptyCopy}>Fetching products from the catalogue…</Text>
           </View>
         ) : (
           <>

@@ -1,0 +1,370 @@
+{
+  "info": {
+    "name": "MayapurBazaar Customer App — P0",
+    "description": "P0 APIs for existing ASP.NET host. Legacy auth uses Status/Message. New APIs use { success, message, data }. Set baseUrl, company, and tokens after verify/register.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://api.supertrading.online" },
+    { "key": "mobile", "value": "9876543210" },
+    { "key": "otp", "value": "123456" },
+    { "key": "company", "value": "REPLACE_WITH_REAL_COMPANY_ID" },
+    { "key": "accessToken", "value": "" },
+    { "key": "refreshToken", "value": "" },
+    { "key": "mobileVerificationToken", "value": "" },
+    { "key": "addressId", "value": "" },
+    { "key": "productId", "value": "eggs" },
+    { "key": "quoteId", "value": "" },
+    { "key": "orderId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1 Auth Legacy",
+      "item": [
+        {
+          "name": "Send OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Mobile\": \"{{mobile}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/values/customer/send-otp"
+          }
+        },
+        {
+          "name": "Resend OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Mobile\": \"{{mobile}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/values/customer/resend-otp"
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Mobile\": \"{{mobile}}\",\n  \"OTP\": \"{{otp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/values/customer/verify-otp"
+          }
+        },
+        {
+          "name": "Register Customer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Mobile\": \"{{mobile}}\",\n  \"Name\": \"Asha Devi\",\n  \"Email\": \"asha@example.com\",\n  \"Address\": \"12 Tulsi Lane, Mayapur\",\n  \"Country\": \"India\",\n  \"State\": \"West Bengal\",\n  \"City\": \"Mayapur\",\n  \"Pincode\": \"741313\",\n  \"MobileVerificationToken\": \"{{mobileVerificationToken}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/values/customer/register"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 Auth Session",
+      "item": [
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"RefreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/values/customer/refresh-token"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"RefreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/values/customer/logout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 Profile",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/values/customer/profile"
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Name\": \"Asha Devi\",\n  \"Email\": \"asha@example.com\",\n  \"DOB\": \"1994-05-12\"\n}"
+            },
+            "url": "{{baseUrl}}/api/values/customer/profile"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4 Addresses",
+      "item": [
+        {
+          "name": "List Addresses",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/values/customer/addresses"
+          }
+        },
+        {
+          "name": "Create Address",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Label\": \"Home\",\n  \"CustomLabel\": null,\n  \"HouseNumber\": \"12\",\n  \"BuildingStreet\": \"Tulsi Lane\",\n  \"Area\": \"Nadia\",\n  \"AddressLine1\": \"12 Tulsi Lane\",\n  \"Landmark\": \"Near temple\",\n  \"City\": \"Mayapur\",\n  \"State\": \"West Bengal\",\n  \"PostalCode\": \"741313\",\n  \"Country\": \"India\",\n  \"Instructions\": \"Call on arrival\",\n  \"Latitude\": 23.42,\n  \"Longitude\": 88.39,\n  \"Source\": \"map\"\n}"
+            },
+            "url": "{{baseUrl}}/api/values/customer/addresses"
+          }
+        },
+        {
+          "name": "Update Address",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Label\": \"Home\",\n  \"AddressLine1\": \"12 Tulsi Lane\",\n  \"City\": \"Mayapur\",\n  \"State\": \"West Bengal\",\n  \"PostalCode\": \"741313\",\n  \"Country\": \"India\",\n  \"Source\": \"map\"\n}"
+            },
+            "url": "{{baseUrl}}/api/values/customer/addresses/{{addressId}}"
+          }
+        },
+        {
+          "name": "Set Default Address",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/values/customer/addresses/{{addressId}}/default"
+          }
+        },
+        {
+          "name": "Delete Address",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/values/customer/addresses/{{addressId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "5 Delivery & Catalog",
+      "item": [
+        {
+          "name": "Serviceability",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/values/delivery/serviceability?postalCode=741313"
+          }
+        },
+        {
+          "name": "List Products",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/values/products?company={{company}}&page=1&pageSize=20"
+          }
+        },
+        {
+          "name": "Get Product",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/values/products/{{productId}}"
+          }
+        },
+        {
+          "name": "List Categories",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/values/catalog/categories"
+          }
+        },
+        {
+          "name": "Home Feed",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/values/catalog/home"
+          }
+        }
+      ]
+    },
+    {
+      "name": "6 Cart & Checkout",
+      "item": [
+        {
+          "name": "Get Cart",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/values/cart"
+          }
+        },
+        {
+          "name": "Upsert Cart Item",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Quantity\": 2\n}"
+            },
+            "url": "{{baseUrl}}/api/values/cart/items/{{productId}}"
+          }
+        },
+        {
+          "name": "Remove Cart Item",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/values/cart/items/{{productId}}"
+          }
+        },
+        {
+          "name": "Clear Cart",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/values/cart"
+          }
+        },
+        {
+          "name": "Checkout Quote",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"AddressId\": \"{{addressId}}\",\n  \"CouponCode\": null,\n  \"LeaveAtDoor\": false,\n  \"Instructions\": \"Gate 2\"\n}"
+            },
+            "url": "{{baseUrl}}/api/values/checkout/quote"
+          }
+        },
+        {
+          "name": "Payment Methods",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/values/payments/methods"
+          }
+        }
+      ]
+    },
+    {
+      "name": "7 Orders & Tracking",
+      "item": [
+        {
+          "name": "Place Order (COD)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Idempotency-Key", "value": "{{$guid}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"AddressId\": \"{{addressId}}\",\n  \"PaymentMethodId\": \"cod\",\n  \"CouponCode\": null,\n  \"LeaveAtDoor\": false,\n  \"Instructions\": \"Gate 2\",\n  \"QuoteId\": \"{{quoteId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/values/orders"
+          }
+        },
+        {
+          "name": "List Orders",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/values/orders?statusGroup=all&page=1&pageSize=20"
+          }
+        },
+        {
+          "name": "Get Active Order",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/values/orders/active"
+          }
+        },
+        {
+          "name": "Get Order",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/values/orders/{{orderId}}"
+          }
+        },
+        {
+          "name": "Cancel Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ReasonIds\": [\"change-of-mind\"]\n}"
+            },
+            "url": "{{baseUrl}}/api/values/orders/{{orderId}}/cancel"
+          }
+        },
+        {
+          "name": "Get Order Tracking",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "url": "{{baseUrl}}/api/values/orders/{{orderId}}/tracking"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -3,7 +3,8 @@ import type { ImageSource } from 'expo-image';
 import { listCatalogProducts } from '@/data/listCatalogProducts';
 import { mockBrands } from '@/data/mockBrands';
 import { productDetailCopy } from '@/data/productDetails';
-import { listShopShelves } from '@/data/shopCatalog';
+import { listShopShelves, type ShopShelf } from '@/data/shopCatalog';
+import type { DemoProduct } from '@/types/catalog';
 
 export type SearchSuggestion = {
   key: string;
@@ -17,13 +18,19 @@ export type SearchSuggestion = {
 
 const LIMIT = 8;
 
-export function searchSuggestions(raw: string): SearchSuggestion[] {
+type SearchCatalog = {
+  products?: readonly DemoProduct[];
+  shelves?: readonly ShopShelf[];
+};
+
+export function searchSuggestions(raw: string, catalog?: SearchCatalog): SearchSuggestion[] {
   const needle = raw.trim().toLowerCase();
   if (needle.length === 0) {
     return [];
   }
 
-  const shelves = listShopShelves();
+  const shelves = catalog?.shelves ?? listShopShelves();
+  const catalogue = catalog?.products ?? listCatalogProducts();
   const productShelf = new Map<string, { id: string; name: string }>();
   for (const shelf of shelves) {
     for (const product of shelf.products) {
@@ -32,10 +39,11 @@ export function searchSuggestions(raw: string): SearchSuggestion[] {
   }
 
   const products: SearchSuggestion[] = [];
-  for (const product of listCatalogProducts()) {
-    const brand = productDetailCopy(product).brand;
+  for (const product of catalogue) {
+    const brand = product.brand?.trim() || productDetailCopy(product).brand;
     const category = productShelf.get(product.id) ?? null;
-    const haystack = `${product.name} ${product.unit} ${brand} ${category?.name ?? ''}`.toLowerCase();
+    const categoryName = category?.name ?? product.category ?? '';
+    const haystack = `${product.name} ${product.unit} ${brand} ${categoryName}`.toLowerCase();
     if (!haystack.includes(needle)) {
       continue;
     }
@@ -43,7 +51,7 @@ export function searchSuggestions(raw: string): SearchSuggestion[] {
       key: `product:${product.id}`,
       kind: 'product',
       title: product.name,
-      subtitle: category ? `in ${category.name}` : null,
+      subtitle: categoryName ? `in ${categoryName}` : null,
       image: product.image,
       productId: product.id,
       categoryId: category?.id,
@@ -70,10 +78,10 @@ export function searchSuggestions(raw: string): SearchSuggestion[] {
 
   const brands: SearchSuggestion[] = [];
   const seenBrands = new Set<string>();
-  for (const product of listCatalogProducts()) {
-    const brand = productDetailCopy(product).brand;
+  for (const product of catalogue) {
+    const brand = product.brand?.trim() || productDetailCopy(product).brand;
     const key = brand.toLowerCase();
-    if (key === 'fresh basket' || seenBrands.has(key) || !key.includes(needle)) {
+    if (!brand || key === 'fresh basket' || seenBrands.has(key) || !key.includes(needle)) {
       continue;
     }
     seenBrands.add(key);
@@ -85,19 +93,21 @@ export function searchSuggestions(raw: string): SearchSuggestion[] {
       image: product.image,
     });
   }
-  for (const brand of mockBrands) {
-    const key = brand.name.toLowerCase();
-    if (seenBrands.has(key) || !key.includes(needle)) {
-      continue;
+  if (!catalog?.products) {
+    for (const brand of mockBrands) {
+      const key = brand.name.toLowerCase();
+      if (seenBrands.has(key) || !key.includes(needle)) {
+        continue;
+      }
+      seenBrands.add(key);
+      brands.push({
+        key: `brand:${brand.id}`,
+        kind: 'brand',
+        title: brand.name,
+        subtitle: 'in Brands',
+        image: brand.image,
+      });
     }
-    seenBrands.add(key);
-    brands.push({
-      key: `brand:${brand.id}`,
-      kind: 'brand',
-      title: brand.name,
-      subtitle: 'in Brands',
-      image: brand.image,
-    });
   }
 
   return [...categories, ...brands, ...products].slice(0, LIMIT);

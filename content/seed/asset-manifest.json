@@ -1,0 +1,494 @@
+{
+  "generatedAt": "2026-11-09T11:17:58.920Z",
+  "note": "Proposed remote paths are placeholders for approved storage. Do not use as live URLs yet.",
+  "items": [
+    {
+      "id": "pres-field-groceries-food",
+      "kind": "field",
+      "localPath": "assets/images/home/produce.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/fields/groceries-food.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-field-fruits-vegetables",
+      "kind": "field",
+      "localPath": "assets/images/home/fresh-fruits.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/fields/fruits-vegetables.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-field-dairy-breakfast",
+      "kind": "field",
+      "localPath": "assets/images/home/dairy-eggs.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/fields/dairy-breakfast.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-field-snacks-beverages",
+      "kind": "field",
+      "localPath": "assets/images/home/snacks-drinks.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/fields/snacks-beverages.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-field-household-essentials",
+      "kind": "field",
+      "localPath": "assets/images/home/household.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/fields/household-essentials.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-field-beauty-personal-care",
+      "kind": "field",
+      "localPath": "assets/images/home/personal.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/fields/beauty-personal-care.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-field-baby-care",
+      "kind": "field",
+      "localPath": "assets/images/home/baby-care.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/fields/baby-care.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-field-health-wellness",
+      "kind": "field",
+      "localPath": "assets/images/home/personal.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/fields/health-wellness.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-field-home-kitchen",
+      "kind": "field",
+      "localPath": "assets/images/home/household.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/fields/home-kitchen.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-field-chocolates-sweets",
+      "kind": "field",
+      "localPath": "assets/images/home/snacks.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/fields/chocolates-sweets.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-rice-grains",
+      "kind": "category",
+      "localPath": "assets/images/home/grains.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/rice-grains.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-atta-flour",
+      "kind": "category",
+      "localPath": "assets/images/home/grains.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/atta-flour.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-dals-pulses",
+      "kind": "category",
+      "localPath": "assets/images/home/masala.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/dals-pulses.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-cooking-oils",
+      "kind": "category",
+      "localPath": "assets/images/home/cooking-oil.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/cooking-oils.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-spices-masala",
+      "kind": "category",
+      "localPath": "assets/images/home/masala.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/spices-masala.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-sugar-salt",
+      "kind": "category",
+      "localPath": "assets/images/home/masala.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/sugar-salt.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-dry-fruits",
+      "kind": "category",
+      "localPath": "assets/images/home/grains.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/dry-fruits.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-packaged-foods",
+      "kind": "category",
+      "localPath": "assets/images/home/instant.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/packaged-foods.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-fresh-vegetables",
+      "kind": "category",
+      "localPath": "assets/images/home/produce.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/fresh-vegetables.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-fresh-fruits",
+      "kind": "category",
+      "localPath": "assets/images/home/fresh-fruits.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/fresh-fruits.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-leafy-greens",
+      "kind": "category",
+      "localPath": "assets/images/home/coriander.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/leafy-greens.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-seasonal-produce",
+      "kind": "category",
+      "localPath": "assets/images/home/peppers.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/seasonal-produce.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-milk",
+      "kind": "category",
+      "localPath": "assets/images/home/product-milk.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/milk.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-curd-yogurt",
+      "kind": "category",
+      "localPath": "assets/images/home/curd.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/curd-yogurt.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-paneer-cheese",
+      "kind": "category",
+      "localPath": "assets/images/home/dairy.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/paneer-cheese.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-butter-ghee",
+      "kind": "category",
+      "localPath": "assets/images/home/dairy-eggs.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/butter-ghee.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-bread-bakery",
+      "kind": "category",
+      "localPath": "assets/images/home/bakery.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/bread-bakery.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-cereals-breakfast",
+      "kind": "category",
+      "localPath": "assets/images/home/cereal.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/cereals-breakfast.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-chips-biscuits",
+      "kind": "category",
+      "localPath": "assets/images/home/snacks.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/chips-biscuits.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-chocolates-sweets-snack",
+      "kind": "category",
+      "localPath": "assets/images/home/snacks.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/chocolates-sweets-snack.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-indian-snacks",
+      "kind": "category",
+      "localPath": "assets/images/home/snacks-drinks.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/indian-snacks.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-tea-coffee",
+      "kind": "category",
+      "localPath": "assets/images/home/tea.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/tea-coffee.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-juices-cold-drinks",
+      "kind": "category",
+      "localPath": "assets/images/home/drinks.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/juices-cold-drinks.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-noodles-pasta",
+      "kind": "category",
+      "localPath": "assets/images/home/instant.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/noodles-pasta.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-sauces-spreads",
+      "kind": "category",
+      "localPath": "assets/images/home/masala.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/sauces-spreads.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-laundry-detergents",
+      "kind": "category",
+      "localPath": "assets/images/home/cleaning.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/laundry-detergents.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-household-cleaners",
+      "kind": "category",
+      "localPath": "assets/images/home/cleaning.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/household-cleaners.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-toilet-cleaners",
+      "kind": "category",
+      "localPath": "assets/images/home/cleaning.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/toilet-cleaners.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-dishwashing",
+      "kind": "category",
+      "localPath": "assets/images/home/cleaning.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/dishwashing.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-home-care",
+      "kind": "category",
+      "localPath": "assets/images/home/household.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/home-care.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-bath-body",
+      "kind": "category",
+      "localPath": "assets/images/home/personal.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/bath-body.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-hair-care",
+      "kind": "category",
+      "localPath": "assets/images/home/personal.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/hair-care.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-skin-care",
+      "kind": "category",
+      "localPath": "assets/images/home/personal.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/skin-care.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-oral-care",
+      "kind": "category",
+      "localPath": "assets/images/home/personal.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/oral-care.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-personal-hygiene",
+      "kind": "category",
+      "localPath": "assets/images/home/personal.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/personal-hygiene.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-baby-food",
+      "kind": "category",
+      "localPath": "assets/images/home/baby.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/baby-food.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-diapers",
+      "kind": "category",
+      "localPath": "assets/images/home/baby-care.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/diapers.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-baby-skincare",
+      "kind": "category",
+      "localPath": "assets/images/home/baby-care.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/baby-skincare.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-personal-wellness",
+      "kind": "category",
+      "localPath": "assets/images/home/personal.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/personal-wellness.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-hygiene-essentials",
+      "kind": "category",
+      "localPath": "assets/images/home/cleaning.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/hygiene-essentials.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-kitchen-essentials",
+      "kind": "category",
+      "localPath": "assets/images/home/household.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/kitchen-essentials.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-cleaning-accessories",
+      "kind": "category",
+      "localPath": "assets/images/home/cleaning.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/cleaning-accessories.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-home-utility",
+      "kind": "category",
+      "localPath": "assets/images/home/household.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/home-utility.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-chocolates",
+      "kind": "category",
+      "localPath": "assets/images/home/snacks.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/chocolates.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-traditional-sweets",
+      "kind": "category",
+      "localPath": "assets/images/home/snacks.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/traditional-sweets.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-cat-gift-packs",
+      "kind": "category",
+      "localPath": "assets/images/home/snacks-drinks.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/categories/gift-packs.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-banner-fresh-groceries",
+      "kind": "banner",
+      "localPath": "assets/images/home/banner-produce.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/banners/fresh-groceries.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-banner-daily-essentials",
+      "kind": "banner",
+      "localPath": "assets/images/home/household.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/banners/daily-essentials.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-banner-household-care",
+      "kind": "banner",
+      "localPath": "assets/images/home/cleaning.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/banners/household-care.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-banner-snacks-beverages",
+      "kind": "banner",
+      "localPath": "assets/images/home/snacks-drinks.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/banners/snacks-beverages.jpg",
+      "remoteUrl": null
+    },
+    {
+      "id": "pres-banner-beauty-personal-care",
+      "kind": "banner",
+      "localPath": "assets/images/home/personal.jpg",
+      "exists": true,
+      "proposedRemotePath": "/content/banners/beauty-personal-care.jpg",
+      "remoteUrl": null
+    }
+  ]
+}

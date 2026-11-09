@@ -118,8 +118,10 @@ export function profileFromVerifiedOtp(result: CustomerApiResult, requestedMobil
 }
 
 /**
- * Name shown on Profile and Home.
- * A remembered profile is shown only when the temporary device login is for the same mobile.
+ * Name / phone shown on Profile, Home, and the side menu.
+ * A remembered profile is used only when the device login is for the same mobile.
+ * Mobile is always returned when the active login has a valid number — even if Name
+ * was missing from verify-otp (backend often omits CustomerId/Name).
  */
 export function displayCustomer(
   login: { mobile: string; name?: string; customerId?: string } | null,
@@ -131,19 +133,42 @@ export function displayCustomer(
     return null;
   }
   if (account && nationalMobile(account.mobile) === sessionMobile && account.name.trim().length > 0) {
-    return account;
-  }
-  const loginName = login?.name?.trim() ?? '';
-  if (loginName.length > 0) {
     return {
-      customerId: login?.customerId?.trim() || '',
-      name: loginName,
+      ...account,
       mobile: sessionMobile,
+    };
+  }
+  if (remembered && remembered.mobile === sessionMobile && remembered.name.trim().length > 0) {
+    return {
+      customerId: remembered.customerId,
+      name: remembered.name,
+      mobile: remembered.mobile,
       companyMobile: null,
     };
   }
-  if (remembered && remembered.mobile === sessionMobile) {
-    return { customerId: remembered.customerId, name: remembered.name, mobile: remembered.mobile, companyMobile: null };
+  const loginName = login?.name?.trim() ?? '';
+  return {
+    customerId: login?.customerId?.trim() || account?.customerId?.trim() || remembered?.customerId || '',
+    name: loginName || account?.name?.trim() || '',
+    mobile: sessionMobile,
+    companyMobile: account?.companyMobile ?? null,
+  };
+}
+
+/**
+ * Prefer temporary UI login (live OTP path).
+ * Development-test mobile is only used while Dev OTP mode is explicitly on.
+ */
+export function activeLoginForDisplay(
+  session: { mobile: string; name?: string; customerId?: string } | null,
+  devSession: { mobile: string } | null,
+  allowDevSession = false,
+): { mobile: string; name?: string; customerId?: string } | null {
+  if (session?.mobile) {
+    return session;
+  }
+  if (allowDevSession && devSession?.mobile) {
+    return { mobile: devSession.mobile };
   }
   return null;
 }
