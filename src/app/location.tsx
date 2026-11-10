@@ -123,7 +123,7 @@ export default function LocationSearchScreen() {
       if (!mounted.current) {
         return;
       }
-      if (outcome.status !== 'ready') {
+      if (outcome.status !== 'ready' && outcome.status !== 'approximate-permission') {
         const message =
           outcome.status === 'denied'
             ? 'Location permission was denied. Search for an area or enter an address manually.'
@@ -135,6 +135,12 @@ export default function LocationSearchScreen() {
         setError(message);
         showToast('error', message);
         return;
+      }
+      if (outcome.status === 'approximate-permission') {
+        showToast(
+          'error',
+          'Precise location is off. You can still adjust the pin on the map, or enable Precise Location in Settings.',
+        );
       }
       setSelection(outcome.location);
       openMap();

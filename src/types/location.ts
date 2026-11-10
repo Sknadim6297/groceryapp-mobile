@@ -1,9 +1,4 @@
-export type LocationSource = 'gps' | 'manual' | 'saved' | 'search' | 'map';
-
-/**
- * Map-selected / GPS / search delivery point.
- * Not the same as a complete SavedAddress (house/flat details may still be missing).
- */
+export type LocationSource = "gps" | "manual" | "saved" | "search" | "map";
 export type DeliveryLocation = {
   id: string;
   label: string;
@@ -19,6 +14,18 @@ export type DeliveryLocation = {
   longitude?: number;
   source: LocationSource;
   approximate?: boolean;
+  accuracyMeters?: number;
+  fixAgeMs?: number;
+  fixKind?:
+    | "watched-gps"
+    | "fresh-gps"
+    | "last-known"
+    | "network-or-coarse"
+    | "map-pin"
+    | "search"
+    | "manual"
+    | "saved";
+  fixNote?: string;
 };
 
 export type ManualAddressInput = {

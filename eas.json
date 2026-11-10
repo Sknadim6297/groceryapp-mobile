@@ -21,7 +21,7 @@
       "developmentClient": false,
       "environment": "preview",
       "env": {
-        "EXPO_PUBLIC_UI_PREVIEW": "ui-preview",
+        "EXPO_PUBLIC_UI_PREVIEW": "on",
         "EXPO_PUBLIC_API_BASE_URL": "https://api.supertrading.online",
         "EXPO_PUBLIC_DEV_OTP": "off",
         "EXPO_PUBLIC_PRODUCTS_COMPANY": "8787888888"

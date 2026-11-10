@@ -109,9 +109,9 @@ function MapFallback({ message }: { message: string }) {
 
 function missingNativeMessage(): string {
   if (isExpoGo) {
-    return 'Interactive maps need the Mayapur Bazaar Preview APK/IPA (MapLibre build), not Expo Go.';
+    return 'Interactive maps need a native Mayapur Bazaar build (expo run:android / EAS APK), not Expo Go.';
   }
-  return 'Map native modules are missing from this install. Use the latest Preview build that includes MapLibre.';
+  return 'Map native modules are missing. Rebuild with MapLibre enabled (not the slim ui-preview profile).';
 }
 
 export const DeliveryMap = forwardRef<DeliveryMapHandle, DeliveryMapProps>(function DeliveryMap(

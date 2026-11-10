@@ -1,13 +1,26 @@
+import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 
 import { formatDeliveryAddress, referenceLocations } from '@/data/referenceLocations';
 import type { DeliveryLocation, LocationSearchResult } from '@/types/location';
+import {
+  classifyGpsFix,
+  fixAgeMs,
+  isFreshEnough,
+  LOW_CONFIDENCE_ACCURACY_M,
+  pickBestGpsSample,
+  TARGET_ACCURACY_M,
+  type GpsFixSample,
+} from '@/utils/gpsFixQuality';
 
-const LOCATE_TIMEOUT_MS = 12000;
-const SEARCH_TIMEOUT_MS = 10000;
+const LOCATE_TIMEOUT_MS = 18_000;
+const WATCH_IMPROVE_WINDOW_MS = 12_000;
+const SEARCH_TIMEOUT_MS = 10_000;
 
 export type CurrentLocationOutcome =
   | { status: 'ready'; location: DeliveryLocation }
+  /** Fix obtained, but Precise/Fine location permission is reduced or coarse. */
+  | { status: 'approximate-permission'; location: DeliveryLocation }
   | { status: 'denied' }
   | { status: 'services-off' }
   | { status: 'timeout' }
@@ -16,6 +29,18 @@ export type CurrentLocationOutcome =
 export type ReverseGeocodeOutcome =
   | { status: 'ready'; location: DeliveryLocation }
   | { status: 'unavailable' };
+
+export type LocationDiagnostics = {
+  permission: 'granted' | 'denied' | 'undetermined' | 'unknown';
+  precise: boolean;
+  servicesEnabled: boolean;
+  platform: string;
+  sampleCount: number;
+  bestAccuracyMeters: number | null;
+  bestAgeMs: number | null;
+  fixKind: DeliveryLocation['fixKind'] | null;
+  note: string;
+};
 
 function addressFromPlace(place: Location.LocationGeocodedAddress): Pick<
   DeliveryLocation,
@@ -43,7 +68,12 @@ function addressFromPlace(place: Location.LocationGeocodedAddress): Pick<
 
 function withCoords(
   base: Omit<DeliveryLocation, 'id' | 'source' | 'latitude' | 'longitude' | 'approximate'> &
-    Partial<Pick<DeliveryLocation, 'id' | 'source' | 'approximate'>>,
+    Partial<
+      Pick<
+        DeliveryLocation,
+        'id' | 'source' | 'approximate' | 'accuracyMeters' | 'fixAgeMs' | 'fixKind' | 'fixNote'
+      >
+    >,
   latitude: number,
   longitude: number,
   source: DeliveryLocation['source'],
@@ -63,7 +93,32 @@ function withCoords(
     longitude,
     source,
     approximate,
+    accuracyMeters: base.accuracyMeters,
+    fixAgeMs: base.fixAgeMs,
+    fixKind: base.fixKind,
+    fixNote: base.fixNote,
   };
+}
+
+export function isPreciseLocationGranted(permission: Location.LocationPermissionResponse): boolean {
+  if (permission.status !== 'granted') {
+    return false;
+  }
+  if (Platform.OS === 'ios' && permission.ios?.accuracy === 'reduced') {
+    return false;
+  }
+  if (Platform.OS === 'android' && permission.android?.accuracy === 'coarse') {
+    return false;
+  }
+  return true;
+}
+
+export function logLocationDiagnostics(tag: string, diagnostics: LocationDiagnostics): void {
+  if (!__DEV__) {
+    return;
+  }
+  // eslint-disable-next-line no-console -- intentional dev-only GPS diagnostics
+  console.info(`[location:${tag}]`, diagnostics);
 }
 
 export async function reverseGeocodeCoords(
@@ -84,6 +139,7 @@ export async function reverseGeocodeCoords(
           {
             label: 'Pinned location',
             addressLine1: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
+            fixKind: 'map-pin',
           },
           latitude,
           longitude,
@@ -94,69 +150,282 @@ export async function reverseGeocodeCoords(
     }
     return {
       status: 'ready',
-      location: withCoords(address, latitude, longitude, source),
+      location: withCoords(
+        { ...address, fixKind: source === 'map' ? 'map-pin' : undefined },
+        latitude,
+        longitude,
+        source,
+      ),
     };
   } catch {
     return { status: 'unavailable' };
   }
 }
 
-export async function readCurrentLocation(): Promise<CurrentLocationOutcome> {
+function sampleFromPosition(
+  position: Location.LocationObject,
+  coarsePermission: boolean,
+): GpsFixSample {
+  const accuracy = position.coords.accuracy;
+  return {
+    latitude: position.coords.latitude,
+    longitude: position.coords.longitude,
+    accuracyMeters: typeof accuracy === 'number' && Number.isFinite(accuracy) ? accuracy : null,
+    timestamp: position.timestamp,
+    coarsePermission,
+  };
+}
+
+/**
+ * Watch GPS briefly so accuracy can improve; never silently accept stale last-known as exact.
+ */
+async function acquireBestPosition(coarsePermission: boolean): Promise<{
+  sample: GpsFixSample;
+  fromWatch: boolean;
+  fromLastKnown: boolean;
+  sampleCount: number;
+} | null> {
+  const samples: GpsFixSample[] = [];
+  const cleanup = { stop: () => undefined as void };
+
+  const push = (position: Location.LocationObject) => {
+    const sample = sampleFromPosition(position, coarsePermission);
+    if (isFreshEnough(sample)) {
+      samples.push(sample);
+    }
+  };
+
   try {
-    const servicesEnabled = await Location.hasServicesEnabledAsync();
+    // Seed with a one-shot request (may return network/Wi‑Fi quickly).
+    try {
+      const once = await Promise.race([
+        Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.BestForNavigation,
+          mayShowUserSettingsDialog: true,
+        }),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('oneshot-timeout')), 8_000);
+        }),
+      ]);
+      push(once);
+    } catch {
+      // Continue into watch window.
+    }
+
+    let settled = false;
+
+    const watchPromise = new Promise<void>((resolve) => {
+      const finish = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        resolve();
+      };
+      const timer = setTimeout(finish, WATCH_IMPROVE_WINDOW_MS);
+      void Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.BestForNavigation,
+          timeInterval: 1000,
+          distanceInterval: 1,
+          mayShowUserSettingsDialog: true,
+        },
+        (position) => {
+          push(position);
+          const best = pickBestGpsSample(samples);
+          if (
+            best &&
+            typeof best.accuracyMeters === 'number' &&
+            best.accuracyMeters <= TARGET_ACCURACY_M &&
+            !best.coarsePermission
+          ) {
+            clearTimeout(timer);
+            finish();
+          }
+        },
+      )
+        .then((sub) => {
+          cleanup.stop = () => {
+            sub.remove();
+          };
+          if (settled) {
+            cleanup.stop();
+          }
+        })
+        .catch(() => {
+          clearTimeout(timer);
+          finish();
+        });
+    });
+
+    await Promise.race([
+      watchPromise,
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, LOCATE_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    cleanup.stop();
+  }
+
+  const bestWatched = pickBestGpsSample(samples);
+  if (bestWatched) {
+    return {
+      sample: bestWatched,
+      fromWatch: samples.length > 1,
+      fromLastKnown: false,
+      sampleCount: samples.length,
+    };
+  }
+
+  // Last-known is never "verified current" — only a last-resort approximate seed.
+  const last = await Location.getLastKnownPositionAsync({
+    maxAge: MAX_ACCEPTABLE_FIX_AGE_MS_LOCAL,
+    requiredAccuracy: LOW_CONFIDENCE_ACCURACY_M * 5,
+  });
+  if (last) {
+    const sample = sampleFromPosition(last, coarsePermission);
+    if (isFreshEnough(sample)) {
+      return {
+        sample,
+        fromWatch: false,
+        fromLastKnown: true,
+        sampleCount: samples.length,
+      };
+    }
+  }
+
+  return null;
+}
+
+// Local alias so the helper file stays the source of truth for age policy.
+const MAX_ACCEPTABLE_FIX_AGE_MS_LOCAL = 45_000;
+
+async function buildGpsLocation(
+  sample: GpsFixSample,
+  options: { fromWatch: boolean; fromLastKnown: boolean },
+): Promise<DeliveryLocation> {
+  const classified = classifyGpsFix(sample, options);
+  const reversed = await reverseGeocodeCoords(sample.latitude, sample.longitude, 'gps');
+  const base =
+    reversed.status === 'ready'
+      ? reversed.location
+      : withCoords(
+          {
+            label: 'Current location',
+            addressLine1: `${sample.latitude.toFixed(5)}, ${sample.longitude.toFixed(5)}`,
+          },
+          sample.latitude,
+          sample.longitude,
+          'gps',
+          true,
+        );
+
+  return {
+    ...base,
+    id: 'gps',
+    label: 'Current location',
+    source: 'gps',
+    // Always keep the raw GPS numbers — never replace with geocoded approximations.
+    latitude: sample.latitude,
+    longitude: sample.longitude,
+    accuracyMeters: sample.accuracyMeters ?? undefined,
+    fixAgeMs: fixAgeMs(sample.timestamp),
+    fixKind: classified.kind,
+    fixNote: classified.reason,
+    approximate: classified.approximate || base.approximate || reversed.status !== 'ready',
+  };
+}
+
+export async function readCurrentLocation(): Promise<CurrentLocationOutcome> {
+  let servicesEnabled = false;
+  try {
+    servicesEnabled = await Location.hasServicesEnabledAsync();
     if (!servicesEnabled) {
+      logLocationDiagnostics('services-off', {
+        permission: 'unknown',
+        precise: false,
+        servicesEnabled: false,
+        platform: Platform.OS,
+        sampleCount: 0,
+        bestAccuracyMeters: null,
+        bestAgeMs: null,
+        fixKind: null,
+        note: 'Device location services are off.',
+      });
       return { status: 'services-off' };
     }
   } catch {
     return { status: 'unavailable' };
   }
 
+  if (Platform.OS === 'android') {
+    try {
+      await Location.enableNetworkProviderAsync();
+    } catch {
+      // User dismissed improved-accuracy dialog.
+    }
+  }
+
   const permission = await Location.requestForegroundPermissionsAsync();
   if (permission.status !== 'granted') {
+    logLocationDiagnostics('denied', {
+      permission: 'denied',
+      precise: false,
+      servicesEnabled,
+      platform: Platform.OS,
+      sampleCount: 0,
+      bestAccuracyMeters: null,
+      bestAgeMs: null,
+      fixKind: null,
+      note: 'Foreground location permission denied.',
+    });
     return { status: 'denied' };
   }
 
-  try {
-    const position = await Promise.race([
-      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
-      new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('timeout')), LOCATE_TIMEOUT_MS);
-      }),
-    ]);
+  const precise = isPreciseLocationGranted(permission);
 
-    const { latitude, longitude, accuracy } = position.coords;
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-      return { status: 'unavailable' };
+  try {
+    const acquired = await acquireBestPosition(!precise);
+    if (!acquired) {
+      logLocationDiagnostics('timeout', {
+        permission: 'granted',
+        precise,
+        servicesEnabled,
+        platform: Platform.OS,
+        sampleCount: 0,
+        bestAccuracyMeters: null,
+        bestAgeMs: null,
+        fixKind: null,
+        note: 'No usable GPS sample within the acquisition window.',
+      });
+      return { status: 'timeout' };
     }
 
-    // GPS and reverse-geocode are separate: keep valid coordinates even if address lookup fails.
-    const reversed = await reverseGeocodeCoords(latitude, longitude, 'gps');
-    const base =
-      reversed.status === 'ready'
-        ? reversed.location
-        : withCoords(
-            {
-              label: 'Current location',
-              addressLine1: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
-            },
-            latitude,
-            longitude,
-            'gps',
-            true,
-          );
+    const location = await buildGpsLocation(acquired.sample, {
+      fromWatch: acquired.fromWatch,
+      fromLastKnown: acquired.fromLastKnown,
+    });
 
-    return {
-      status: 'ready',
-      location: {
-        ...base,
-        id: 'gps',
-        label: 'Current location',
-        source: 'gps',
-        approximate: (accuracy ?? 0) > 100 || base.approximate || reversed.status !== 'ready',
-      },
-    };
+    logLocationDiagnostics('ready', {
+      permission: 'granted',
+      precise,
+      servicesEnabled,
+      platform: Platform.OS,
+      sampleCount: acquired.sampleCount,
+      bestAccuracyMeters: location.accuracyMeters ?? null,
+      bestAgeMs: location.fixAgeMs ?? null,
+      fixKind: location.fixKind ?? null,
+      note: location.fixNote ?? '',
+    });
+
+    if (!precise || location.fixKind === 'network-or-coarse' || location.fixKind === 'last-known') {
+      return { status: 'approximate-permission', location };
+    }
+
+    return { status: 'ready', location };
   } catch (error) {
-    if (error instanceof Error && error.message === 'timeout') {
+    if (error instanceof Error && error.message.includes('timeout')) {
       return { status: 'timeout' };
     }
     return { status: 'unavailable' };
@@ -180,7 +449,7 @@ export async function searchDeliveryLocations(query: string): Promise<LocationSe
       id: `ref-${place.id}`,
       title: place.label,
       subtitle: formatDeliveryAddress(place),
-      location: { ...place, source: 'search' as const },
+      location: { ...place, source: 'search' as const, fixKind: 'search' as const, approximate: true },
     }));
 
   let remote: LocationSearchResult[] = [];
@@ -212,6 +481,9 @@ export async function searchDeliveryLocations(query: string): Promise<LocationSe
           id: `search-${point.latitude.toFixed(5)}-${point.longitude.toFixed(5)}`,
           label: title,
           source: 'search',
+          fixKind: 'search',
+          approximate: true,
+          fixNote: 'Search/geocode result — adjust the map pin for doorstep accuracy.',
         },
       });
     }

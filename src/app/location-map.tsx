@@ -25,12 +25,14 @@ import { readCurrentLocation, reverseGeocodeCoords } from '@/services/location/l
 import type { DeliveryLocation } from '@/types/location';
 import { distanceKmBetween, formatDistanceKm } from '@/utils/deliveryAddress';
 import { isValidMapCoordinate, regionsNearlyEqual } from '@/utils/mapCameraGuards';
+import { openExternalNavigation } from '@/utils/openExternalNavigation';
 
+/** Default to Mayapur / Nadia — not Kolkata CBD — when no prior selection. */
 const DEFAULT_REGION: MapRegion = {
-  latitude: 22.5726,
-  longitude: 88.3639,
-  latitudeDelta: 0.02,
-  longitudeDelta: 0.02,
+  latitude: 23.4241,
+  longitude: 88.3915,
+  latitudeDelta: 0.04,
+  longitudeDelta: 0.04,
 };
 
 const REVERSE_DEBOUNCE_MS = 450;
@@ -119,11 +121,37 @@ export default function LocationMapScreen() {
         return;
       }
       lastResolvedCoords.current = coords;
-      setPreview(location);
-      setSelection(location);
-      setQuery(location.locality || location.label);
+      // Reverse geocode must never rewrite the pin coordinates.
+      const pinned: DeliveryLocation = {
+        ...location,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        fixKind:
+          location.source === 'gps'
+            ? location.fixKind
+            : location.source === 'map'
+              ? 'map-pin'
+              : location.fixKind,
+      };
+      setPreview(pinned);
+      setSelection(pinned);
+      setQuery(pinned.locality || pinned.label);
       setGeocodeError(null);
       setPendingRetry(null);
+      if (__DEV__) {
+        // eslint-disable-next-line no-console -- intentional map/GPS diagnostics
+        console.info('[location-map:preview]', {
+          source: pinned.source,
+          fixKind: pinned.fixKind,
+          lat: pinned.latitude,
+          lng: pinned.longitude,
+          accuracyMeters: pinned.accuracyMeters,
+          fixAgeMs: pinned.fixAgeMs,
+          approximate: pinned.approximate,
+          note: pinned.fixNote,
+          platform: Platform.OS,
+        });
+      }
     },
     [setSelection],
   );
@@ -234,18 +262,37 @@ export default function LocationMapScreen() {
       if (!mounted.current) {
         return;
       }
-      if (outcome.status !== 'ready' || !isValidMapCoordinate(outcome.location.latitude, outcome.location.longitude)) {
+      const hasFix =
+        (outcome.status === 'ready' || outcome.status === 'approximate-permission') &&
+        isValidMapCoordinate(outcome.location.latitude, outcome.location.longitude);
+
+      if (!hasFix) {
         const message =
           outcome.status === 'denied'
-            ? 'Location permission was denied.'
+            ? 'Location permission was denied. Enable location for Mayapur Bazaar in Settings.'
             : outcome.status === 'services-off'
               ? 'Turn on location services, then try again.'
               : outcome.status === 'timeout'
-                ? 'Finding your location took too long. Try again.'
-                : 'Could not read your current location.';
+                ? 'Finding your location took too long. Move outdoors and retry.'
+                : 'Could not read a fresh GPS fix. Try again.';
         showToast('error', message);
         setGeocodeError(message);
         return;
+      }
+
+      if (outcome.status === 'approximate-permission') {
+        showToast(
+          'error',
+          outcome.location.fixNote ??
+            (Platform.OS === 'ios'
+              ? 'Precise Location is off. Enable Precise Location for Mayapur Bazaar in Settings.'
+              : 'Precise location is off. Choose Precise / Fine location for Mayapur Bazaar in Settings.'),
+        );
+      } else if (outcome.location.approximate && outcome.location.accuracyMeters != null) {
+        showToast(
+          'error',
+          `Location accuracy is low (±${Math.round(outcome.location.accuracyMeters)} m). Move outdoors or adjust your delivery pin.`,
+        );
       }
 
       const coords = {
@@ -256,12 +303,42 @@ export default function LocationMapScreen() {
       setUserLocationEnabled(true);
       applyResolved(outcome.location, coords);
       // Single camera move. Do not also set controlled region state.
+      // On web there is no map surface — coords still update the confirm panel.
       centerMapOnce(coords);
     } finally {
       gpsInFlight.current = false;
       if (mounted.current) {
         setFetchingGps(false);
       }
+    }
+  }
+
+  function recenterOnDevice() {
+    if (
+      deviceOrigin &&
+      isValidMapCoordinate(deviceOrigin.latitude, deviceOrigin.longitude)
+    ) {
+      centerMapOnce({
+        latitude: deviceOrigin.latitude!,
+        longitude: deviceOrigin.longitude!,
+      });
+      return;
+    }
+    void goToCurrentLocation();
+  }
+
+  async function navigateToPin() {
+    if (!preview || !isValidMapCoordinate(preview.latitude, preview.longitude)) {
+      showToast('error', 'Set a delivery pin with coordinates first.');
+      return;
+    }
+    const result = await openExternalNavigation({
+      latitude: preview.latitude!,
+      longitude: preview.longitude!,
+      label: preview.locality || preview.label,
+    });
+    if (!result.ok) {
+      showToast('error', result.message);
     }
   }
 
@@ -325,10 +402,19 @@ export default function LocationMapScreen() {
           </View>
         ) : null}
 
-        {!mapUnavailable ? (
+        <View style={styles.fabColumn} pointerEvents="box-none">
+          {preview?.accuracyMeters != null && Number.isFinite(preview.accuracyMeters) ? (
+            <View style={styles.accuracyBadge} accessibilityRole="text">
+              <Text style={styles.accuracyText}>
+                GPS ±{Math.round(preview.accuracyMeters)} m
+                {preview.approximate ? ' · not exact' : ''}
+                {preview.fixKind ? ` · ${preview.fixKind}` : ''}
+              </Text>
+            </View>
+          ) : null}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Go to current location"
+            accessibilityLabel="Retry location"
             disabled={fetchingGps}
             onPress={() => {
               void goToCurrentLocation();
@@ -339,13 +425,32 @@ export default function LocationMapScreen() {
             ) : (
               <AppIcon name="stores" color={colors.success} size={20} />
             )}
-            <Text style={styles.locateLabel}>{fetchingGps ? 'Finding…' : 'Go to current location'}</Text>
+            <Text style={styles.locateLabel}>{fetchingGps ? 'Improving GPS…' : 'Retry Location'}</Text>
           </Pressable>
-        ) : null}
+          {!mapUnavailable ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Recenter map on current location"
+              disabled={fetchingGps}
+              onPress={recenterOnDevice}
+              style={({ pressed }) => [styles.locateFab, pressed && styles.pressed]}>
+              <AppIcon name="homeFocused" color={colors.primaryInk} size={18} />
+              <Text style={styles.locateLabel}>Recenter</Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       <View style={styles.distanceSlot}>
-        {distanceKm != null && distanceKm >= 1 ? (
+        {preview?.approximate || (preview?.accuracyMeters != null && preview.accuracyMeters > 100) ? (
+          <View style={styles.distanceBanner}>
+            <Text style={styles.distanceText}>
+              Location accuracy is low
+              {preview.accuracyMeters != null ? ` (±${Math.round(preview.accuracyMeters)} m)` : ''}. Move outdoors or
+              adjust your delivery pin. Never treat this as an exact doorstep.
+            </Text>
+          </View>
+        ) : distanceKm != null && distanceKm >= 1 ? (
           <View style={styles.distanceBanner}>
             <Text style={styles.distanceText}>
               Pin location is <Text style={styles.distanceStrong}>{formatDistanceKm(distanceKm)}</Text> away from
@@ -370,6 +475,12 @@ export default function LocationMapScreen() {
               <Text numberOfLines={2} style={styles.previewBody}>
                 {preview ? formatDeliveryAddress(preview) : 'Move the map to choose a delivery point.'}
               </Text>
+              {preview && isValidMapCoordinate(preview.latitude, preview.longitude) ? (
+                <Text numberOfLines={1} style={styles.coordsText}>
+                  {preview.latitude!.toFixed(5)}, {preview.longitude!.toFixed(5)}
+                  {preview.landmark ? ` · ${preview.landmark}` : ''}
+                </Text>
+              ) : null}
             </View>
             {resolving ? <ActivityIndicator color={colors.primaryInk} style={styles.previewSpinner} /> : null}
           </View>
@@ -398,14 +509,32 @@ export default function LocationMapScreen() {
             ) : null}
           </View>
         ) : null}
-        <PrimaryButton
-          label={confirming ? 'Setting…' : 'Set Location'}
-          accessibilityLabel="Set Location"
-          disabled={!preview || confirming}
-          onPress={() => {
-            void onSetLocation();
-          }}
-        />
+        <View style={styles.actionRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Navigate to this pin in Maps"
+            disabled={!preview || !isValidMapCoordinate(preview.latitude, preview.longitude)}
+            onPress={() => {
+              void navigateToPin();
+            }}
+            style={({ pressed }) => [
+              styles.navigateBtn,
+              pressed && styles.pressed,
+              (!preview || !isValidMapCoordinate(preview.latitude, preview.longitude)) && styles.navigateDisabled,
+            ]}>
+            <Text style={styles.navigateLabel}>Navigate</Text>
+          </Pressable>
+          <View style={styles.setLocationWrap}>
+            <PrimaryButton
+              label={confirming ? 'Setting…' : 'Set Location'}
+              accessibilityLabel="Set Location"
+              disabled={!preview || confirming}
+              onPress={() => {
+                void onSetLocation();
+              }}
+            />
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -489,10 +618,26 @@ const styles = StyleSheet.create({
     backgroundColor: colors.success,
     marginTop: -2,
   },
-  locateFab: {
+  fabColumn: {
     position: 'absolute',
     right: 16,
     bottom: 16,
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  accuracyBadge: {
+    borderRadius: 12,
+    backgroundColor: 'rgba(17, 24, 39, 0.86)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  accuracyText: {
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    lineHeight: 14,
+    color: colors.white,
+  },
+  locateFab: {
     borderRadius: 22,
     backgroundColor: colors.white,
     borderWidth: 1,
@@ -507,6 +652,39 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     fontSize: 12,
     color: colors.text,
+  },
+  coordsText: {
+    marginTop: 2,
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    lineHeight: 14,
+    color: colors.textSecondary,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  navigateBtn: {
+    minHeight: 48,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: colors.success,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navigateDisabled: {
+    opacity: 0.45,
+  },
+  navigateLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    color: colors.success,
+  },
+  setLocationWrap: {
+    flex: 1,
   },
   distanceSlot: {
     minHeight: 34,

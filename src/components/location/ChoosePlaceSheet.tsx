@@ -80,7 +80,7 @@ export function ChoosePlaceSheet({
     setStatus(null);
     const result = await readCurrentLocation();
     setDetecting(false);
-    if (result.status !== 'ready') {
+    if (result.status !== 'ready' && result.status !== 'approximate-permission') {
       setStatus(result.status);
       return;
     }

@@ -23,7 +23,9 @@ export const DeliveryMap = forwardRef<DeliveryMapHandle, DeliveryMapProps>(funct
     <View style={styles.fallback}>
       <Text style={styles.title}>Interactive map needs iOS or Android</Text>
       <Text style={styles.body}>
-        Open this screen in a development or release build. Web does not load the native MapLibre map.
+        You are on web (or Expo web). MapLibre only runs in a native APK/IPA (`expo run:android` or EAS
+        client-apk). GPS on web often uses Wi‑Fi/IP and can be 1–5 km off — use a native build for
+        accurate delivery pins.
       </Text>
       <Text style={styles.attribution}>{OPEN_FREE_MAP_ATTRIBUTION}</Text>
     </View>
