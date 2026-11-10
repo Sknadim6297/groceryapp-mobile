@@ -6,15 +6,46 @@ const HTTP_URL = /^https?:\/\//i;
 /** Loose Base64 (allows whitespace); length gate avoids treating short filenames as images. */
 const BASE64_BODY = /^[A-Za-z0-9+/=\s]+$/;
 
+/**
+ * Category / subcategory chips are small UI surfaces. Multi-MB Base64 icons from ERP
+ * inflate React state and decode cost — skip oversized inline payloads (URLs always kept).
+ * Measured live payload had CategoryImage / SubcategoryImage fields up to ~4.4MB each.
+ */
+export const MAX_INLINE_CATEGORY_IMAGE_CHARS = 250_000;
+
 export type ProductImageMime = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
 
 /**
- * Turns API image fields (URL, data URI, or raw Base64) into an Expo Image `{ uri }` source.
+ * Turns API image fields (URL, data URI, or raw Base64) into an Expo Image `{ uri, cacheKey }` source.
  * Returns null for System.Byte[], filenames, empty, or invalid values — never invents bytes.
  */
 export function normalizeProductImageSource(value: unknown): ImageSource | null {
   const uri = normalizeProductImageUri(value);
-  return uri ? { uri } : null;
+  if (!uri) {
+    return null;
+  }
+  return { uri, cacheKey: recyclingKeyForImageUri(uri) };
+}
+
+/**
+ * Like normalizeProductImageSource, but drops oversized inline Base64 (keeps HTTP URLs).
+ * Used for CategoryImage / SubcategoryImage so product cards are not holding 4MB category icons.
+ */
+export function normalizeBoundedCategoryImageSource(value: unknown): ImageSource | null {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (
+      trimmed.length > MAX_INLINE_CATEGORY_IMAGE_CHARS &&
+      !HTTP_URL.test(trimmed) &&
+      !DATA_URI.test(trimmed.slice(0, 32))
+    ) {
+      return null;
+    }
+    if (DATA_URI.test(trimmed) && trimmed.length > MAX_INLINE_CATEGORY_IMAGE_CHARS + 32) {
+      return null;
+    }
+  }
+  return normalizeProductImageSource(value);
 }
 
 /** Browser / RN compatible URI string, or null when unavailable. */
@@ -59,7 +90,7 @@ export function collectProductImageSources(record: Record<string, unknown>): Ima
     if (!source || typeof source !== 'object' || !('uri' in source) || typeof source.uri !== 'string') {
       return;
     }
-    const key = recyclingKeyForImageUri(source.uri);
+    const key = source.cacheKey ?? recyclingKeyForImageUri(source.uri);
     if (seen.has(key)) {
       return;
     }
@@ -88,16 +119,36 @@ export function collectProductImageSources(record: Record<string, unknown>): Ima
   return sources;
 }
 
-/** Short stable key for expo-image recycling — never the full Base64 payload. */
+/**
+ * Short stable key for expo-image recycling / cacheKey.
+ * For data URIs, fingerprints length + head/mid/tail samples so ERP image replacements
+ * invalidate cache without appending random timestamps on every request.
+ */
 export function recyclingKeyForImageUri(uri: string): string {
   if (HTTP_URL.test(uri)) {
     return uri.length > 180 ? `${uri.slice(0, 120)}…${uri.length}` : uri;
   }
   if (uri.startsWith('data:')) {
-    const mime = uri.slice(5, uri.indexOf(';')) || 'image';
-    return `data:${mime}:${uri.length}:${uri.slice(uri.length - 24)}`;
+    const semi = uri.indexOf(';');
+    const mime = semi > 5 ? uri.slice(5, semi) : 'image';
+    const comma = uri.indexOf(',');
+    const body = comma >= 0 ? uri.slice(comma + 1) : uri;
+    const len = body.length;
+    const head = body.slice(0, 48);
+    const mid = body.slice(Math.max(0, Math.floor(len / 2) - 12), Math.floor(len / 2) + 12);
+    const tail = body.slice(-48);
+    return `data:${mime}:${len}:${fnv1a(`${head}|${mid}|${tail}`)}`;
   }
-  return `img:${uri.length}`;
+  return `img:${uri.length}:${fnv1a(uri.slice(0, 64))}`;
+}
+
+function fnv1a(value: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 function detectBase64ImageMime(compactBase64: string): ProductImageMime | null {

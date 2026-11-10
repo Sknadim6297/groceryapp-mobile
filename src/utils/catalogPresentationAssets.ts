@@ -24,12 +24,17 @@ function normalizeCatalogLabel(value: string): string {
 /** Backend Field (Category) → local field artwork. */
 const FIELD_ASSET_BY_NAME: Record<string, ImageSource> = {
   [normalizeCatalogLabel('GROCERIES & FOOD')]: require('@/assets/images/home/produce.jpg'),
+  [normalizeCatalogLabel('Groceries')]: require('@/assets/images/home/grains.jpg'),
   [normalizeCatalogLabel('CHOCOLATE')]: require('@/assets/images/home/snacks.jpg'),
   [normalizeCatalogLabel('HOUSEHOLD ESSENTIALS')]: require('@/assets/images/home/household.jpg'),
+  [normalizeCatalogLabel('Household')]: require('@/assets/images/home/household.jpg'),
   [normalizeCatalogLabel('BEAUTY & PERSONAL CARE')]: require('@/assets/images/home/personal.jpg'),
+  [normalizeCatalogLabel('Fashion')]: require('@/assets/images/home/personal.jpg'),
   [normalizeCatalogLabel('Dairy & Eggs')]: require('@/assets/images/home/dairy-eggs.jpg'),
   [normalizeCatalogLabel('Fruits & Vegetables')]: require('@/assets/images/home/produce.jpg'),
+  [normalizeCatalogLabel('Fresh')]: require('@/assets/images/home/fresh-fruits.jpg'),
   [normalizeCatalogLabel('Snacks & Beverages')]: require('@/assets/images/home/snacks-drinks.jpg'),
+  [normalizeCatalogLabel('Snacks')]: require('@/assets/images/home/snacks.jpg'),
   [normalizeCatalogLabel('Baby Care')]: require('@/assets/images/home/baby-care.jpg'),
 };
 

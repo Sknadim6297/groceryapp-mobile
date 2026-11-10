@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CatalogBreadcrumb } from '@/components/catalog/CatalogBreadcrumb';
@@ -15,6 +15,7 @@ import type { SearchSuggestion } from '@/data/searchSuggestions';
 import { SideMenu } from '@/components/home/SideMenu';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
+import { CatalogSoftErrorBanner } from '@/components/ui/CatalogSoftErrorBanner';
 import { CatalogStatusPanel } from '@/components/ui/CatalogStatusPanel';
 import { ShopCatalogSkeleton } from '@/components/ui/LoadingSkeleton';
 import { colors, fonts, homeLayout } from '@/constants/theme';
@@ -242,6 +243,13 @@ export default function ShopScreen() {
               { label: title, onPress: openParentSubcategories },
             ]}
           />
+          {liveEnabled && message && catalogProducts.length > 0 ? (
+            <CatalogSoftErrorBanner
+              message={message}
+              onRetry={() => void handleRetry()}
+              retrying={retrying || refreshing}
+            />
+          ) : null}
           <CatalogSearchField
             value={query}
             onChange={setDraftQuery}
@@ -322,10 +330,21 @@ export default function ShopScreen() {
                 styles.listContent,
                 { paddingBottom: Math.max(insets.bottom, 16) + keyboardOverlap },
               ]}
+              refreshControl={
+                liveEnabled ? (
+                  <RefreshControl
+                    refreshing={refreshing || retrying}
+                    onRefresh={() => void handleRetry()}
+                    tintColor={colors.primaryInk}
+                  />
+                ) : undefined
+              }
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               initialNumToRender={8}
+              maxToRenderPerBatch={6}
               windowSize={7}
+              removeClippedSubviews
             />
           </View>
         )}

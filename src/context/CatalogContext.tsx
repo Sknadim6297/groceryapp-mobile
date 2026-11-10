@@ -136,6 +136,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<CatalogState>(liveEnabled ? { status: 'loading' } : { status: 'local' });
   const [hydrated, setHydrated] = useState(!liveEnabled);
   const requestId = useRef(0);
+  const abortRef = useRef<AbortController | null>(null);
 
   const refresh = useCallback(async () => {
     if (!LIVE_CATALOGUE_CONNECTED) {
@@ -144,21 +145,36 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Latest-request-wins: cancel any in-flight catalogue download.
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     const id = ++requestId.current;
+
     setState((prev) => {
       const cached = productsFromState(prev);
       if (cached.length > 0) {
+        // Never clear cards while refresh runs.
         return { status: 'refreshing', products: cached };
       }
       return { status: 'loading' };
     });
 
-    const result = await fetchProducts(PRODUCTS_COMPANY);
-    if (id !== requestId.current) {
+    const result = await fetchProducts(PRODUCTS_COMPANY, {
+      signal: controller.signal,
+      force: true,
+    });
+
+    if (id !== requestId.current || controller.signal.aborted) {
+      return;
+    }
+
+    if (result.ok === false && result.cancelled) {
       return;
     }
 
     if (!result.ok) {
+      // Keep last good catalogue; surface soft error for refresh / hard error for first load.
       setState((prev) => ({
         status: 'error',
         message: result.message,
@@ -168,12 +184,18 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Authoritative success only — replace catalogue (adds/removes/updates).
     setState({ status: 'ready', products: result.products });
     setHydrated(true);
   }, []);
 
   useEffect(() => {
+    // Mount bootstrap: load live catalogue once. refresh() owns request sequencing/abort.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional initial fetch
     void refresh();
+    return () => {
+      abortRef.current?.abort();
+    };
   }, [refresh]);
 
   const value = useMemo<CatalogContextValue>(() => {

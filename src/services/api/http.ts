@@ -12,8 +12,12 @@ function isWebRuntime(): boolean {
   return typeof document !== 'undefined';
 }
 
+function isDevRuntime(): boolean {
+  return typeof __DEV__ !== 'undefined' && __DEV__;
+}
+
 /** True when Expo web uses the Metro same-origin proxy instead of the live host. */
-const usesWebDevProxy = typeof __DEV__ !== 'undefined' && __DEV__ && isWebRuntime();
+const usesWebDevProxy = isDevRuntime() && isWebRuntime();
 
 const resolvedBaseURL = usesWebDevProxy ? '' : API_BASE_URL;
 
@@ -77,7 +81,7 @@ function sanitizeForLog(value: unknown, depth = 0): unknown {
 }
 
 function logCustomerCall(method: string, path: string, status: number, detail: unknown, category: string) {
-  if (!__DEV__) {
+  if (typeof __DEV__ === 'undefined' || !__DEV__) {
     return;
   }
   const record = detail && typeof detail === 'object' ? (Array.isArray(detail) ? detail[0] : detail) : null;
@@ -149,25 +153,52 @@ function classifyAxiosFailure(error: unknown): {
   };
 }
 
+export type JsonRequestOptions = {
+  /** Abort in-flight work when a newer request supersedes this one. */
+  signal?: AbortSignal;
+  /** Per-request timeout; defaults to the shared client timeout (15s). */
+  timeoutMs?: number;
+};
+
 async function requestJson(
   method: 'get' | 'post',
   path: string,
   body?: unknown,
   query?: Record<string, string>,
+  options?: JsonRequestOptions,
 ): Promise<ApiPostResult> {
   if (!usesWebDevProxy && !LIVE_API_BASE_URL.startsWith('https://')) {
     return { status: 0, body: { message: 'The API address must use HTTPS.' } };
   }
 
+  if (options?.signal?.aborted) {
+    return { status: 0, body: { message: 'Request cancelled.', cancelled: true } };
+  }
+
   try {
+    const config = {
+      params: query,
+      signal: options?.signal,
+      timeout: options?.timeoutMs,
+    };
     const response =
       method === 'post'
-        ? await apiClient.post<unknown>(path, body)
-        : await apiClient.get<unknown>(path, { params: query });
+        ? await apiClient.post<unknown>(path, body, {
+            signal: options?.signal,
+            timeout: options?.timeoutMs,
+          })
+        : await apiClient.get<unknown>(path, config);
     const payload = response.data ?? null;
     logCustomerCall(method.toUpperCase(), path, response.status, payload, 'http');
     return { status: response.status, body: payload };
   } catch (error) {
+    if (
+      options?.signal?.aborted ||
+      (isAxiosError(error) && (error.code === 'ERR_CANCELED' || error.name === 'CanceledError'))
+    ) {
+      logCustomerCall(method.toUpperCase(), path, 0, { message: 'Request cancelled.' }, 'network');
+      return { status: 0, body: { message: 'Request cancelled.', cancelled: true } };
+    }
     const failure = classifyAxiosFailure(error);
     logCustomerCall(method.toUpperCase(), path, 0, { ...failure.detail, message: failure.message }, failure.category);
     return { status: 0, body: { message: failure.message } };
@@ -179,6 +210,21 @@ export async function postJson(path: string, body: unknown): Promise<ApiPostResu
 }
 
 /** Not used for OTP. Send, resend, and verify are POST only. */
-export async function getJson(path: string, query: Record<string, string>): Promise<ApiPostResult> {
-  return requestJson('get', path, undefined, query);
+export async function getJson(
+  path: string,
+  query: Record<string, string>,
+  options?: JsonRequestOptions,
+): Promise<ApiPostResult> {
+  return requestJson('get', path, undefined, query, options);
+}
+
+export function isCancelledApiResult(result: ApiPostResult): boolean {
+  const body = result.body;
+  return (
+    result.status === 0 &&
+    !!body &&
+    typeof body === 'object' &&
+    !Array.isArray(body) &&
+    (body as { cancelled?: unknown }).cancelled === true
+  );
 }

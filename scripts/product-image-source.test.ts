@@ -1,5 +1,8 @@
 import {
   collectProductImageSources,
+  MAX_INLINE_CATEGORY_IMAGE_CHARS,
+  normalizeBoundedCategoryImageSource,
+  normalizeProductImageSource,
   normalizeProductImageUri,
   recyclingKeyForImageUri,
 } from '../src/utils/productImageSource';
@@ -71,6 +74,23 @@ function run() {
   const key = recyclingKeyForImageUri(jpegUri!);
   assert(!key.includes(jpeg.slice(0, 40)) || key.length < 120, 'recycling key stays short');
   assert(!key.startsWith('data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD'), 'no full base64 in key');
+
+  const source = normalizeProductImageSource(jpeg);
+  assert(source != null && typeof source.cacheKey === 'string' && source.cacheKey.length > 0, 'cacheKey set');
+
+  const replaced = normalizeProductImageUri(`${jpeg}AAAA`);
+  assert(replaced != null, 'replaced uri');
+  assert(
+    recyclingKeyForImageUri(jpegUri!) !== recyclingKeyForImageUri(replaced!),
+    'content change must change cache key',
+  );
+
+  const huge = 'A'.repeat(MAX_INLINE_CATEGORY_IMAGE_CHARS + 10);
+  assert(normalizeBoundedCategoryImageSource(huge) === null, 'oversized inline category image dropped');
+  assert(
+    normalizeBoundedCategoryImageSource('https://cdn.example.com/category.png') != null,
+    'category URL kept',
+  );
 
   console.log('product-image-source.test.ts: ok');
 }

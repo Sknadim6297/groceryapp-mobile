@@ -8,6 +8,7 @@ import { CatalogBreadcrumb } from '@/components/catalog/CatalogBreadcrumb';
 import { CatalogSearchField } from '@/components/catalog/CatalogSearchField';
 import { SubcategoryCard } from '@/components/category/SubcategoryCard';
 import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
+import { CatalogSoftErrorBanner } from '@/components/ui/CatalogSoftErrorBanner';
 import { CatalogStatusPanel } from '@/components/ui/CatalogStatusPanel';
 import { ProductGridSkeleton } from '@/components/ui/LoadingSkeleton';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -15,6 +16,7 @@ import { colors, fonts, homeLayout } from '@/constants/theme';
 import { useCatalog } from '@/context/CatalogContext';
 import { findCatalogParent, listSubcategoriesForParent } from '@/data/subcategoryCatalog';
 import type { CatalogSubcategory } from '@/types/subcategory';
+import { enrichLiveCategoryTreePresentation } from '@/utils/catalogPresentationAssets';
 import { findLiveCategoryParent } from '@/utils/liveCatalogMeta';
 import { filterSubcategories } from '@/utils/subcategorySearch';
 
@@ -34,10 +36,16 @@ export default function SubcategoriesScreen() {
   const [query, setQuery] = useState('');
   const [retrying, setRetrying] = useState(false);
 
-  const liveParent = useMemo(
-    () => (liveEnabled ? findLiveCategoryParent(products, parentId) : undefined),
-    [liveEnabled, parentId, products],
-  );
+  const liveParent = useMemo(() => {
+    if (!liveEnabled) {
+      return undefined;
+    }
+    const parent = findLiveCategoryParent(products, parentId);
+    if (!parent) {
+      return undefined;
+    }
+    return enrichLiveCategoryTreePresentation([parent])[0];
+  }, [liveEnabled, parentId, products]);
   const demoParent = liveEnabled ? undefined : findCatalogParent(parentId);
   const parent = liveParent
     ? { id: liveParent.id, name: liveParent.name, image: liveParent.image }
@@ -151,6 +159,13 @@ export default function SubcategoriesScreen() {
                 { label: parent.name },
               ]}
             />
+            {liveEnabled && message && products.length > 0 ? (
+              <CatalogSoftErrorBanner
+                message={message}
+                onRetry={() => void handleRetry()}
+                retrying={retrying || refreshing}
+              />
+            ) : null}
             <CatalogSearchField
               value={query}
               onChange={setQuery}

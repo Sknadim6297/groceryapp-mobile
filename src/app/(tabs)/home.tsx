@@ -14,6 +14,7 @@ import { OfferRow } from '@/components/home/OfferRow';
 import { PopularPicks } from '@/components/home/PopularPicks';
 import { ProductSection } from '@/components/home/ProductSection';
 import { StoreRow } from '@/components/home/StoreRow';
+import { CatalogSoftErrorBanner } from '@/components/ui/CatalogSoftErrorBanner';
 import { CatalogStatusPanel } from '@/components/ui/CatalogStatusPanel';
 import { HomeCatalogSkeleton } from '@/components/ui/LoadingSkeleton';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
@@ -35,11 +36,11 @@ import { previewDryFruitProducts } from '@/data/previewImageCatalog';
 import { isDevOtpEnabled } from '@/services/devOtp';
 import { activeLoginForDisplay, displayCustomer } from '@/services/rememberedCustomer';
 import type { DemoProduct } from '@/types/catalog';
+import { enrichLiveCategoryTreePresentation } from '@/utils/catalogPresentationAssets';
 import { buildHomeCatalogueSections } from '@/utils/homeCatalogueSections';
 import {
   deriveDailyEssentials,
   deriveLiveBrands,
-  deriveLiveCategories,
   deriveLiveCategoryTree,
 } from '@/utils/liveCatalogMeta';
 
@@ -76,13 +77,21 @@ export default function HomeScreen() {
 
   const demoDryFruits = useMemo(() => previewDryFruitProducts(), []);
   const liveSections = useMemo(() => buildHomeCatalogueSections(products), [products]);
-  const liveCategories = useMemo(
-    () => (liveEnabled ? deriveLiveCategories(products) : null),
+  const liveCategoryTree = useMemo(
+    () =>
+      liveEnabled ? enrichLiveCategoryTreePresentation(deriveLiveCategoryTree(products)) : null,
     [liveEnabled, products],
   );
-  const liveCategoryTree = useMemo(
-    () => (liveEnabled ? deriveLiveCategoryTree(products) : null),
-    [liveEnabled, products],
+  const liveCategories = useMemo(
+    () =>
+      liveCategoryTree
+        ? liveCategoryTree.map((parent) => ({
+            id: parent.id,
+            name: parent.name,
+            image: parent.image,
+          }))
+        : null,
+    [liveCategoryTree],
   );
   const liveBrands = useMemo(() => (liveEnabled ? deriveLiveBrands(products) : null), [liveEnabled, products]);
   const liveDailyEssentials = useMemo(
@@ -175,6 +184,13 @@ export default function HomeScreen() {
         }>
         <View style={[styles.column, { width: contentWidth }]}>
           <DeliveryHeader />
+          {liveEnabled && message && products.length > 0 ? (
+            <CatalogSoftErrorBanner
+              message={message}
+              onRetry={() => void handleRetry()}
+              retrying={retrying || refreshing}
+            />
+          ) : null}
           {greetingName ? (
             <Text style={styles.greeting} accessibilityRole="header">
               Hi, {greetingName}

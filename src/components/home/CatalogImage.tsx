@@ -27,9 +27,19 @@ export function CatalogImage({ source, style, label, contentFit = 'contain' }: C
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const remote = isRemote(source);
+  const localModule = typeof source === 'number';
   const uri = remote ? source.uri.trim() : '';
   const usable = remote && uri.length > 0;
-  const recyclingKey = usable ? recyclingKeyForImageUri(uri) : undefined;
+  const explicitCacheKey =
+    typeof source === 'object' &&
+    source != null &&
+    'cacheKey' in source &&
+    typeof source.cacheKey === 'string' &&
+    source.cacheKey.length > 0
+      ? source.cacheKey
+      : undefined;
+  // Prefer explicit cacheKey (content fingerprint) so ERP image replacements invalidate disk cache.
+  const recyclingKey = usable ? explicitCacheKey ?? recyclingKeyForImageUri(uri) : undefined;
 
   // Reset load/error when the URI changes (list recycling / gallery thumb swap).
   useEffect(() => {
@@ -44,6 +54,21 @@ export function CatalogImage({ source, style, label, contentFit = 'contain' }: C
         accessibilityRole="image"
         accessibilityLabel={label ? `${label}. Image unavailable.` : 'Image unavailable.'}
       />
+    );
+  }
+
+  // Local require() assets — render immediately (no network load gate).
+  if (localModule) {
+    return (
+      <View style={style}>
+        <Image
+          source={source}
+          style={StyleSheet.absoluteFill}
+          contentFit={contentFit}
+          cachePolicy="memory-disk"
+          {...(label ? { accessible: true as const, accessibilityLabel: label } : {})}
+        />
+      </View>
     );
   }
 

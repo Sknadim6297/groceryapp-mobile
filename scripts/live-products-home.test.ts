@@ -11,8 +11,11 @@ async function run() {
     throw new Error('Expected product array');
   }
   const products = body.map((item) => mapProductRecord(item)).filter((item): item is NonNullable<typeof item> => item != null);
-  if (products.length !== 9) {
-    throw new Error(`Expected 9 mapped products, got ${products.length}`);
+  if (products.length === 0) {
+    throw new Error('Expected at least one mapped product');
+  }
+  if (products.length !== body.length) {
+    throw new Error(`Mapped ${products.length} of ${body.length} raw products — check id/name/price fields`);
   }
   const first = products[0]!;
   if (!first.id || !first.name || first.price < 0) {

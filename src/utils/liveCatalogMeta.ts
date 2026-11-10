@@ -33,17 +33,43 @@ function usableImage(source: DemoProduct['image'] | DemoProduct['categoryImage']
   return null;
 }
 
+/** Prefer lighter payloads for small category chips when both sources are inline Base64. */
+function preferLighterImage(
+  primary: DemoProduct['image'] | null,
+  fallback: DemoProduct['image'] | null,
+): DemoProduct['image'] | null {
+  if (!primary) {
+    return fallback;
+  }
+  if (!fallback) {
+    return primary;
+  }
+  const primaryUri = typeof primary === 'object' && primary && 'uri' in primary ? primary.uri : '';
+  const fallbackUri = typeof fallback === 'object' && fallback && 'uri' in fallback ? fallback.uri : '';
+  if (
+    typeof primaryUri === 'string' &&
+    primaryUri.startsWith('data:image/') &&
+    typeof fallbackUri === 'string' &&
+    fallbackUri.startsWith('data:image/') &&
+    primaryUri.length > 300_000 &&
+    fallbackUri.length < primaryUri.length
+  ) {
+    return fallback;
+  }
+  return primary;
+}
+
 function pickCategoryImage(product: DemoProduct) {
-  return usableImage(product.categoryImage) ?? usableImage(product.image) ?? PLACEHOLDER;
+  return (
+    preferLighterImage(usableImage(product.categoryImage), usableImage(product.image)) ?? PLACEHOLDER
+  );
 }
 
 function pickSubcategoryImage(product: DemoProduct, fallback: DemoProduct['image']) {
-  return (
-    usableImage(product.subcategoryImage) ??
-    usableImage(product.image) ??
-    usableImage(fallback) ??
-    PLACEHOLDER
-  );
+  const dedicated = usableImage(product.subcategoryImage);
+  const productImage = usableImage(product.image);
+  const parentFallback = usableImage(fallback);
+  return preferLighterImage(dedicated, productImage) ?? parentFallback ?? PLACEHOLDER;
 }
 
 /**

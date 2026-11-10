@@ -3,7 +3,12 @@ import { Platform } from 'react-native';
 
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
-import { buildCustomerUpdate, updateCustomer } from '@/services/customerAuth';
+import {
+  buildUpdateAddressRequest,
+  fetchAddressDetails,
+  mergeRemoteAddressesIntoBook,
+  updateAddress,
+} from '@/services/customerAddressApi';
 import {
   activateDeviceSavedAddressStore,
   addressOwnerKey,
@@ -14,7 +19,6 @@ import {
   withDefaultAddress,
 } from '@/services/savedAddressStore';
 import type { SavedAddress, SavedAddressDraft } from '@/types/savedAddress';
-import { addressFieldsFromSavedAddress } from '@/utils/customerAddressPayload';
 import { findDuplicateAddress, isAddressDraftReady } from '@/utils/savedAddressValidation';
 import { savedAddressToDeliveryLocation } from '@/utils/savedAddressMapping';
 
@@ -80,10 +84,24 @@ export function SavedAddressesProvider({ children }: { children: ReactNode }) {
       if (cancelled) {
         return;
       }
+
+      let nextAddresses = book.addresses;
+      const mobile = session?.mobile?.trim();
+      if (mobile) {
+        const remote = await fetchAddressDetails(mobile);
+        if (!cancelled && remote.ok && remote.addresses.length > 0) {
+          nextAddresses = mergeRemoteAddressesIntoBook(book.addresses, remote.addresses);
+          await saveAddressBook({ ownerKey: nextOwner, addresses: nextAddresses });
+        }
+      }
+
+      if (cancelled) {
+        return;
+      }
       setOwnerKey(nextOwner);
-      setAddresses(book.addresses);
+      setAddresses(nextAddresses);
       setHydrated(true);
-      const defaultAddress = book.addresses.find((address) => address.isDefault) ?? book.addresses[0];
+      const defaultAddress = nextAddresses.find((address) => address.isDefault) ?? nextAddresses[0];
       // Never overwrite an in-session delivery pick (GPS/search/map) with the stored default.
       if (defaultAddress && confirmedRef.current == null) {
         applyConfirmed(savedAddressToDeliveryLocation(defaultAddress));
@@ -93,37 +111,26 @@ export function SavedAddressesProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [applyConfirmed, authHydrated, resolveOwner]);
+  }, [applyConfirmed, authHydrated, resolveOwner, session?.mobile]);
 
   const persist = useCallback(async (nextOwner: string, nextAddresses: SavedAddress[]) => {
     setAddresses(nextAddresses);
     await saveAddressBook({ ownerKey: nextOwner, addresses: nextAddresses });
   }, []);
 
-  const syncDefaultAddressToServer = useCallback(
-    (address: SavedAddress) => {
-      const mobile = session?.mobile?.trim();
-      if (!mobile) {
-        return;
-      }
-      const fields = addressFieldsFromSavedAddress(address);
-      const built = buildCustomerUpdate({
-        mobile,
-        name: session?.name,
-        location: savedAddressToDeliveryLocation(address),
-      });
-      if (!built.ok) {
-        return;
-      }
-      void updateCustomer({
-        ...built.body,
-        ...fields,
-      }).catch(() => {
-        // Local address book remains the source of truth if update fails.
-      });
-    },
-    [session?.mobile, session?.name],
-  );
+  const syncAddressBookToServer = useCallback((nextAddresses: SavedAddress[]) => {
+    const mobile = session?.mobile?.trim();
+    if (!mobile || nextAddresses.length === 0) {
+      return;
+    }
+    const built = buildUpdateAddressRequest(mobile, nextAddresses);
+    if (!built.ok) {
+      return;
+    }
+    void updateAddress(built.body).catch(() => {
+      // Local address book remains the source of truth if update fails.
+    });
+  }, [session?.mobile]);
 
   const saveAddress = useCallback(
     async (draft: SavedAddressDraft, options?: { id?: string; makeDefault?: boolean }): Promise<SaveAddressResult> => {
@@ -156,8 +163,8 @@ export function SavedAddressesProvider({ children }: { children: ReactNode }) {
         await persist(nextOwner, next);
         if (updated.isDefault) {
           applyConfirmed(savedAddressToDeliveryLocation(updated));
-          syncDefaultAddressToServer(updated);
         }
+        syncAddressBookToServer(next);
         return { ok: true, address: updated };
       }
 
@@ -167,11 +174,11 @@ export function SavedAddressesProvider({ children }: { children: ReactNode }) {
       await persist(nextOwner, next);
       if (created.isDefault) {
         applyConfirmed(savedAddressToDeliveryLocation(created));
-        syncDefaultAddressToServer(created);
       }
+      syncAddressBookToServer(next);
       return { ok: true, address: created };
     },
-    [addresses, applyConfirmed, ownerKey, persist, resolveOwner, syncDefaultAddressToServer],
+    [addresses, applyConfirmed, ownerKey, persist, resolveOwner, syncAddressBookToServer],
   );
 
   const deleteAddress = useCallback(
@@ -188,12 +195,13 @@ export function SavedAddressesProvider({ children }: { children: ReactNode }) {
       const nextDefault = next.find((address) => address.isDefault) ?? null;
       if (nextDefault) {
         applyConfirmed(savedAddressToDeliveryLocation(nextDefault));
+        syncAddressBookToServer(next);
       } else {
         clearDelivery();
       }
       return true;
     },
-    [addresses, applyConfirmed, clearDelivery, ownerKey, persist],
+    [addresses, applyConfirmed, clearDelivery, ownerKey, persist, syncAddressBookToServer],
   );
 
   const setDefaultAddress = useCallback(
@@ -209,11 +217,11 @@ export function SavedAddressesProvider({ children }: { children: ReactNode }) {
       const selected = next.find((address) => address.id === addressId);
       if (selected) {
         applyConfirmed(savedAddressToDeliveryLocation(selected));
-        syncDefaultAddressToServer(selected);
       }
+      syncAddressBookToServer(next);
       return true;
     },
-    [addresses, applyConfirmed, ownerKey, persist, syncDefaultAddressToServer],
+    [addresses, applyConfirmed, ownerKey, persist, syncAddressBookToServer],
   );
 
   const selectAddressForDelivery = useCallback(

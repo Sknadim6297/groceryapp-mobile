@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -19,10 +20,11 @@ import { CollectionFilterChips } from '@/components/collection/CollectionFilterC
 import { ProductCard } from '@/components/home/ProductCard';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
-import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { colors, fonts, homeLayout, radii, shadow, space } from '@/constants/theme';
+import { CatalogSoftErrorBanner } from '@/components/ui/CatalogSoftErrorBanner';
 import { CatalogStatusPanel } from '@/components/ui/CatalogStatusPanel';
 import { ProductGridSkeleton } from '@/components/ui/LoadingSkeleton';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { colors, fonts, homeLayout, radii, shadow, space } from '@/constants/theme';
 import { useCatalog } from '@/context/CatalogContext';
 import { useMockCart } from '@/context/MockCartContext';
 import {
@@ -202,6 +204,14 @@ export function CategoryShoppingScreen({ collectionId }: CategoryShoppingScreenP
                 itemCount={baseProducts.length}
               />
 
+              {liveEnabled && message && products.length > 0 ? (
+                <CatalogSoftErrorBanner
+                  message={message}
+                  onRetry={() => void handleRetry()}
+                  retrying={retrying || refreshing}
+                />
+              ) : null}
+
               <CatalogSearchField
                 value={query}
                 onChange={setQuery}
@@ -245,10 +255,21 @@ export function CategoryShoppingScreen({ collectionId }: CategoryShoppingScreenP
               <ProductCard product={item} compact={cardWidth < 150} />
             </View>
           )}
+          refreshControl={
+            liveEnabled ? (
+              <RefreshControl
+                refreshing={refreshing || retrying}
+                onRefresh={() => void handleRetry()}
+                tintColor={colors.primaryInk}
+              />
+            ) : undefined
+          }
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           initialNumToRender={8}
+          maxToRenderPerBatch={6}
           windowSize={7}
+          removeClippedSubviews
           testID="collection-product-list"
         />
       </View>

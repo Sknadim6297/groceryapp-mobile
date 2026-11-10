@@ -1,13 +1,35 @@
 import { PRODUCTS_API } from '@/constants/api';
 import { PRODUCTS_COMPANY } from '@/constants/liveData';
-import { getJson } from '@/services/api/http';
+import { getJson, isCancelledApiResult } from '@/services/api/http';
 import type { DemoProduct } from '@/types/catalog';
 import { hasSuccessStatus } from '@/services/api/interpretCustomerResponse';
-import { collectProductImageSources, normalizeProductImageSource } from '@/utils/productImageSource';
+import {
+  collectProductImageSources,
+  normalizeBoundedCategoryImageSource,
+} from '@/utils/productImageSource';
 
 export type ProductsApiResult =
   | { ok: true; products: DemoProduct[]; rawCount: number }
-  | { ok: false; message: string };
+  | { ok: false; message: string; cancelled?: boolean };
+
+/** Live catalogue ships multi-MB Base64 images — 15s shared timeout is too short. */
+export const PRODUCTS_REQUEST_TIMEOUT_MS = 90_000;
+
+const MAX_TRANSIENT_RETRIES = 2;
+const RETRY_BASE_DELAY_MS = 700;
+
+type FetchProductsOptions = {
+  signal?: AbortSignal;
+  /** When true, do not join an in-flight request (used after aborting a superseded refresh). */
+  force?: boolean;
+};
+
+type InFlightEntry = {
+  company: string;
+  promise: Promise<ProductsApiResult>;
+};
+
+let inFlight: InFlightEntry | null = null;
 
 const FAILURE_STATUS = /^(false|fail|failed|error|invalid)$/i;
 
@@ -124,10 +146,11 @@ export function mapProductRecord(value: unknown): DemoProduct | null {
     record.SubCategoryName,
     record.subcategory,
   );
-  const categoryImage = normalizeProductImageSource(
+  // Prefer product photos; drop multi-MB CategoryImage/SubcategoryImage inline blobs.
+  const categoryImage = normalizeBoundedCategoryImageSource(
     record.CategoryImage ?? record.categoryImage ?? record.CategoryImg,
   );
-  const subcategoryImage = normalizeProductImageSource(
+  const subcategoryImage = normalizeBoundedCategoryImageSource(
     record.SubcategoryImage ??
       record.SubCategoryImage ??
       record.subcategoryImage ??
@@ -242,8 +265,123 @@ function extractCandidateRecords(body: unknown): unknown[] {
   return [record];
 }
 
-/** GET /api/values/products?company={company} */
-export async function fetchProducts(company: string = PRODUCTS_COMPANY): Promise<ProductsApiResult> {
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error('aborted'));
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new Error('aborted'));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+function isTransientHttpStatus(status: number): boolean {
+  return status === 0 || status === 408 || status === 429 || status >= 500;
+}
+
+async function fetchProductsWithRetry(
+  company: string,
+  signal?: AbortSignal,
+): Promise<ProductsApiResult> {
+  let lastFailure: ProductsApiResult = {
+    ok: false,
+    message: 'Unable to connect. Please try again.',
+  };
+
+  for (let attempt = 0; attempt <= MAX_TRANSIENT_RETRIES; attempt += 1) {
+    if (signal?.aborted) {
+      return { ok: false, message: 'Request cancelled.', cancelled: true };
+    }
+
+    const started = Date.now();
+    const response = await getJson(
+      PRODUCTS_API.list,
+      { company },
+      { signal, timeoutMs: PRODUCTS_REQUEST_TIMEOUT_MS },
+    );
+
+    if (isCancelledApiResult(response) || signal?.aborted) {
+      return { ok: false, message: 'Request cancelled.', cancelled: true };
+    }
+
+    // Successful HTTP — normalize once (avoid double GET on map failure paths).
+    if (response.status >= 200 && response.status < 300) {
+      if (looksLikeFailure(response.body)) {
+        return {
+          ok: false,
+          message: serverMessage(response.body) ?? 'The server did not return products for this company.',
+        };
+      }
+
+      const candidates = extractCandidateRecords(response.body);
+      const products: DemoProduct[] = [];
+      const seen = new Set<string>();
+      for (const candidate of candidates) {
+        const mapped = mapProductRecord(candidate);
+        if (!mapped || seen.has(mapped.id)) {
+          continue;
+        }
+        seen.add(mapped.id);
+        products.push(mapped);
+      }
+
+      if (products.length === 0) {
+        return {
+          ok: false,
+          message:
+            serverMessage(response.body) ??
+            'No product records with id, name, and price were returned. Ask the backend for a published JSON sample.',
+        };
+      }
+
+      if (typeof globalThis !== 'undefined' && (globalThis as { __DEV__?: boolean }).__DEV__) {
+        console.info('[products-api]', {
+          company: `${company.slice(0, 2)}…${company.slice(-2)}`,
+          ms: Date.now() - started,
+          rawCount: candidates.length,
+          mapped: products.length,
+          attempt: attempt + 1,
+        });
+      }
+
+      return { ok: true, products, rawCount: candidates.length };
+    }
+
+    lastFailure = {
+      ok: false,
+      message:
+        serverMessage(response.body) ??
+        (response.status === 0
+          ? 'Unable to connect. Please try again.'
+          : `Products request failed (${response.status}).`),
+    };
+
+    const shouldRetry = isTransientHttpStatus(response.status) && attempt < MAX_TRANSIENT_RETRIES;
+    if (!shouldRetry) {
+      return lastFailure;
+    }
+
+    const delay = RETRY_BASE_DELAY_MS * 2 ** attempt;
+    try {
+      await sleep(delay, signal);
+    } catch {
+      return { ok: false, message: 'Request cancelled.', cancelled: true };
+    }
+  }
+
+  return lastFailure;
+}
+
+/** GET /api/values/products?company={company} — deduped, abortable, retried on transient failures. */
+export async function fetchProducts(
+  company: string = PRODUCTS_COMPANY,
+  options?: FetchProductsOptions,
+): Promise<ProductsApiResult> {
   const trimmed = company.trim();
   if (!trimmed) {
     return {
@@ -252,47 +390,20 @@ export async function fetchProducts(company: string = PRODUCTS_COMPANY): Promise
     };
   }
 
-  const response = await getJson(PRODUCTS_API.list, { company: trimmed });
-  if (response.status === 0) {
-    return {
-      ok: false,
-      message: serverMessage(response.body) ?? 'Unable to connect. Please try again.',
-    };
-  }
-  if (response.status < 200 || response.status >= 300) {
-    return {
-      ok: false,
-      message: serverMessage(response.body) ?? `Products request failed (${response.status}).`,
-    };
+  if (!options?.force && inFlight && inFlight.company === trimmed) {
+    return inFlight.promise;
   }
 
-  if (looksLikeFailure(response.body)) {
-    return {
-      ok: false,
-      message: serverMessage(response.body) ?? 'The server did not return products for this company.',
-    };
-  }
-
-  const candidates = extractCandidateRecords(response.body);
-  const products: DemoProduct[] = [];
-  const seen = new Set<string>();
-  for (const candidate of candidates) {
-    const mapped = mapProductRecord(candidate);
-    if (!mapped || seen.has(mapped.id)) {
-      continue;
+  const promise = fetchProductsWithRetry(trimmed, options?.signal).finally(() => {
+    if (inFlight?.promise === promise) {
+      inFlight = null;
     }
-    seen.add(mapped.id);
-    products.push(mapped);
-  }
+  });
+  inFlight = { company: trimmed, promise };
+  return promise;
+}
 
-  if (products.length === 0) {
-    return {
-      ok: false,
-      message:
-        serverMessage(response.body) ??
-        'No product records with id, name, and price were returned. Ask the backend for a published JSON sample.',
-    };
-  }
-
-  return { ok: true, products, rawCount: candidates.length };
+/** @internal test helper — clears in-flight join state. */
+export function __resetProductsFetchStateForTests() {
+  inFlight = null;
 }
