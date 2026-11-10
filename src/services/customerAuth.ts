@@ -146,6 +146,7 @@ export function buildCustomerUpdate(input: {
   name?: string;
   email?: string;
   dateOfBirth?: string | null;
+  /** Fills Address/Country/State/City/Pincode from the chosen delivery location. */
   location?: DeliveryLocation | null;
 }): { ok: true; body: CustomerUpdateRequest } | { ok: false; message: string } {
   if (!isValidIndiaMobile(input.mobile)) {
@@ -162,19 +163,21 @@ export function buildCustomerUpdate(input: {
     if (email.length > 0 && !isValidEmail(email)) {
       return { ok: false, message: 'Enter a valid email address.' };
     }
-    body.Email = email;
+    if (email.length > 0) {
+      body.Email = email;
+    }
   }
   if (input.dateOfBirth && parseIsoDate(input.dateOfBirth)) {
     body.DOB = input.dateOfBirth;
   }
+
   const addressFields = addressFieldsFromDeliveryLocation(input.location ?? null);
   if (addressFields) {
     Object.assign(body, addressFields);
   }
 
-  const hasProfile = Boolean(body.Name || body.Email !== undefined || body.DOB);
-  const hasAddress = Boolean(body.Address);
-  if (!hasProfile && !hasAddress) {
+  const hasExtra = Boolean(body.Name || body.Email || body.DOB || body.Address);
+  if (!hasExtra) {
     return { ok: false, message: 'Nothing to update.' };
   }
 

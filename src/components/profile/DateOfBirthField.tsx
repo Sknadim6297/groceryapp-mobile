@@ -15,17 +15,33 @@ type DateOfBirthFieldProps = {
    * Field content only — no outer label or bordered box.
    */
   embedded?: boolean;
+  /** Outer label when not embedded. */
+  label?: string;
+  emptyLabel?: string;
+  accessibilityLabel?: string;
+  /** When false, future dates are allowed (e.g. Anniversary reminders). Default true for DOB. */
+  disallowFuture?: boolean;
 };
 
 const earliestBirthDate = new Date(1900, 0, 1);
 
-export function DateOfBirthField({ value, displayValue, onChange, embedded = false }: DateOfBirthFieldProps) {
+export function DateOfBirthField({
+  value,
+  displayValue,
+  onChange,
+  embedded = false,
+  label = 'Date of Birth',
+  emptyLabel = 'Select date of birth',
+  accessibilityLabel,
+  disallowFuture = true,
+}: DateOfBirthFieldProps) {
   const [open, setOpen] = useState(false);
   const selected = value ? parseIsoDate(value) : null;
-  const maximumDate = new Date();
+  const maximumDate = disallowFuture ? new Date() : undefined;
+  const a11y = accessibilityLabel ?? label;
 
   function applyDate(date: Date) {
-    if (isFutureDate(date)) {
+    if (disallowFuture && isFutureDate(date)) {
       return;
     }
 
@@ -34,11 +50,17 @@ export function DateOfBirthField({ value, displayValue, onChange, embedded = fal
 
   const control =
     Platform.OS === 'web' ? (
-      <WebDateInput value={value} onChange={onChange} embedded={embedded} />
+      <WebDateInput
+        value={value}
+        onChange={onChange}
+        embedded={embedded}
+        accessibilityLabel={a11y}
+        disallowFuture={disallowFuture}
+      />
     ) : (
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={value ? `Date of birth ${displayValue}` : 'Select date of birth'}
+        accessibilityLabel={value ? `${a11y} ${displayValue}` : emptyLabel}
         onPress={() => setOpen(true)}
         style={({ pressed }) => [
           embedded ? styles.embeddedField : styles.field,
@@ -46,7 +68,7 @@ export function DateOfBirthField({ value, displayValue, onChange, embedded = fal
         ]}>
         {!embedded ? <AppIcon name="calendar" color={colors.textSecondary} size={18} /> : null}
         <Text style={[styles.value, !value && styles.placeholder]}>
-          {value ? displayValue : 'Select date of birth'}
+          {value ? displayValue : emptyLabel}
         </Text>
         {!embedded ? <AppIcon name="calendar" color={colors.textSecondary} size={18} /> : null}
       </Pressable>
@@ -56,7 +78,7 @@ export function DateOfBirthField({ value, displayValue, onChange, embedded = fal
     <View style={embedded ? styles.embeddedWrap : styles.wrap}>
       {!embedded ? (
         <Text style={styles.label}>
-          Date of Birth <Text style={styles.optional}>(Optional)</Text>
+          {label} <Text style={styles.optional}>(Optional)</Text>
         </Text>
       ) : null}
       {control}
@@ -94,19 +116,23 @@ function WebDateInput({
   value,
   onChange,
   embedded,
+  accessibilityLabel,
+  disallowFuture,
 }: {
   value: string | null;
   onChange: (value: string | null) => void;
   embedded: boolean;
+  accessibilityLabel: string;
+  disallowFuture: boolean;
 }) {
-  const maximum = toIsoDate(new Date());
+  const maximum = disallowFuture ? toIsoDate(new Date()) : undefined;
 
   return (
     <View style={embedded ? styles.embeddedField : styles.field}>
       {!embedded ? <AppIcon name="calendar" color={colors.textSecondary} size={18} /> : null}
       {createElement('input', {
         type: 'date',
-        'aria-label': 'Date of birth',
+        'aria-label': accessibilityLabel,
         max: maximum,
         value: value ?? '',
         onChange: (event: { currentTarget: { value: string } }) => {

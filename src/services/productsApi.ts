@@ -12,8 +12,8 @@ export type ProductsApiResult =
   | { ok: true; products: DemoProduct[]; rawCount: number }
   | { ok: false; message: string; cancelled?: boolean };
 
-/** Live catalogue ships multi-MB Base64 images — 15s shared timeout is too short. */
-export const PRODUCTS_REQUEST_TIMEOUT_MS = 90_000;
+/** List payload is smaller with split productimages API, but Image1 Base64 can still be multi-MB. */
+export const PRODUCTS_REQUEST_TIMEOUT_MS = 45_000;
 
 const MAX_TRANSIENT_RETRIES = 2;
 const RETRY_BASE_DELAY_MS = 700;
@@ -111,11 +111,19 @@ function isStatusEnvelope(record: Record<string, unknown>): boolean {
   return !hasProductShape;
 }
 
+export type MapProductOptions = {
+  /**
+   * List mode: keep Image1 only; gallery Image2–4 load via productimages.
+   * Also skips product-row CategoryImage / SubcategoryImage (use categories APIs).
+   */
+  primaryImageOnly?: boolean;
+};
+
 /**
  * Maps one API object onto DemoProduct only when id, name, and price are present.
  * Does not invent prices, stock, or images.
  */
-export function mapProductRecord(value: unknown): DemoProduct | null {
+export function mapProductRecord(value: unknown, options?: MapProductOptions): DemoProduct | null {
   const record = asRecord(value);
   if (!record || isStatusEnvelope(record)) {
     return null;
@@ -146,16 +154,20 @@ export function mapProductRecord(value: unknown): DemoProduct | null {
     record.SubCategoryName,
     record.subcategory,
   );
-  // Prefer product photos; drop multi-MB CategoryImage/SubcategoryImage inline blobs.
-  const categoryImage = normalizeBoundedCategoryImageSource(
-    record.CategoryImage ?? record.categoryImage ?? record.CategoryImg,
-  );
-  const subcategoryImage = normalizeBoundedCategoryImageSource(
-    record.SubcategoryImage ??
-      record.SubCategoryImage ??
-      record.subcategoryImage ??
-      record.SubcategoryImg,
-  );
+  const primaryOnly = options?.primaryImageOnly === true;
+  const categoryImage = primaryOnly
+    ? null
+    : normalizeBoundedCategoryImageSource(
+        record.CategoryImage ?? record.categoryImage ?? record.CategoryImg,
+      );
+  const subcategoryImage = primaryOnly
+    ? null
+    : normalizeBoundedCategoryImageSource(
+        record.SubcategoryImage ??
+          record.SubCategoryImage ??
+          record.subcategoryImage ??
+          record.SubcategoryImg,
+      );
   const unit =
     textField(record.Unit, record.unit, record.PackSize, record.packSize, record.Size, record.size) ?? brand ?? '';
   const compareAt = numberField(record.MRP, record.Mrp, record.mrp, record.CompareAt, record.compareAt);
@@ -176,7 +188,7 @@ export function mapProductRecord(value: unknown): DemoProduct | null {
     available = stock > 0;
   }
 
-  const sources = collectProductImageSources(record);
+  const sources = collectProductImageSources(record, { primaryOnly });
   if (sources.length === 0) {
     // Placeholder — CatalogImage shows the grey fallback for empty / failed uris.
     sources.push({ uri: '' });
@@ -188,7 +200,8 @@ export function mapProductRecord(value: unknown): DemoProduct | null {
     unit,
     price,
     image: sources[0]!,
-    images: sources.length > 1 ? sources : [sources[0]!, sources[0]!],
+    // List mode keeps a single primary; product page merges productimages later.
+    images: primaryOnly || sources.length === 1 ? [sources[0]!] : sources,
   };
 
   if (compareAt != null && compareAt > price) {
@@ -322,7 +335,7 @@ async function fetchProductsWithRetry(
       const products: DemoProduct[] = [];
       const seen = new Set<string>();
       for (const candidate of candidates) {
-        const mapped = mapProductRecord(candidate);
+        const mapped = mapProductRecord(candidate, { primaryImageOnly: true });
         if (!mapped || seen.has(mapped.id)) {
           continue;
         }

@@ -41,8 +41,17 @@ export default function ProductDetailScreen() {
   const { isSaved, toggle } = useWishlist();
   const { profile } = useCustomerProfile();
   const { session } = useAuthSession();
-  const { findProduct, relatedProducts, initialLoading, liveEnabled, state, message, refresh, refreshing } =
-    useCatalog();
+  const {
+    findProduct,
+    relatedProducts,
+    initialLoading,
+    liveEnabled,
+    state,
+    message,
+    refresh,
+    refreshing,
+    loadProductGalleryImages,
+  } = useCatalog();
   const { summaryFor, sortedReviewsFor, voteFor, setVote, submitReview } = useProductReviews();
   const product = productId ? findProduct(productId) : undefined;
 
@@ -52,6 +61,14 @@ export default function ProductDetailScreen() {
   const [writeOpen, setWriteOpen] = useState(false);
   const [selectQty, setSelectQty] = useState(1);
   const [retrying, setRetrying] = useState(false);
+
+  // Lazy gallery: Image2–4 from GET productimages (keeps products list fast).
+  useEffect(() => {
+    if (!liveEnabled || !productId) {
+      return;
+    }
+    void loadProductGalleryImages(productId);
+  }, [liveEnabled, loadProductGalleryImages, productId]);
 
   async function handleRetry() {
     if (retrying) {

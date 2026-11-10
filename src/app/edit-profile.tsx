@@ -1,6 +1,3 @@
-import * as Clipboard from 'expo-clipboard';
-import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
 import { Redirect, router, useIsFocused } from 'expo-router';
 import { useMemo, useState, type ReactNode } from 'react';
 import {
@@ -18,25 +15,29 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DateOfBirthField } from '@/components/profile/DateOfBirthField';
-import { ProfilePhotoActionSheet } from '@/components/profile/ProfilePhotoActionSheet';
 import { AppIcon, type AppIconName } from '@/components/ui/AppIcon';
 import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
-import { useToast } from '@/components/ui/AppToast';
 import { colors, fonts, homeLayout, radii, shadow } from '@/constants/theme';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useCustomerAccount } from '@/context/CustomerAccountContext';
 import { useCustomerProfile } from '@/context/CustomerProfileContext';
-import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useRememberedCustomer } from '@/context/RememberedCustomerContext';
 import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
 import { profileRoutes } from '@/navigation/profileRoutes';
 import { buildCustomerUpdate, updateCustomer } from '@/services/customerAuth';
 import { canUseDevelopmentHome } from '@/services/devOtp';
 import { displayCustomer } from '@/services/rememberedCustomer';
-import type { CustomerProfileDraft, ProfileAvatarPresetId } from '@/types/customerProfile';
+import type { CustomerProfileDraft } from '@/types/customerProfile';
 import { formatIndiaMobileDisplay, isValidIndiaMobile } from '@/utils/phoneValidation';
-import { formatProfileIdDisplay, profileAvatarPreset } from '@/utils/profileAvatar';
 import { formatDateOfBirth, isValidEmail } from '@/utils/profileValidation';
+
+function emptyDraft(): CustomerProfileDraft {
+  return {
+    name: '',
+    email: '',
+    dateOfBirth: '',
+  };
+}
 
 export default function EditProfileScreen() {
   const focused = useIsFocused();
@@ -66,69 +67,41 @@ export default function EditProfileScreen() {
     remembered,
   );
   const mobile = identity?.mobile ?? session?.mobile ?? devSession?.mobile ?? '';
-  const customerId = session?.customerId ?? account?.customerId ?? remembered?.customerId ?? '';
   const initial: CustomerProfileDraft = {
     name: profile?.name || identity?.name || session?.name || remembered?.name || '',
     email: profile?.email ?? '',
     dateOfBirth: profile?.dateOfBirth ?? '',
-    avatarUri: profile?.avatarUri ?? null,
-    avatarPreset: profile?.avatarPreset ?? null,
   };
 
   return (
     <EditProfileBody
       key={`${mobile}:${profile?.updatedAt ?? 'base'}`}
       mobile={mobile}
-      customerId={customerId}
       initial={initial}
     />
   );
 }
 
-function EditProfileBody({
-  mobile,
-  customerId,
-  initial,
-}: {
-  mobile: string;
-  customerId: string;
-  initial: CustomerProfileDraft;
-}) {
+function EditProfileBody({ mobile, initial }: { mobile: string; initial: CustomerProfileDraft }) {
   const insets = useSafeAreaInsets();
   const keyboardCover = useKeyboardOverlap();
   const keyboardOverlap = Platform.OS === 'android' ? keyboardCover : 0;
   const { saveProfile } = useCustomerProfile();
-  const { confirmed } = useDeliveryLocation();
-  const { showToast } = useToast();
   const [draft, setDraft] = useState<CustomerProfileDraft>(initial);
   const [nameError, setNameError] = useState<string | null>(null);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
-  const [photoSheetOpen, setPhotoSheetOpen] = useState(false);
-  const [avatarPicker, setAvatarPicker] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [picking, setPicking] = useState(false);
 
-  const dirty = useMemo(
-    () =>
-      draft.name.trim() !== initial.name.trim() ||
-      draft.email.trim() !== initial.email.trim() ||
-      draft.dateOfBirth.trim() !== initial.dateOfBirth.trim() ||
-      (draft.avatarUri ?? null) !== (initial.avatarUri ?? null) ||
-      (draft.avatarPreset ?? null) !== (initial.avatarPreset ?? null),
-    [draft, initial],
-  );
+  const dirty = useMemo(() => {
+    const keys = Object.keys(emptyDraft()) as (keyof CustomerProfileDraft)[];
+    return keys.some((key) => draft[key].trim() !== initial[key].trim());
+  }, [draft, initial]);
 
-  const mark = initials(draft.name || 'Your account');
-  const mobileLabel = isValidIndiaMobile(mobile)
-    ? `+91 ${formatIndiaMobileDisplay(mobile)}`
-    : mobile || 'Not available';
-  const idDisplay = formatProfileIdDisplay(customerId, mobile);
-  const preset = profileAvatarPreset(draft.avatarPreset);
-  const ready = draft.name.trim().length >= 2 && (draft.email.trim().length === 0 || isValidEmail(draft.email));
-  const canSave = ready && dirty && !saving;
+  const canSave = dirty && !saving && draft.name.trim().length >= 2;
+  const mobileLabel = isValidIndiaMobile(mobile) ? formatIndiaMobileDisplay(mobile) : mobile;
+  const mark = initials(draft.name);
 
   function update<K extends keyof CustomerProfileDraft>(field: K, value: CustomerProfileDraft[K]) {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -142,7 +115,7 @@ function EditProfileBody({
   }
 
   function requestBack() {
-    if (dirty && !saving) {
+    if (dirty) {
       setLeaveOpen(true);
       return;
     }
@@ -158,88 +131,8 @@ function EditProfileBody({
     router.replace(profileRoutes.profile);
   }
 
-  async function copyId() {
-    if (!idDisplay || idDisplay === 'Not assigned') {
-      showToast('info', 'No customer id is available to copy yet.');
-      return;
-    }
-    await Clipboard.setStringAsync(idDisplay.replace(/\s+/g, ''));
-    showToast('success', 'Customer id copied.');
-  }
-
-  async function takePhoto() {
-    setPicking(true);
-    try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        showToast('error', 'Camera access is needed to take a profile photo.');
-        return;
-      }
-      const picked = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        quality: 0.75,
-        allowsEditing: true,
-        aspect: [1, 1],
-      });
-      if (picked.canceled || !picked.assets[0]?.uri) {
-        return;
-      }
-      setDraft((current) => ({
-        ...current,
-        avatarUri: picked.assets[0]!.uri,
-        avatarPreset: null,
-      }));
-      setPhotoSheetOpen(false);
-      setAvatarPicker(false);
-      showToast('success', 'Profile photo updated. Save to keep it on this device.');
-    } finally {
-      setPicking(false);
-    }
-  }
-
-  async function pickFromDevice() {
-    setPicking(true);
-    try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        showToast('error', 'Photo access is needed to choose a profile picture.');
-        return;
-      }
-      const picked = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        quality: 0.75,
-        allowsEditing: true,
-        aspect: [1, 1],
-      });
-      if (picked.canceled || !picked.assets[0]?.uri) {
-        return;
-      }
-      setDraft((current) => ({
-        ...current,
-        avatarUri: picked.assets[0]!.uri,
-        avatarPreset: null,
-      }));
-      setPhotoSheetOpen(false);
-      setAvatarPicker(false);
-      showToast('success', 'Profile photo updated. Save to keep it on this device.');
-    } finally {
-      setPicking(false);
-    }
-  }
-
-  function selectPreset(id: ProfileAvatarPresetId) {
-    setDraft((current) => ({
-      ...current,
-      avatarPreset: id,
-      avatarUri: null,
-    }));
-    setPhotoSheetOpen(false);
-    setAvatarPicker(false);
-    showToast('success', 'Avatar selected. Save to keep it on this device.');
-  }
-
   async function submit() {
-    if (saving || !dirty) {
+    if (saving) {
       return;
     }
     const name = draft.name.trim();
@@ -260,51 +153,39 @@ function EditProfileBody({
 
     setSaving(true);
     setError(null);
-    const result = await saveProfile({
+    const payload: CustomerProfileDraft = {
       name,
       email,
       dateOfBirth: draft.dateOfBirth.trim(),
-      avatarUri: draft.avatarUri ?? null,
-      avatarPreset: draft.avatarPreset ?? null,
-    });
+    };
 
-    let serverSynced = false;
+    const result = await saveProfile(payload);
+
     if (result.ok && isValidIndiaMobile(mobile)) {
       const built = buildCustomerUpdate({
         mobile,
-        name,
-        email,
-        dateOfBirth: draft.dateOfBirth.trim() || null,
-        location: confirmed,
+        name: payload.name,
+        email: payload.email,
+        dateOfBirth: payload.dateOfBirth || null,
       });
       if (built.ok) {
-        const remote = await updateCustomer(built.body);
-        serverSynced = remote.confirmed;
-        if (!remote.confirmed && remote.message) {
-          showToast('warning', remote.message);
-        }
+        await updateCustomer(built.body);
       }
     }
     setSaving(false);
 
     if (!result.ok) {
-      const message =
+      setError(
         result.reason === 'no-owner'
           ? 'Sign in again to edit your profile.'
           : result.reason === 'validation'
             ? 'Please check your details and try again.'
-            : 'Could not save your profile on this device.';
-      setError(message);
-      showToast('error', message);
+            : 'Could not save your profile on this device.',
+      );
       return;
     }
 
-    showToast(
-      'success',
-      serverSynced
-        ? 'Profile and delivery address updated.'
-        : 'Profile saved on this device. Server sync could not be confirmed.',
-    );
+    // Success: go back immediately — no toast.
     if (router.canGoBack()) {
       router.back();
       return;
@@ -323,43 +204,13 @@ function EditProfileBody({
           showsVerticalScrollIndicator={false}>
           <View style={styles.column}>
             <View style={styles.hero}>
-              <View style={styles.avatarWrap}>
-                <View style={[styles.avatar, preset ? { backgroundColor: preset.wash } : null]}>
-                  {draft.avatarUri ? (
-                    <Image source={{ uri: draft.avatarUri }} style={styles.avatarImage} contentFit="cover" />
-                  ) : preset ? (
-                    <Text style={styles.avatarEmoji}>{preset.emoji}</Text>
-                  ) : mark ? (
-                    <Text style={styles.avatarText}>{mark}</Text>
-                  ) : (
-                    <AppIcon name="profile" color={colors.primaryInk} size={36} />
-                  )}
-                </View>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Change profile photo"
-                  onPress={() => {
-                    setAvatarPicker(false);
-                    setPhotoSheetOpen(true);
-                  }}
-                  style={({ pressed }) => [styles.cameraBadge, pressed && styles.pressed]}
-                  testID="profile-photo-open">
-                  <AppIcon name="camera" color={colors.text} size={16} />
-                </Pressable>
+              <View style={styles.avatar}>
+                {mark ? <Text style={styles.avatarText}>{mark}</Text> : <AppIcon name="profile" color={colors.primaryInk} size={36} />}
               </View>
-
               <Text style={styles.heroName} numberOfLines={1}>
                 {draft.name.trim() || 'Your account'}
               </Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Copy customer id"
-                onPress={() => void copyId()}
-                style={({ pressed }) => [styles.idRow, pressed && styles.pressed]}
-                testID="profile-copy-id">
-                <Text style={styles.idText}>{idDisplay}</Text>
-                <AppIcon name="copy" color={colors.textSecondary} size={16} />
-              </Pressable>
+              <Text style={styles.mobileHint}>{mobileLabel}</Text>
             </View>
 
             <View style={styles.infoCard}>
@@ -367,17 +218,13 @@ function EditProfileBody({
                 <TextInput
                   value={draft.name}
                   onChangeText={(next) => update('name', next)}
-                  placeholder="Full name"
+                  placeholder="Name"
                   placeholderTextColor={colors.textSecondary}
                   autoCapitalize="words"
                   autoCorrect={false}
-                  accessibilityLabel="Full Name"
+                  accessibilityLabel="Name"
                   style={[styles.rowInput, nameError ? styles.rowInputError : null]}
                 />
-              </InfoRow>
-              <View style={styles.rowDivider} />
-              <InfoRow icon="card">
-                <Text style={styles.rowValue}>{idDisplay}</Text>
               </InfoRow>
               <View style={styles.rowDivider} />
               <InfoRow icon="phone">
@@ -393,13 +240,11 @@ function EditProfileBody({
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
-                  accessibilityLabel="Email Address"
+                  accessibilityLabel="Email"
                   style={[styles.rowInput, emailError ? styles.rowInputError : null]}
                 />
               </InfoRow>
-            </View>
-
-            <View style={styles.infoCard}>
+              <View style={styles.rowDivider} />
               <InfoRow icon="calendar">
                 <DateOfBirthField
                   embedded
@@ -409,10 +254,6 @@ function EditProfileBody({
                 />
               </InfoRow>
             </View>
-
-            <Text style={styles.notice}>
-              Name, email, date of birth, and your current delivery address sync to the store when you save.
-            </Text>
 
             {error ? (
               <Text accessibilityRole="alert" style={styles.error}>
@@ -441,59 +282,10 @@ function EditProfileBody({
               pressed && canSave && styles.pressed,
             ]}
             testID="edit-profile-save">
-            {saving ? (
-              <ActivityIndicator color={colors.text} />
-            ) : (
-              <Text style={styles.saveLabel}>Save Changes</Text>
-            )}
+            {saving ? <ActivityIndicator color={colors.text} /> : <Text style={styles.saveLabel}>Save Changes</Text>}
           </Pressable>
         </View>
       </KeyboardAvoidingView>
-
-      <ProfilePhotoActionSheet
-        visible={photoSheetOpen}
-        picking={picking}
-        showAvatarPicker={avatarPicker}
-        onClose={() => {
-          if (!picking) {
-            setPhotoSheetOpen(false);
-            setAvatarPicker(false);
-          }
-        }}
-        onShowPicture={() => {
-          setPhotoSheetOpen(false);
-          setAvatarPicker(false);
-          setPreviewOpen(true);
-        }}
-        onTakePhoto={() => void takePhoto()}
-        onPickFromDevice={() => void pickFromDevice()}
-        onChooseExisting={() => setAvatarPicker((open) => !open)}
-        onSelectPreset={selectPreset}
-      />
-
-      <Modal visible={previewOpen} transparent animationType="fade" onRequestClose={() => setPreviewOpen(false)}>
-        <Pressable style={styles.previewBackdrop} onPress={() => setPreviewOpen(false)}>
-          <View style={styles.previewCard}>
-            <Text style={styles.previewTitle}>Profile Picture</Text>
-            <View style={[styles.previewAvatar, preset ? { backgroundColor: preset.wash } : null]}>
-              {draft.avatarUri ? (
-                <Image source={{ uri: draft.avatarUri }} style={styles.previewImage} contentFit="cover" />
-              ) : preset ? (
-                <Text style={styles.previewEmoji}>{preset.emoji}</Text>
-              ) : (
-                <Text style={styles.previewInitials}>{mark || '?'}</Text>
-              )}
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Close preview"
-              onPress={() => setPreviewOpen(false)}
-              style={({ pressed }) => [styles.previewClose, pressed && styles.pressed]}>
-              <Text style={styles.previewCloseLabel}>Close</Text>
-            </Pressable>
-          </View>
-        </Pressable>
-      </Modal>
 
       <Modal visible={leaveOpen} transparent animationType="fade" onRequestClose={() => setLeaveOpen(false)}>
         <Pressable style={styles.sheetBackdrop} onPress={() => setLeaveOpen(false)}>
@@ -574,76 +366,43 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: homeLayout.maxWidth,
     paddingHorizontal: homeLayout.gutter,
-    gap: 14,
+    gap: 12,
   },
   hero: {
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     paddingTop: 8,
     paddingBottom: 4,
   },
-  avatarWrap: {
-    width: 112,
-    height: 112,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   avatar: {
-    width: 104,
-    height: 104,
-    borderRadius: 52,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
     backgroundColor: colors.softYellow,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
     borderWidth: 3,
     borderColor: colors.white,
     ...shadow.soft,
   },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
-  },
   avatarText: {
     fontFamily: fonts.bold,
-    fontSize: 34,
-    lineHeight: 40,
+    fontSize: 30,
+    lineHeight: 36,
     color: colors.primaryInk,
   },
-  avatarEmoji: {
-    fontSize: 42,
-  },
-  cameraBadge: {
-    position: 'absolute',
-    right: 2,
-    bottom: 4,
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: colors.primary,
-    borderWidth: 2,
-    borderColor: colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   heroName: {
-    marginTop: 6,
+    marginTop: 4,
     fontFamily: fonts.bold,
     fontSize: 22,
     lineHeight: 28,
     color: colors.text,
     textAlign: 'center',
   },
-  idRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  idText: {
+  mobileHint: {
     fontFamily: fonts.medium,
     fontSize: 14,
+    lineHeight: 18,
     color: colors.textSecondary,
   },
   infoCard: {
@@ -705,16 +464,6 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: colors.danger,
   },
-  notice: {
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    lineHeight: 17,
-    color: colors.primaryInk,
-    backgroundColor: colors.softYellow,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
   error: {
     fontFamily: fonts.medium,
     fontSize: 13,
@@ -746,62 +495,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: 17,
     lineHeight: 22,
-    color: colors.text,
-  },
-  previewBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(17, 24, 39, 0.55)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  previewCard: {
-    width: '100%',
-    maxWidth: 340,
-    backgroundColor: colors.white,
-    borderRadius: radii.lg,
-    padding: 20,
-    alignItems: 'center',
-    gap: 14,
-    ...shadow.card,
-  },
-  previewTitle: {
-    fontFamily: fonts.bold,
-    fontSize: 18,
-    color: colors.text,
-  },
-  previewAvatar: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: colors.softYellow,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  previewImage: {
-    width: '100%',
-    height: '100%',
-  },
-  previewEmoji: {
-    fontSize: 72,
-  },
-  previewInitials: {
-    fontFamily: fonts.bold,
-    fontSize: 56,
-    color: colors.primaryInk,
-  },
-  previewClose: {
-    minHeight: 44,
-    paddingHorizontal: 24,
-    borderRadius: radii.pill,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  previewCloseLabel: {
-    fontFamily: fonts.bold,
-    fontSize: 15,
     color: colors.text,
   },
   sheetBackdrop: {

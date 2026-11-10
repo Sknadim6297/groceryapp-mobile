@@ -54,6 +54,20 @@ function run() {
   assertEqual(mapProductRecord({ Name: 'No id', Price: 10 }), null, 'missing id');
   assertEqual(mapProductRecord({ Id: 'x', Name: 'No price' }), null, 'missing price');
 
+  const listOnly = mapProductRecord(
+    {
+      ProductId: 6,
+      ProductName: 'Rice',
+      SellingPrice: 210,
+      Image1: jpeg,
+      Image2: '/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBwgHBgkIBwgKAAAA',
+    },
+    { primaryImageOnly: true },
+  );
+  if (!listOnly || listOnly.images.length !== 1) {
+    throw new Error('list mode must keep Image1 only for productimages split');
+  }
+
   console.log('products-api-map.test.ts: ok');
 }
 

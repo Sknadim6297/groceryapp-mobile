@@ -1,18 +1,12 @@
 /**
- * Local editable customer profile (name, email, DOB).
- * Ready to swap for a future C# / ASP.NET profile-update API.
- * There is no published profile-update endpoint today.
+ * Local editable customer profile for Edit Profile fields.
  */
 
-import type {
-    CustomerProfile,
-    CustomerProfileDraft,
-} from "@/types/customerProfile";
-import { isValidIndiaMobile } from "@/utils/phoneValidation";
-import { parseProfileAvatarPreset } from "@/utils/profileAvatar";
-import { isValidEmail, parseIsoDate } from "@/utils/profileValidation";
+import type { CustomerProfile, CustomerProfileDraft } from '@/types/customerProfile';
+import { isValidIndiaMobile } from '@/utils/phoneValidation';
+import { isValidEmail, parseIsoDate } from '@/utils/profileValidation';
 
-const STORAGE_KEY = "groceryapp.customer-profiles";
+const STORAGE_KEY = 'groceryapp.customer-profiles';
 
 type ProfileStore = {
   read: () => Promise<string | null>;
@@ -37,9 +31,7 @@ const memoryStore: ProfileStore = {
 let store: ProfileStore = memoryStore;
 
 /** Tests replace the store so a restart can be simulated without a device. */
-export function installCustomerProfileStoreForTests(
-  next: ProfileStore | null,
-): void {
+export function installCustomerProfileStoreForTests(next: ProfileStore | null): void {
   memory.clear();
   store = next ?? memoryStore;
 }
@@ -47,10 +39,10 @@ export function installCustomerProfileStoreForTests(
 export function profileOwnerKey(
   input: {
     mobile?: string | null;
-    kind: "temporary-ui" | "development-test";
+    kind: 'temporary-ui' | 'development-test';
   } | null,
 ): string | null {
-  const mobile = input?.mobile?.trim() ?? "";
+  const mobile = input?.mobile?.trim() ?? '';
   if (!input || !isValidIndiaMobile(mobile)) {
     return null;
   }
@@ -58,18 +50,18 @@ export function profileOwnerKey(
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
   }
   return value as Record<string, unknown>;
 }
 
 function text(value: unknown): string {
-  return typeof value === "string"
+  return typeof value === 'string'
     ? value.trim()
-    : typeof value === "number" && Number.isFinite(value)
+    : typeof value === 'number' && Number.isFinite(value)
       ? String(value)
-      : "";
+      : '';
 }
 
 export function parseCustomerProfile(value: unknown): CustomerProfile | null {
@@ -92,12 +84,9 @@ export function parseCustomerProfile(value: unknown): CustomerProfile | null {
     return null;
   }
   const updatedAt =
-    typeof record.updatedAt === "number" && Number.isFinite(record.updatedAt)
+    typeof record.updatedAt === 'number' && Number.isFinite(record.updatedAt)
       ? record.updatedAt
       : Date.now();
-  const avatarUriRaw = text(record.avatarUri);
-  const avatarUri = avatarUriRaw.length > 0 ? avatarUriRaw : null;
-  const avatarPreset = parseProfileAvatarPreset(record.avatarPreset);
   return {
     ownerKey,
     mobile,
@@ -105,14 +94,10 @@ export function parseCustomerProfile(value: unknown): CustomerProfile | null {
     email,
     dateOfBirth,
     updatedAt,
-    avatarUri,
-    avatarPreset,
   };
 }
 
-export function parseProfileVault(
-  raw: string | null,
-): Record<string, CustomerProfile> {
+export function parseProfileVault(raw: string | null): Record<string, CustomerProfile> {
   if (!raw) {
     return {};
   }
@@ -138,21 +123,15 @@ export function parseProfileVault(
   }
 }
 
-export function serializeProfileVault(
-  vault: Record<string, CustomerProfile>,
-): string {
+export function serializeProfileVault(vault: Record<string, CustomerProfile>): string {
   return JSON.stringify({ profiles: vault });
 }
 
-export async function loadProfileVault(): Promise<
-  Record<string, CustomerProfile>
-> {
+export async function loadProfileVault(): Promise<Record<string, CustomerProfile>> {
   return parseProfileVault(await store.read());
 }
 
-export async function saveProfileVault(
-  vault: Record<string, CustomerProfile>,
-): Promise<void> {
+export async function saveProfileVault(vault: Record<string, CustomerProfile>): Promise<void> {
   if (Object.keys(vault).length === 0) {
     await store.remove();
     return;
@@ -160,9 +139,7 @@ export async function saveProfileVault(
   await store.write(serializeProfileVault(vault));
 }
 
-export async function loadCustomerProfile(
-  ownerKey: string,
-): Promise<CustomerProfile | null> {
+export async function loadCustomerProfile(ownerKey: string): Promise<CustomerProfile | null> {
   const vault = await loadProfileVault();
   return vault[ownerKey] ?? null;
 }
@@ -172,7 +149,7 @@ export function buildCustomerProfile(
   mobile: string,
   draft: CustomerProfileDraft,
   updatedAt = Date.now(),
-  previous: CustomerProfile | null = null,
+  _previous: CustomerProfile | null = null,
 ): CustomerProfile | null {
   const name = draft.name.trim();
   const email = draft.email.trim();
@@ -187,21 +164,6 @@ export function buildCustomerProfile(
     return null;
   }
 
-  let avatarUri = previous?.avatarUri ?? null;
-  let avatarPreset = previous?.avatarPreset ?? null;
-  if (draft.avatarUri !== undefined || draft.avatarPreset !== undefined) {
-    if (draft.avatarPreset) {
-      avatarPreset = draft.avatarPreset;
-      avatarUri = null;
-    } else if (draft.avatarUri && draft.avatarUri.trim().length > 0) {
-      avatarUri = draft.avatarUri.trim();
-      avatarPreset = null;
-    } else {
-      avatarUri = null;
-      avatarPreset = null;
-    }
-  }
-
   return {
     ownerKey,
     mobile,
@@ -209,14 +171,10 @@ export function buildCustomerProfile(
     email,
     dateOfBirth,
     updatedAt,
-    avatarUri,
-    avatarPreset,
   };
 }
 
-export async function saveCustomerProfile(
-  profile: CustomerProfile,
-): Promise<boolean> {
+export async function saveCustomerProfile(profile: CustomerProfile): Promise<boolean> {
   const parsed = parseCustomerProfile(profile);
   if (!parsed) {
     return false;
@@ -238,7 +196,7 @@ export async function clearCustomerProfile(ownerKey: string): Promise<void> {
 
 export async function secureCustomerProfileStore(): Promise<ProfileStore> {
   try {
-    const SecureStore = await import("expo-secure-store");
+    const SecureStore = await import('expo-secure-store');
     return {
       async read() {
         return SecureStore.getItemAsync(STORAGE_KEY);

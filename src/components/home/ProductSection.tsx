@@ -57,8 +57,8 @@ export function ProductSection({ title, subtitle, products, columns, showHeart, 
 const styles = StyleSheet.create({
   section: {
     paddingHorizontal: 12,
-    paddingTop: 18,
-    gap: 10,
+    paddingTop: 12,
+    gap: 8,
     overflow: 'hidden',
   },
   grid: {

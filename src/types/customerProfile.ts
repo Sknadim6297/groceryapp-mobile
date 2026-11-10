@@ -1,29 +1,13 @@
-/** Optional avatar gender for drawer/profile chrome. Not required for auth. */
+/**
+ * Local cache of profile fields collected in Edit Profile.
+ * Address / Anniversary / GST are not edited here (address syncs via delivery location).
+ */
+
+/** Optional drawer chrome only — not part of customer/update. */
 export type ProfileGender = 'male' | 'female';
 
-/** Built-in avatar presets for “Choose An Existing Avatar”. */
+/** Built-in avatar presets (local chrome). Not sent to customer/update. */
 export type ProfileAvatarPresetId = 'sunny' | 'leaf' | 'basket' | 'spice';
-
-export type CustomerProfile = {
-  ownerKey: string;
-  mobile: string;
-  name: string;
-  email: string;
-  dateOfBirth: string;
-  updatedAt: number;
-  /** Local photo URI from camera / gallery. Cleared when a preset is chosen. */
-  avatarUri?: string | null;
-  /** Built-in avatar preset. Cleared when a photo URI is set. */
-  avatarPreset?: ProfileAvatarPresetId | null;
-};
-
-export type CustomerProfileDraft = {
-  name: string;
-  email: string;
-  dateOfBirth: string;
-  avatarUri?: string | null;
-  avatarPreset?: ProfileAvatarPresetId | null;
-};
 
 export const PROFILE_AVATAR_PRESETS: {
   id: ProfileAvatarPresetId;
@@ -36,3 +20,19 @@ export const PROFILE_AVATAR_PRESETS: {
   { id: 'basket', label: 'Basket', emoji: '🧺', wash: '#FFEDD5' },
   { id: 'spice', label: 'Spice', emoji: '🌶️', wash: '#FEE2E2' },
 ];
+
+export type CustomerProfile = {
+  ownerKey: string;
+  mobile: string;
+  name: string;
+  email: string;
+  dateOfBirth: string;
+  updatedAt: number;
+};
+
+/** Editable draft — Mobile is session-owned. */
+export type CustomerProfileDraft = {
+  name: string;
+  email: string;
+  dateOfBirth: string;
+};

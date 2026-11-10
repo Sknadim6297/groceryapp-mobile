@@ -15,9 +15,26 @@ export const CUSTOMER_API = {
   verifyOtp: '/api/values/customer/verify-otp',
 } as const;
 
-/** Published help page: GET api/values/products?company={company} (Required). */
+/**
+ * Split catalogue endpoints (preferred over the old monolithic products payload).
+ * - products: list + primary Image1
+ * - categories / subcategories: taxonomy
+ * - productimages: Image2–Image4 for a ProductId
+ */
 export const PRODUCTS_API = {
   list: '/api/values/products',
+} as const;
+
+export const CATEGORIES_API = {
+  list: '/api/values/categories',
+} as const;
+
+export const SUBCATEGORIES_API = {
+  list: '/api/values/subcategories',
+} as const;
+
+export const PRODUCT_IMAGES_API = {
+  list: '/api/values/productimages',
 } as const;
 
 /**

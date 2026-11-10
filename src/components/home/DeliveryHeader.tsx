@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CatalogImage } from '@/components/home/CatalogImage';
 import { HomeCategoryTabs } from '@/components/home/HomeCategoryTabs';
+import { HomeSubcategoryStrip } from '@/components/home/HomeSubcategoryStrip';
 import { SearchBar } from '@/components/home/SearchBar';
 import { SideMenu } from '@/components/home/SideMenu';
 import { AppIcon } from '@/components/ui/AppIcon';
@@ -96,6 +97,7 @@ export function DeliveryHeader() {
         <SearchBar />
       </View>
       <HomeCategoryTabs />
+      <HomeSubcategoryStrip />
     </View>
   );
 }
@@ -175,6 +177,7 @@ const styles = StyleSheet.create({
   },
   search: {
     marginTop: 10,
+    marginBottom: 10,
     paddingHorizontal: 16,
   },
 });

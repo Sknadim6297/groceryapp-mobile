@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -14,6 +14,7 @@ import { ProductGridSkeleton } from '@/components/ui/LoadingSkeleton';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { colors, fonts, homeLayout } from '@/constants/theme';
 import { useCatalog } from '@/context/CatalogContext';
+import type { LiveSubcategoryRecord } from '@/services/catalogMetaApi';
 import { findCatalogParent, listSubcategoriesForParent } from '@/data/subcategoryCatalog';
 import type { CatalogSubcategory } from '@/types/subcategory';
 import { enrichLiveCategoryTreePresentation } from '@/utils/catalogPresentationAssets';
@@ -32,9 +33,11 @@ export default function SubcategoriesScreen() {
   const { width } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const parentId = paramValue(id);
-  const { liveEnabled, products, initialLoading, state, message, refresh, refreshing } = useCatalog();
+  const { liveEnabled, products, initialLoading, state, message, refresh, refreshing, loadSubcategories } =
+    useCatalog();
   const [query, setQuery] = useState('');
   const [retrying, setRetrying] = useState(false);
+  const [remoteSubs, setRemoteSubs] = useState<LiveSubcategoryRecord[]>([]);
 
   const liveParent = useMemo(() => {
     if (!liveEnabled) {
@@ -51,7 +54,44 @@ export default function SubcategoriesScreen() {
     ? { id: liveParent.id, name: liveParent.name, image: liveParent.image }
     : demoParent;
 
+  useEffect(() => {
+    if (!liveEnabled || !liveParent?.name) {
+      setRemoteSubs([]);
+      return;
+    }
+    let cancelled = false;
+    void loadSubcategories(liveParent.name).then((rows) => {
+      if (!cancelled) {
+        setRemoteSubs(rows);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [liveEnabled, liveParent?.name, loadSubcategories]);
+
   const subcategories = useMemo((): CatalogSubcategory[] => {
+    if (liveEnabled && remoteSubs.length > 0) {
+      return remoteSubs.map((child, index) => {
+        const fromProducts = liveParent?.children.find((row) => row.id === child.id);
+        return {
+          id: child.id,
+          parentId: child.parentId,
+          name: child.name,
+          image:
+            typeof child.image === 'object' &&
+            child.image != null &&
+            'uri' in child.image &&
+            typeof child.image.uri === 'string' &&
+            child.image.uri.trim().length > 0
+              ? child.image
+              : (fromProducts?.image ?? child.image),
+          productCount: fromProducts?.productCount ?? 0,
+          order: index,
+          visible: true,
+        };
+      });
+    }
     if (liveEnabled && liveParent) {
       return liveParent.children.map((child, index) => ({
         id: child.id,
@@ -64,7 +104,7 @@ export default function SubcategoriesScreen() {
       }));
     }
     return listSubcategoriesForParent(parentId);
-  }, [liveEnabled, liveParent, parentId]);
+  }, [liveEnabled, liveParent, parentId, remoteSubs]);
 
   const visible = useMemo(() => filterSubcategories(subcategories, query), [query, subcategories]);
 

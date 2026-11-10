@@ -32,17 +32,24 @@ export type CustomerRegistrationRequest = {
   MobileVerificationToken?: string;
 };
 
-/** Help-page CustomerUpdateRequest — address + profile fields the app can sync. */
+/**
+ * Help-page `CustomerUpdateRequest` for POST api/values/customer/update.
+ * Field names match the published ASP.NET sample exactly.
+ */
 export type CustomerUpdateRequest = {
   Mobile: string;
   Name?: string;
-  Email?: string;
   Address?: string;
+  WhatsApp?: string;
   DOB?: string;
+  Anniversary?: string;
+  Email?: string;
   Country?: string;
   State?: string;
   City?: string;
   Pincode?: string;
+  GSTType?: string;
+  GSTIN?: string;
 };
 
 /** Customer fields returned by a confirmed registration. This is not a login token. */

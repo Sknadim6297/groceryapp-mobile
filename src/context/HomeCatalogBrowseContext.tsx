@@ -1,32 +1,43 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
+export type SelectedHomeCategory = {
+  id: string;
+  name: string;
+};
+
 type HomeCatalogBrowseValue = {
-  /** Selected backend Field id (`live-…`). Null = show all Fields’ Categories. */
-  selectedFieldId: string | null;
-  selectField: (fieldId: string | null) => void;
+  /** Selected main category (`live-…` id + display name). */
+  selectedCategory: SelectedHomeCategory | null;
+  selectCategory: (category: SelectedHomeCategory) => void;
+  clearCategory: () => void;
 };
 
 const HomeCatalogBrowseContext = createContext<HomeCatalogBrowseValue | null>(null);
 
-/** Home-only Field → Category browse filter. Does not touch ERP data. */
+/** Home-only main category → subcategory browse. Does not invent ERP data. */
 export function HomeCatalogBrowseProvider({ children }: { children: ReactNode }) {
-  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
-  const selectField = useCallback((fieldId: string | null) => {
-    setSelectedFieldId((current) => {
-      if (fieldId == null) {
-        return null;
+  const [selectedCategory, setSelectedCategory] = useState<SelectedHomeCategory | null>(null);
+
+  const selectCategory = useCallback((category: SelectedHomeCategory) => {
+    setSelectedCategory((current) => {
+      if (current?.id === category.id) {
+        return current;
       }
-      // Tap again clears the filter (show all Categories).
-      return current === fieldId ? null : fieldId;
+      return category;
     });
+  }, []);
+
+  const clearCategory = useCallback(() => {
+    setSelectedCategory(null);
   }, []);
 
   const value = useMemo(
     () => ({
-      selectedFieldId,
-      selectField,
+      selectedCategory,
+      selectCategory,
+      clearCategory,
     }),
-    [selectField, selectedFieldId],
+    [clearCategory, selectCategory, selectedCategory],
   );
 
   return <HomeCatalogBrowseContext.Provider value={value}>{children}</HomeCatalogBrowseContext.Provider>;

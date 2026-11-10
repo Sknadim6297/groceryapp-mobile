@@ -69,7 +69,20 @@ function run() {
       String(mapped!.image.uri).startsWith('data:image/jpeg'),
     'card image is jpeg',
   );
-  assert(mapped!.images.length >= 2, 'gallery has multiple');
+  assert(mapped!.images.length >= 2, 'gallery has multiple without primaryOnly');
+
+  const listMapped = mapProductRecord(
+    {
+      ProductId: 6,
+      ProductName: 'Rice',
+      SellingPrice: 210,
+      Image1: jpeg,
+      Image2: png,
+    },
+    { primaryImageOnly: true },
+  );
+  assert(listMapped != null, 'list mapped');
+  assert(listMapped!.images.length === 1, 'list mode keeps Image1 only');
 
   const key = recyclingKeyForImageUri(jpegUri!);
   assert(!key.includes(jpeg.slice(0, 40)) || key.length < 120, 'recycling key stays short');

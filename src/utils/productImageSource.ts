@@ -77,11 +77,22 @@ export function normalizeProductImageUri(value: unknown): string | null {
   return `data:${mime};base64,${compact}`;
 }
 
+export type CollectProductImageOptions = {
+  /**
+   * List endpoint mode: only primary card image (Image1 / ImageUrl).
+   * Gallery Image2–4 come from GET productimages.
+   */
+  primaryOnly?: boolean;
+};
+
 /**
  * Collect Image1..Image4 (and common aliases) as normalized sources.
  * Image1 is first when present. Duplicates are dropped.
  */
-export function collectProductImageSources(record: Record<string, unknown>): ImageSource[] {
+export function collectProductImageSources(
+  record: Record<string, unknown>,
+  options?: CollectProductImageOptions,
+): ImageSource[] {
   const sources: ImageSource[] = [];
   const seen = new Set<string>();
 
@@ -100,18 +111,20 @@ export function collectProductImageSources(record: Record<string, unknown>): Ima
 
   push(record.ImageUrl ?? record.imageUrl ?? record.Image ?? record.image ?? record.Photo ?? record.photo);
   push(record.Image1 ?? record.image1);
-  push(record.Image2 ?? record.image2);
-  push(record.Image3 ?? record.image3);
-  push(record.Image4 ?? record.image4);
+  if (!options?.primaryOnly) {
+    push(record.Image2 ?? record.image2);
+    push(record.Image3 ?? record.image3);
+    push(record.Image4 ?? record.image4);
 
-  const list = record.Images ?? record.images ?? record.ImageUrls ?? record.imageUrls;
-  if (Array.isArray(list)) {
-    for (const item of list) {
-      if (typeof item === 'string') {
-        push(item);
-      } else if (item && typeof item === 'object' && !Array.isArray(item)) {
-        const nested = item as Record<string, unknown>;
-        push(nested.Url ?? nested.url ?? nested.ImageUrl ?? nested.imageUrl ?? nested.Image1);
+    const list = record.Images ?? record.images ?? record.ImageUrls ?? record.imageUrls;
+    if (Array.isArray(list)) {
+      for (const item of list) {
+        if (typeof item === 'string') {
+          push(item);
+        } else if (item && typeof item === 'object' && !Array.isArray(item)) {
+          const nested = item as Record<string, unknown>;
+          push(nested.Url ?? nested.url ?? nested.ImageUrl ?? nested.imageUrl ?? nested.Image1);
+        }
       }
     }
   }

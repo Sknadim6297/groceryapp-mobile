@@ -7,7 +7,7 @@ import { AppIcon } from '@/components/ui/AppIcon';
 import { colors, fonts } from '@/constants/theme';
 import type { DemoProduct } from '@/types/catalog';
 
-const SECTION_PAD = 32;
+const SECTION_PAD = 24;
 const GRID_GAP = 8;
 
 type PopularPicksProps = {
@@ -56,10 +56,10 @@ export function PopularPicks({ products = [] }: PopularPicksProps) {
 
 const styles = StyleSheet.create({
   section: {
-    paddingHorizontal: 16,
-    paddingTop: 18,
+    paddingHorizontal: 12,
+    paddingTop: 12,
     paddingBottom: 0,
-    gap: 12,
+    gap: 8,
     overflow: 'hidden',
   },
   headingRow: {
