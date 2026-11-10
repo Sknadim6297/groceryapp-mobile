@@ -27,7 +27,8 @@ export function ReviewCartScreen() {
   const scrollRef = useRef<{ scrollTo: (options: { y: number; animated?: boolean }) => void } | null>(null);
   const billOffset = useRef(0);
   const [menuOpen, setMenuOpen] = useState(false);
-  const { leaveAtDoor, setQuantity, setLeaveAtDoor } = useMockCart();
+  // Cart tab always shows the persistent basket — never Buy Now session lines.
+  const { leaveAtDoor, setQuantity, setLeaveAtDoor, clearBuyNow } = useMockCart();
   const { lines, known, missing, catalogReady } = useResolvedCartLines();
   const { couponId } = usePreviewSession();
   const { confirmed, beginAddressBookPick, beginLocationEdit } = useDeliveryLocation();
@@ -282,7 +283,12 @@ export function ReviewCartScreen() {
               accessibilityLabel={UI_PREVIEW_MODE && confirmed ? 'Continue preview checkout' : 'Select delivery option'}
               onPress={() => {
                 if (UI_PREVIEW_MODE && confirmed) {
-                  router.push('/checkout');
+                  // Explicit CART_CHECKOUT — drop any leftover Buy Now session.
+                  clearBuyNow();
+                  router.push({
+                    pathname: '/checkout',
+                    params: { checkoutMode: 'CART_CHECKOUT' },
+                  });
                   return;
                 }
                 openLocation();

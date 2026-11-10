@@ -20,32 +20,41 @@ import { useOptionalHomeCatalogBrowse } from '@/context/HomeCatalogBrowseContext
 import { mergeRemoteCategoriesIntoTree } from '@/services/catalogMetaApi';
 import type { LiveSubcategoryRecord } from '@/services/catalogMetaApi';
 import type { LiveCategoryParent } from '@/types/category';
-import { enrichLiveCategoryTreePresentation, localCategoryImage, resolvePresentationImage } from '@/utils/catalogPresentationAssets';
+import {
+  enrichLiveCategoryTreePresentation,
+  localCategoryImage,
+  resolvePresentationImage,
+} from '@/utils/catalogPresentationAssets';
 import { deriveLiveCategoryTree } from '@/utils/liveCatalogMeta';
 
 const INK = '#171717';
 const TILE_BG = '#FFF4D6';
 const ROWS = 2;
+/** Cap All-discovery tiles so Home stays light. */
+const ALL_MAX_TILES = 24;
+/** Prefer a few real children per parent in All mode. */
+const ALL_PER_PARENT = 3;
 
 type GridTile = {
   id: string;
   name: string;
   image: ImageSource;
-  kind: 'category' | 'subcategory';
+  parentName: string;
 };
 
 /**
- * Reference-style subcategory area: 2-row horizontal image grid under the category pills.
- * All → shop-by-category tiles from live parents.
- * Specific category → lazy GET /subcategories?category= (cached + deduped).
+ * Subcategory grid under the main-category pills.
+ * Never repeats main categories — only `/subcategories?category=` children.
+ * All → mixed discovery from each parent (cached + deduped loads).
  */
 export function HomeSubcategoryStrip() {
   const { width } = useWindowDimensions();
   const browse = useOptionalHomeCatalogBrowse();
   const { liveEnabled, loadSubcategories, products, remoteCategories } = useCatalog();
-  const [remoteSubs, setRemoteSubs] = useState<LiveSubcategoryRecord[]>([]);
+  const [rows, setRows] = useState<LiveSubcategoryRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   const selected = browse?.selectedCategory ?? null;
   const isAll = selected?.id === HOME_ALL_CATEGORY.id;
@@ -63,69 +72,115 @@ export function HomeSubcategoryStrip() {
   }, [liveEnabled, products, remoteCategories]);
 
   useEffect(() => {
-    if (!liveEnabled || !selected?.name || isAll) {
-      setRemoteSubs([]);
+    if (!liveEnabled || !selected) {
+      setRows([]);
       setLoading(false);
       setError(null);
       return;
     }
 
-    const requestName = selected.name;
-    const requestId = selected.id;
     let cancelled = false;
     setLoading(true);
     setError(null);
 
-    void loadSubcategories(requestName)
-      .then((fetched) => {
+    const requestId = selected.id;
+    const requestName = selected.name;
+
+    async function loadForSelection() {
+      try {
+        if (isAll) {
+          // Mixed subcategory discovery — never main-category cards.
+          const groups = await Promise.all(
+            liveParents.map(async (parent) => {
+              const fetched = await loadSubcategories(parent.name);
+              return fetched
+                .filter(
+                  (row) => row.parentId === parent.id || row.parentName === parent.name,
+                )
+                .slice(0, ALL_PER_PARENT);
+            }),
+          );
+          if (cancelled) {
+            return;
+          }
+          // Ignore if user left All while requests were in flight.
+          if (browse?.selectedCategory?.id !== HOME_ALL_CATEGORY.id) {
+            return;
+          }
+          const mixed: LiveSubcategoryRecord[] = [];
+          const seen = new Set<string>();
+          for (const group of groups) {
+            for (const row of group) {
+              if (seen.has(row.id)) {
+                continue;
+              }
+              seen.add(row.id);
+              mixed.push(row);
+              if (mixed.length >= ALL_MAX_TILES) {
+                break;
+              }
+            }
+            if (mixed.length >= ALL_MAX_TILES) {
+              break;
+            }
+          }
+          setRows(mixed);
+          setLoading(false);
+          return;
+        }
+
+        const fetched = await loadSubcategories(requestName);
         if (cancelled) {
+          return;
+        }
+        // Stale guard: user switched categories mid-flight.
+        if (browse?.selectedCategory?.id !== requestId) {
           return;
         }
         const scoped = fetched.filter(
           (row) => row.parentId === requestId || row.parentName === requestName,
         );
-        setRemoteSubs(scoped);
+        setRows(scoped);
         setLoading(false);
-      })
-      .catch(() => {
+      } catch {
         if (cancelled) {
           return;
         }
-        setRemoteSubs([]);
+        setRows([]);
         setError('Could not load subcategories. Tap to retry.');
         setLoading(false);
-      });
+      }
+    }
+
+    void loadForSelection();
 
     return () => {
       cancelled = true;
     };
-  }, [isAll, liveEnabled, loadSubcategories, selected?.id, selected?.name]);
+  }, [
+    browse?.selectedCategory?.id,
+    isAll,
+    liveEnabled,
+    liveParents,
+    loadSubcategories,
+    reloadToken,
+    selected,
+  ]);
 
   const tiles = useMemo<GridTile[]>(() => {
     if (!selected) {
       return [];
     }
-    if (isAll) {
-      return liveParents.map((parent) => ({
-        id: parent.id,
-        name: parent.name,
-        image: resolvePresentationImage(
-          parent.image,
-          localCategoryImage(parent.name),
-        ),
-        kind: 'category' as const,
-      }));
-    }
-    return remoteSubs.map((row) => ({
+    return rows.map((row) => ({
       id: row.id,
       name: row.name,
+      parentName: row.parentName,
       image: resolvePresentationImage(
         row.image,
-        localCategoryImage(row.name, selected.name),
+        localCategoryImage(row.name, row.parentName || selected.name),
       ),
-      kind: 'subcategory' as const,
     }));
-  }, [isAll, liveParents, remoteSubs, selected]);
+  }, [rows, selected]);
 
   const columns = useMemo(() => chunkIntoColumns(tiles, ROWS), [tiles]);
 
@@ -134,15 +189,6 @@ export function HomeSubcategoryStrip() {
   }
 
   function openTile(tile: GridTile) {
-    if (tile.kind === 'category') {
-      const parent = liveParents.find((row) => row.id === tile.id);
-      if (parent && browse) {
-        browse.selectCategory({ id: parent.id, name: parent.name });
-        return;
-      }
-      router.push({ pathname: '/shop', params: { category: tile.id } });
-      return;
-    }
     router.push({
       pathname: '/shop',
       params: { category: tile.id },
@@ -150,21 +196,10 @@ export function HomeSubcategoryStrip() {
   }
 
   function retry() {
-    if (!selected || isAll) {
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    void loadSubcategories(selected.name).then((fetched) => {
-      const scoped = fetched.filter(
-        (row) => row.parentId === selected.id || row.parentName === selected.name,
-      );
-      setRemoteSubs(scoped);
-      setLoading(false);
-    });
+    setReloadToken((token) => token + 1);
   }
 
-  const heading = isAll ? 'Shop by category' : selected.name;
+  const heading = isAll ? 'Explore Our Collection' : selected.name;
 
   return (
     <View style={styles.section} testID="home-subcategory-strip">
@@ -195,7 +230,9 @@ export function HomeSubcategoryStrip() {
         </Pressable>
       ) : tiles.length === 0 ? (
         <Text style={styles.empty} accessibilityRole="text">
-          No subcategories in this category yet.
+          {isAll
+            ? 'No subcategories published yet for this store.'
+            : 'No subcategories in this category yet.'}
         </Text>
       ) : (
         <ScrollView

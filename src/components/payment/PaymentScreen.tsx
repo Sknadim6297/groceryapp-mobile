@@ -34,7 +34,7 @@ import { useMockCart } from '@/context/MockCartContext';
 import { usePreviewSession } from '@/context/PreviewSessionContext';
 import { useSavedAddresses } from '@/context/SavedAddressesContext';
 import { computeDemoCouponDiscount, demoCouponById, isCouponExpired } from '@/data/demoCoupons';
-import { useResolvedCartLines } from '@/hooks/useResolvedCartLines';
+import { useCheckoutLines } from '@/hooks/useResolvedCartLines';
 import { formatDeliveryAddress } from '@/data/referenceLocations';
 import { addressesSelectHref, locationRoutes } from '@/navigation/locationRoutes';
 import { canUseDevelopmentHome } from '@/services/devOtp';
@@ -56,8 +56,8 @@ export function PaymentScreen() {
   const contentWidth = Math.min(width, homeLayout.maxWidth);
 
   const { hydrated: authHydrated, session, devSession } = useAuthSession();
-  const { setQuantity } = useMockCart();
-  const { known } = useResolvedCartLines();
+  const { setQuantity, isBuyNow, clearBuyNow } = useMockCart();
+  const { known } = useCheckoutLines();
   const { confirmed, beginAddressBookPick } = useDeliveryLocation();
   const { addresses, hydrated } = useSavedAddresses();
   const { couponId, placeOrder } = usePreviewSession();
@@ -165,8 +165,13 @@ export function PaymentScreen() {
         paymentLabel: `Demo · ${method.title}`,
         partner: { name: 'Demo Partner', status: 'Assigned (preview)' },
       });
-      for (const line of lines) {
-        setQuantity(line.product.id, 0);
+      if (isBuyNow) {
+        // Buy Now never touched the main basket — just drop the express bag.
+        clearBuyNow();
+      } else {
+        for (const line of lines) {
+          setQuantity(line.product.id, 0);
+        }
       }
       router.replace({ pathname: '/order-confirmed', params: { id } });
     } catch {
@@ -183,8 +188,10 @@ export function PaymentScreen() {
     }
   }, [
     bill.grandTotal,
+    clearBuyNow,
     complete,
     confirmed,
+    isBuyNow,
     lines,
     method.title,
     openAddressFlow,

@@ -1,5 +1,5 @@
-import { Redirect, router, useIsFocused } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { Redirect, router, useIsFocused, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -34,7 +34,7 @@ import { usePreviewSession } from '@/context/PreviewSessionContext';
 import { useSavedAddresses } from '@/context/SavedAddressesContext';
 import { computeDemoCouponDiscount, demoCouponById, isCouponExpired } from '@/data/demoCoupons';
 import { formatDeliveryAddress } from '@/data/referenceLocations';
-import { useResolvedCartLines } from '@/hooks/useResolvedCartLines';
+import { useCheckoutLines } from '@/hooks/useResolvedCartLines';
 import { addressesSelectHref, locationRoutes } from '@/navigation/locationRoutes';
 import { canUseDevelopmentHome } from '@/services/devOtp';
 import { formatRupee } from '@/utils/cartBill';
@@ -46,9 +46,39 @@ export function CheckoutScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const contentWidth = Math.min(width, homeLayout.maxWidth);
+  const params = useLocalSearchParams<{
+    checkoutMode?: string | string[];
+    productId?: string | string[];
+    quantity?: string | string[];
+    sessionId?: string | string[];
+  }>();
 
-  const { leaveAtDoor, setQuantity, setLeaveAtDoor } = useMockCart();
-  const { lines, known, missing, catalogReady } = useResolvedCartLines();
+  const { leaveAtDoor, setQuantity, setBuyNowQuantity, setLeaveAtDoor, isBuyNow, clearBuyNow, startBuyNow, buyNowSession } =
+    useMockCart();
+  const { lines, known, missing, catalogReady } = useCheckoutLines();
+
+  // Re-hydrate Buy Now if navigation raced ahead of React state.
+  useEffect(() => {
+    const mode = Array.isArray(params.checkoutMode) ? params.checkoutMode[0] : params.checkoutMode;
+    const productId = Array.isArray(params.productId) ? params.productId[0] : params.productId;
+    const quantityRaw = Array.isArray(params.quantity) ? params.quantity[0] : params.quantity;
+    const sessionId = Array.isArray(params.sessionId) ? params.sessionId[0] : params.sessionId;
+    if (mode !== 'BUY_NOW_CHECKOUT' || !productId) {
+      return;
+    }
+    if (buyNowSession?.sessionId === sessionId || buyNowSession?.productId === productId) {
+      return;
+    }
+    startBuyNow(productId, Number(quantityRaw) || 1);
+  }, [
+    buyNowSession?.productId,
+    buyNowSession?.sessionId,
+    params.checkoutMode,
+    params.productId,
+    params.quantity,
+    params.sessionId,
+    startBuyNow,
+  ]);
   const { confirmed, beginAddressBookPick } = useDeliveryLocation();
   const { addresses, hydrated } = useSavedAddresses();
   const { couponId, setCouponId } = usePreviewSession();
@@ -85,6 +115,18 @@ export function CheckoutScreen() {
   const customerPhone = profile?.mobile?.trim() || session?.mobile?.trim() || devSession?.mobile?.trim() || null;
 
   const canContinue = UI_PREVIEW_MODE && known.length > 0 && complete && !submitting;
+
+  function adjustCheckoutQty(lineId: string, nextQty: number) {
+    if (isBuyNow) {
+      if (nextQty <= 0) {
+        clearBuyNow();
+        return;
+      }
+      setBuyNowQuantity(nextQty);
+      return;
+    }
+    setQuantity(lineId, nextQty);
+  }
 
   const openAddressFlow = useCallback(() => {
     beginAddressBookPick({ selectMode: true, returnTo: '/checkout' });
@@ -126,7 +168,20 @@ export function CheckoutScreen() {
 
   return (
     <View style={styles.screen}>
-      <AppScreenHeader title="Checkout" fallbackHref="/cart" />
+      <AppScreenHeader
+        title={isBuyNow ? 'Buy Now' : 'Checkout'}
+        fallbackHref={isBuyNow ? '/home' : '/cart'}
+        onBack={() => {
+          if (isBuyNow) {
+            clearBuyNow();
+          }
+          if (router.canGoBack()) {
+            router.back();
+            return;
+          }
+          router.replace(isBuyNow ? '/home' : '/cart');
+        }}
+      />
 
       <KeyboardAvoidingView
         style={styles.flex}
@@ -286,7 +341,7 @@ export function CheckoutScreen() {
                           accessibilityRole="button"
                           accessibilityLabel={`Decrease ${line.product.name}`}
                           hitSlop={10}
-                          onPress={() => setQuantity(line.id, line.quantity - 1)}
+                          onPress={() => adjustCheckoutQty(line.id, line.quantity - 1)}
                           style={styles.stepButton}>
                           <AppIcon name="minus" color={colors.text} size={18} />
                         </Pressable>
@@ -295,7 +350,7 @@ export function CheckoutScreen() {
                           accessibilityRole="button"
                           accessibilityLabel={`Increase ${line.product.name}`}
                           hitSlop={10}
-                          onPress={() => setQuantity(line.id, line.quantity + 1)}
+                          onPress={() => adjustCheckoutQty(line.id, line.quantity + 1)}
                           style={styles.stepButton}>
                           <AppIcon name="plus" color={colors.text} size={18} />
                         </Pressable>
@@ -313,7 +368,7 @@ export function CheckoutScreen() {
                       <Pressable
                         accessibilityRole="button"
                         accessibilityLabel="Remove unavailable item"
-                        onPress={() => setQuantity(line.id, 0)}
+                        onPress={() => adjustCheckoutQty(line.id, 0)}
                         style={styles.remove}>
                         <Text style={styles.removeLabel}>Remove</Text>
                       </Pressable>

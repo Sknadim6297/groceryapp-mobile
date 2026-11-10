@@ -37,7 +37,7 @@ export default function ProductDetailScreen() {
   const productId = Array.isArray(id) ? id[0] : id;
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { quantities, setQuantity, totalCount } = useMockCart();
+  const { totalCount, addToCart, startBuyNow } = useMockCart();
   const { isSaved, toggle } = useWishlist();
   const { profile } = useCustomerProfile();
   const { session } = useAuthSession();
@@ -135,7 +135,6 @@ export default function ProductDetailScreen() {
   }
 
   const activeId = product.id;
-  const quantity = quantities[activeId] ?? 0;
   const saved = isSaved(activeId);
   const inStock = isProductInStock(product);
   const showMrp = product.compareAt != null && product.compareAt > product.price;
@@ -156,8 +155,28 @@ export default function ProductDetailScreen() {
     if (!inStock) {
       return;
     }
-    setQuantity(activeId, quantity + selectQty);
+    addToCart(activeId, selectQty);
     setSelectQty(1);
+  }
+
+  function buySelectedNow() {
+    if (!inStock) {
+      return;
+    }
+    // Isolated Buy Now session — never merges into / clears the persistent cart.
+    const session = startBuyNow(activeId, selectQty);
+    if (!session) {
+      return;
+    }
+    router.push({
+      pathname: '/checkout',
+      params: {
+        checkoutMode: 'BUY_NOW_CHECKOUT',
+        productId: session.productId,
+        quantity: String(session.quantity),
+        sessionId: session.sessionId,
+      },
+    });
   }
 
   return (
@@ -392,6 +411,14 @@ export default function ProductDetailScreen() {
                 style={({ pressed }) => [styles.add, pressed && styles.pressed]}
                 testID="product-add-to-cart">
                 <Text style={styles.addLabel}>Add To Cart</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Buy ${selectQty} ${product.name} now`}
+                onPress={buySelectedNow}
+                style={({ pressed }) => [styles.buy, pressed && styles.pressed]}
+                testID="product-buy-now">
+                <Text style={styles.buyLabel}>Buy Now</Text>
               </Pressable>
             </View>
           </>
@@ -725,14 +752,30 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 52,
     borderRadius: 14,
-    backgroundColor: colors.primary,
+    borderWidth: 1.5,
+    borderColor: colors.primaryDark,
+    backgroundColor: colors.white,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 18,
+    paddingHorizontal: 10,
   },
   addLabel: {
     fontFamily: fonts.bold,
-    fontSize: 16,
+    fontSize: 14,
+    color: colors.text,
+  },
+  buy: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: 14,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  buyLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 14,
     color: colors.text,
   },
   oos: {
