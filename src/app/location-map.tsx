@@ -82,7 +82,7 @@ export default function LocationMapScreen() {
   const [userLocationEnabled, setUserLocationEnabled] = useState(false);
 
   const distanceKm = deviceOrigin && preview ? distanceKmBetween(deviceOrigin, preview) : null;
-  const mapUnavailable = Platform.OS === 'web';
+  const accuracyLabel = Platform.OS === 'web' ? 'Browser' : 'GPS';
 
   // Warm permission once so the MapLibre user location layer can show without crashing on deny.
   useEffect(() => {
@@ -224,15 +224,12 @@ export default function LocationMapScreen() {
 
   const onRegionChangeComplete = useCallback(
     (next: MapRegion, isGesture: boolean | undefined) => {
-      if (mapUnavailable) {
-        return;
-      }
       if (!isValidMapCoordinate(next.latitude, next.longitude)) {
         return;
       }
 
       const programmatic = Date.now() < programmaticUntil.current;
-      // Prefer explicit gesture flag when the native map provides it.
+      // Prefer explicit gesture flag when the map provides it (native + web MapLibre).
       if (isGesture === false || (isGesture === undefined && programmatic)) {
         // Programmatic settle after GPS/search center — only resolve if we lack a preview.
         if (!preview || !lastResolvedCoords.current) {
@@ -247,7 +244,7 @@ export default function LocationMapScreen() {
 
       scheduleReverseGeocode(next, 'map');
     },
-    [mapUnavailable, preview, scheduleReverseGeocode],
+    [preview, scheduleReverseGeocode],
   );
 
   async function goToCurrentLocation() {
@@ -303,7 +300,6 @@ export default function LocationMapScreen() {
       setUserLocationEnabled(true);
       applyResolved(outcome.location, coords);
       // Single camera move. Do not also set controlled region state.
-      // On web there is no map surface — coords still update the confirm panel.
       centerMapOnce(coords);
     } finally {
       gpsInFlight.current = false;
@@ -389,27 +385,29 @@ export default function LocationMapScreen() {
           </Pressable>
         </View>
 
-        {!mapUnavailable ? (
-          <View pointerEvents="none" style={styles.centerPinWrap}>
-            <View style={styles.tooltip}>
-              <Text style={styles.tooltipText}>Drag the map to adjust location</Text>
-              <Text style={styles.tooltipSub}>Your order will be delivered here.</Text>
-            </View>
-            <View style={styles.pin}>
-              <AppIcon name="stores" color={colors.white} size={18} />
-            </View>
-            <View style={styles.pinStem} />
+        <View pointerEvents="none" style={styles.centerPinWrap}>
+          <View style={styles.tooltip}>
+            <Text style={styles.tooltipText}>Drag the map to adjust location</Text>
+            <Text style={styles.tooltipSub}>Your order will be delivered here.</Text>
           </View>
-        ) : null}
+          <View style={styles.pin}>
+            <AppIcon name="stores" color={colors.white} size={18} />
+          </View>
+          <View style={styles.pinStem} />
+        </View>
 
         <View style={styles.fabColumn} pointerEvents="box-none">
           {preview?.accuracyMeters != null && Number.isFinite(preview.accuracyMeters) ? (
             <View style={styles.accuracyBadge} accessibilityRole="text">
               <Text style={styles.accuracyText}>
-                GPS ±{Math.round(preview.accuracyMeters)} m
-                {preview.approximate ? ' · not exact' : ''}
+                {accuracyLabel} ±{Math.round(preview.accuracyMeters)} m
+                {preview.approximate || Platform.OS === 'web' ? ' · not exact' : ''}
                 {preview.fixKind ? ` · ${preview.fixKind}` : ''}
               </Text>
+            </View>
+          ) : Platform.OS === 'web' && preview?.source === 'gps' ? (
+            <View style={styles.accuracyBadge} accessibilityRole="text">
+              <Text style={styles.accuracyText}>Browser location · approximate · not exact</Text>
             </View>
           ) : null}
           <Pressable
@@ -427,17 +425,15 @@ export default function LocationMapScreen() {
             )}
             <Text style={styles.locateLabel}>{fetchingGps ? 'Improving GPS…' : 'Retry Location'}</Text>
           </Pressable>
-          {!mapUnavailable ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Recenter map on current location"
-              disabled={fetchingGps}
-              onPress={recenterOnDevice}
-              style={({ pressed }) => [styles.locateFab, pressed && styles.pressed]}>
-              <AppIcon name="homeFocused" color={colors.primaryInk} size={18} />
-              <Text style={styles.locateLabel}>Recenter</Text>
-            </Pressable>
-          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Recenter map on current location"
+            disabled={fetchingGps}
+            onPress={recenterOnDevice}
+            style={({ pressed }) => [styles.locateFab, pressed && styles.pressed]}>
+            <AppIcon name="homeFocused" color={colors.primaryInk} size={18} />
+            <Text style={styles.locateLabel}>Recenter</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -445,9 +441,13 @@ export default function LocationMapScreen() {
         {preview?.approximate || (preview?.accuracyMeters != null && preview.accuracyMeters > 100) ? (
           <View style={styles.distanceBanner}>
             <Text style={styles.distanceText}>
-              Location accuracy is low
-              {preview.accuracyMeters != null ? ` (±${Math.round(preview.accuracyMeters)} m)` : ''}. Move outdoors or
-              adjust your delivery pin. Never treat this as an exact doorstep.
+              {Platform.OS === 'web' && (preview?.source === 'gps' || preview?.fixKind === 'network-or-coarse')
+                ? `Browser location is approximate${
+                    preview.accuracyMeters != null ? ` (±${Math.round(preview.accuracyMeters)} m)` : ''
+                  }. Wi‑Fi/IP fixes can be 1–5 km off — drag the pin to your door and confirm. Never treat this as exact GPS.`
+                : `Location accuracy is low${
+                    preview.accuracyMeters != null ? ` (±${Math.round(preview.accuracyMeters)} m)` : ''
+                  }. Move outdoors or adjust your delivery pin. Never treat this as an exact doorstep.`}
             </Text>
           </View>
         ) : distanceKm != null && distanceKm >= 1 ? (

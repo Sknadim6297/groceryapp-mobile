@@ -321,6 +321,21 @@ async function buildGpsLocation(
           true,
         );
 
+  const webBrowser =
+    Platform.OS === 'web'
+      ? {
+          // Browser Geolocation is often Wi‑Fi/IP — never present it as verified doorstep GPS.
+          approximate: true as const,
+          fixKind:
+            classified.kind === 'fresh-gps' || classified.kind === 'watched-gps'
+              ? ('network-or-coarse' as const)
+              : classified.kind,
+          fixNote:
+            classified.reason ||
+            'Browser geolocation can be 1–5 km off on Wi‑Fi/IP. Adjust the delivery pin before confirming.',
+        }
+      : null;
+
   return {
     ...base,
     id: 'gps',
@@ -331,9 +346,13 @@ async function buildGpsLocation(
     longitude: sample.longitude,
     accuracyMeters: sample.accuracyMeters ?? undefined,
     fixAgeMs: fixAgeMs(sample.timestamp),
-    fixKind: classified.kind,
-    fixNote: classified.reason,
-    approximate: classified.approximate || base.approximate || reversed.status !== 'ready',
+    fixKind: webBrowser?.fixKind ?? classified.kind,
+    fixNote: webBrowser?.fixNote ?? classified.reason,
+    approximate:
+      webBrowser?.approximate ||
+      classified.approximate ||
+      base.approximate ||
+      reversed.status !== 'ready',
   };
 }
 
