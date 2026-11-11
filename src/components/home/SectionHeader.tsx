@@ -10,9 +10,11 @@ type SectionHeaderProps = {
   subtitle?: string;
   showHeart?: boolean;
   icon?: SoftIconName;
+  /** When set, View all uses this instead of /shop. */
+  onViewAll?: () => void;
 };
 
-export function SectionHeader({ title, subtitle, showHeart, icon }: SectionHeaderProps) {
+export function SectionHeader({ title, subtitle, showHeart, icon, onViewAll }: SectionHeaderProps) {
   return (
     <View style={styles.row}>
       <View style={styles.copy}>
@@ -29,7 +31,13 @@ export function SectionHeader({ title, subtitle, showHeart, icon }: SectionHeade
         accessibilityRole="button"
         accessibilityLabel={`View all ${title}`}
         hitSlop={8}
-        onPress={() => router.push('/shop')}
+        onPress={() => {
+          if (onViewAll) {
+            onViewAll();
+            return;
+          }
+          router.push('/shop');
+        }}
         style={({ pressed }) => [styles.action, pressed && styles.pressed]}>
         <Text style={styles.actionLabel}>View all</Text>
         <AppIcon name="chevron" color={colors.textSecondary} size={20} />

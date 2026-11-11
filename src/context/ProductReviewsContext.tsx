@@ -7,6 +7,7 @@ import {
   previewReviewsForProduct,
   sortProductReviews,
 } from '@/data/productReviews';
+import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { useCatalog } from '@/context/CatalogContext';
 import {
   activateDeviceProductReviewStore,
@@ -80,9 +81,10 @@ export function ProductReviewsProvider({ children }: { children: ReactNode }) {
   const reviewsForProduct = useCallback(
     (productId: string): ProductReview[] => {
       const product = findProduct(productId);
-      const preview = product
-        ? previewReviewsForProduct(product).map((review) => previewOverrides[review.id] ?? review)
-        : [];
+      const preview =
+        UI_PREVIEW_MODE && product
+          ? previewReviewsForProduct(product).map((review) => previewOverrides[review.id] ?? review)
+          : [];
       const own = deviceReviews.filter((review) => review.productId === productId);
       return [...own, ...preview];
     },

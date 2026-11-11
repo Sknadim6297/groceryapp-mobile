@@ -2,6 +2,7 @@ import Constants from "expo-constants";
 import { Redirect, router, useIsFocused } from "expo-router";
 import { useState } from "react";
 import {
+    ActivityIndicator,
     Modal,
     Pressable,
     ScrollView,
@@ -28,6 +29,7 @@ import { profileRoutes } from "@/navigation/profileRoutes";
 import { canUseDevelopmentHome, clearDevTestSession, isDevOtpEnabled } from "@/services/devOtp";
 import { activeLoginForDisplay, displayCustomer } from "@/services/rememberedCustomer";
 import type { CustomerOrder, OrderStatus } from "@/types/order";
+import { clearPreviewAccountState } from "@/utils/clearPreviewAccountState";
 import { clearSignedInSession } from "@/utils/customerSession";
 import {
     registeredDisplayName,
@@ -82,7 +84,11 @@ export function ProfileScreenView() {
   const orders = readPastOrders();
 
   if (!hydrated) {
-    return null;
+    return (
+      <View style={[styles.screen, styles.centered]} accessibilityLabel="Loading profile">
+        <ActivityIndicator color={colors.primaryInk} />
+      </View>
+    );
   }
 
   const developmentHome = canUseDevelopmentHome(devSession);
@@ -120,6 +126,9 @@ export function ProfileScreenView() {
       clearDevTestSession,
       clearSavedAddresses: clearActiveBook,
       clearCustomerProfile: clearActiveProfile,
+      clearPreviewAccountState: () => {
+        void clearPreviewAccountState();
+      },
     });
     setLogoutOpen(false);
     router.replace(profileRoutes.login);
@@ -446,6 +455,10 @@ const badgeInk = {
 } as const;
 
 const styles = StyleSheet.create({
+  centered: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
   screen: {
     flex: 1,
     backgroundColor: colors.warmBackground,

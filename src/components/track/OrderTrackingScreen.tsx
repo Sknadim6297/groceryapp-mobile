@@ -30,7 +30,7 @@ import { canReturnOrderStatus } from '@/data/orderReturnReasons';
 import type { CustomerOrder, OrderLine, SimulatedOrder } from '@/types/order';
 import type { TrackTimelineStep } from '@/types/orderTracking';
 import { formatRupee } from '@/utils/cartBill';
-import { isActiveOrder } from '@/utils/orderListing';
+import { DEMO_ORDER_CANCEL_TOAST, DEMO_ORDER_RETURN_TOAST } from '@/utils/demoOrderActions';
 import { formatTrackingEtaLabel, trackingEtaFallbackLabel } from '@/utils/trackingEta';
 
 function firstParam(value: string | string[] | undefined) {
@@ -52,19 +52,15 @@ export function OrderTrackingScreen() {
   const { showToast } = useToast();
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const orderId = firstParam(id);
-  const { findOrder, orders, cancelOrder, requestReturn } = usePreviewSession();
+  const { findOrder, cancelOrder, requestReturn } = usePreviewSession();
   const [panelExpanded, setPanelExpanded] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [returnOpen, setReturnOpen] = useState(false);
   const [returning, setReturning] = useState(false);
 
-  const previewOrder = UI_PREVIEW_MODE
-    ? findOrder(orderId) ??
-      orders.find((order) => isActiveOrder(order)) ??
-      orders.find((order) => order.status === 'out_for_delivery') ??
-      null
-    : null;
+  // Never substitute another order when the deep-linked id is missing/unknown.
+  const previewOrder = UI_PREVIEW_MODE ? findOrder(orderId) : null;
   const liveState = previewOrder ? null : readActiveOrder();
   const order: CustomerOrder | null =
     previewOrder ?? (liveState?.kind === 'ready' ? liveState.order : null);
@@ -247,10 +243,10 @@ export function OrderTrackingScreen() {
             setCancelling(false);
             setCancelOpen(false);
             if (ok) {
-              showToast('success', 'Order cancelled. Thanks for the feedback.');
+              showToast('info', DEMO_ORDER_CANCEL_TOAST);
               router.replace('/orders');
             } else {
-              showToast('error', 'This order can no longer be cancelled.');
+              showToast('error', 'This demo order can no longer be cancelled.');
             }
           }}
         />
@@ -273,9 +269,9 @@ export function OrderTrackingScreen() {
             setReturning(false);
             setReturnOpen(false);
             if (ok) {
-              showToast('success', 'Return request submitted with product photos.');
+              showToast('info', DEMO_ORDER_RETURN_TOAST);
             } else {
-              showToast('error', 'A return cannot be requested for this order.');
+              showToast('error', 'A return cannot be requested for this demo order.');
             }
           }}
         />

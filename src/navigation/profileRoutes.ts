@@ -1,3 +1,5 @@
+import type { Href } from 'expo-router';
+
 /** Shared Profile destinations. Every Profile entry uses this route. */
 export const profileRoutes = {
   tab: 'profile',
@@ -7,6 +9,9 @@ export const profileRoutes = {
   completeProfile: '/complete-profile',
   addresses: '/addresses',
   wishlist: '/wishlist',
+  /** Folder index route — cast until Expo typed routes regenerate. */
+  shoppingLists: '/shopping-lists' as Href,
+  savedCarts: '/saved-carts' as Href,
   help: '/help',
   /** FAQ Details — pass `{ id }` via `supportFaqDetailsHref`. */
   faqDetails: '/support/faq/[id]',

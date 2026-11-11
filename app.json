@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "groceryapp",
+    "scheme": ["groceryapp", "mayapurbazaar"],
     "userInterfaceStyle": "automatic",
     "androidStatusBar": {
       "barStyle": "dark-content",

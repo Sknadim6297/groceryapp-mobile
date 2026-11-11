@@ -1,5 +1,6 @@
 import type { DeliveryLocation } from '@/types/location';
 import type { SavedAddress, SavedAddressDraft } from '@/types/savedAddress';
+import { draftSourceFromDeliveryLocation } from '@/utils/addressSelectionRules';
 import { composeAddressLine1, displayAddressLabel, emptyAddressDraft } from '@/utils/savedAddressValidation';
 
 function splitLegacyLine(addressLine1: string): { houseNumber: string; buildingStreet: string } {
@@ -31,6 +32,7 @@ export function savedAddressToDeliveryLocation(address: SavedAddress): DeliveryL
     latitude: address.latitude,
     longitude: address.longitude,
     source: 'saved',
+    fixKind: 'saved',
   };
 }
 
@@ -77,14 +79,7 @@ export function deliveryLocationToDraft(location: DeliveryLocation, base?: Saved
     postalCode: location.postalCode ?? current.postalCode,
     latitude: location.latitude ?? current.latitude,
     longitude: location.longitude ?? current.longitude,
-    source:
-      location.source === 'gps' || location.source === 'map' || location.source === 'search'
-        ? location.source === 'gps'
-          ? 'gps'
-          : 'manual'
-        : current.source === 'gps'
-          ? 'gps'
-          : 'manual',
+    source: draftSourceFromDeliveryLocation(location.source, current.source),
   };
 }
 

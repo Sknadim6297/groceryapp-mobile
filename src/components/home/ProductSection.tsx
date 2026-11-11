@@ -13,12 +13,21 @@ type ProductSectionProps = {
   columns: 2 | 3 | 4;
   showHeart?: boolean;
   icon?: SoftIconName;
+  onViewAll?: () => void;
 };
 
 const SECTION_PAD = 24;
 const GRID_GAP = 8;
 
-export function ProductSection({ title, subtitle, products, columns, showHeart, icon }: ProductSectionProps) {
+export function ProductSection({
+  title,
+  subtitle,
+  products,
+  columns,
+  showHeart,
+  icon,
+  onViewAll,
+}: ProductSectionProps) {
   const { width } = useWindowDimensions();
   const shelf = columns === 4;
   const resolved = productColumns(width, 2, SECTION_PAD, GRID_GAP);
@@ -27,7 +36,7 @@ export function ProductSection({ title, subtitle, products, columns, showHeart, 
 
   return (
     <View style={styles.section}>
-      <SectionHeader title={title} subtitle={subtitle} showHeart={showHeart} icon={icon} />
+      <SectionHeader title={title} subtitle={subtitle} showHeart={showHeart} icon={icon} onViewAll={onViewAll} />
       {shelf ? (
         <ScrollView
           horizontal

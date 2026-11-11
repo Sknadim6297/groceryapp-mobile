@@ -1,7 +1,6 @@
 import { router } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Platform } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AccountScreenShell } from '@/components/account/AccountScreenShell';
 import { AccountSectionCard } from '@/components/account/AccountSectionCard';
@@ -26,17 +25,23 @@ export default function ComplaintsListScreen() {
   const [hydrated, setHydrated] = useState(false);
   const [items, setItems] = useState<DeviceComplaint[]>([]);
 
-  const refresh = useCallback(async () => {
-    if (Platform.OS !== 'web') {
-      await activateDeviceComplaintStore();
-    }
-    setItems(await loadComplaints());
-    setHydrated(true);
-  }, []);
-
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    let cancelled = false;
+    void (async () => {
+      if (Platform.OS !== 'web') {
+        await activateDeviceComplaintStore();
+      }
+      const next = await loadComplaints();
+      if (cancelled) {
+        return;
+      }
+      setItems(next);
+      setHydrated(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (!UI_PREVIEW_MODE) {
     return (

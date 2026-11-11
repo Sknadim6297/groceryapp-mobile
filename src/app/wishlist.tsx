@@ -1,6 +1,14 @@
-import { Redirect, router, useIsFocused } from 'expo-router';
+import { router } from 'expo-router';
 import { useMemo } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BrandCatalogBanner } from '@/components/catalog/BrandCatalogBanner';
@@ -13,21 +21,16 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { colors, fonts, homeLayout } from '@/constants/theme';
 import { contentColumnWidth } from '@/utils/contentWidth';
-import { useAuthSession } from '@/context/AuthSessionContext';
 import { useCatalog } from '@/context/CatalogContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { resolveWishlistEntries, type WishlistEntry } from '@/data/resolveWishlistProducts';
-import { canUseDevelopmentHome } from '@/services/devOtp';
-import { profileRoutes } from '@/navigation/profileRoutes';
 
 const PAGE_PAD = 32;
 const CARD_GAP = 8;
 
 export default function WishlistScreen() {
-  const focused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { hydrated: authHydrated, session, devSession } = useAuthSession();
   const { findProduct } = useCatalog();
   const { hydrated, ids, count, remove } = useWishlist();
   const columns = productColumns(width, 2, PAGE_PAD, CARD_GAP);
@@ -35,15 +38,12 @@ export default function WishlistScreen() {
   const contentWidth = contentColumnWidth(width);
   const entries = useMemo(() => resolveWishlistEntries(ids, findProduct), [findProduct, ids]);
 
-  if (!authHydrated || !hydrated) {
-    return null;
-  }
-
-  if (!session && !canUseDevelopmentHome(devSession)) {
-    if (!focused) {
-      return null;
-    }
-    return <Redirect href={profileRoutes.login} />;
+  if (!hydrated) {
+    return (
+      <View style={[styles.screen, styles.centered]} accessibilityLabel="Loading wishlist">
+        <ActivityIndicator color={colors.primaryInk} />
+      </View>
+    );
   }
 
   const savedLabel = count === 1 ? '1 saved item' : `${count} saved items`;
@@ -155,6 +155,10 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.softBackground,
+  },
+  centered: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chrome: {
     paddingHorizontal: homeLayout.gutter,

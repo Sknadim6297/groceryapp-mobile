@@ -1,6 +1,15 @@
 import { router } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { CatalogImage } from '@/components/home/CatalogImage';
@@ -12,12 +21,15 @@ import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts } from '@/constants/theme';
 import { addressesSelectHref, locationRoutes } from '@/navigation/locationRoutes';
 import { profileRoutes } from '@/navigation/profileRoutes';
+import { useToast } from '@/components/ui/AppToast';
 import { useDeliveryLocation } from '@/context/DeliveryLocationContext';
 import { useMockCart } from '@/context/MockCartContext';
 import { usePreviewSession } from '@/context/PreviewSessionContext';
 import { useSavedAddresses } from '@/context/SavedAddressesContext';
+import { useSavedCarts } from '@/context/SavedCartsContext';
 import { computeDemoCouponDiscount, demoCouponById, isCouponExpired } from '@/data/demoCoupons';
 import { formatDeliveryAddress } from '@/data/referenceLocations';
+import { isProductInStock } from '@/data/resolveWishlistProducts';
 import { useResolvedCartLines } from '@/hooks/useResolvedCartLines';
 import { isCompleteDeliveryLocation } from '@/utils/deliveryAddress';
 import { buildCartBill, formatRupee, type CartLine } from '@/utils/cartBill';
@@ -27,13 +39,52 @@ export function ReviewCartScreen() {
   const scrollRef = useRef<{ scrollTo: (options: { y: number; animated?: boolean }) => void } | null>(null);
   const billOffset = useRef(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveName, setSaveName] = useState('');
   // Cart tab always shows the persistent basket — never Buy Now session lines.
-  const { leaveAtDoor, setQuantity, setLeaveAtDoor, clearBuyNow } = useMockCart();
+  const { showToast } = useToast();
+  const { hydrated: cartHydrated, quantities, leaveAtDoor, setQuantity, setLeaveAtDoor, clearBuyNow, clearCart } =
+    useMockCart();
   const { lines, known, missing, catalogReady } = useResolvedCartLines();
   const { couponId } = usePreviewSession();
   const { confirmed, beginAddressBookPick, beginLocationEdit } = useDeliveryLocation();
   const { addresses, hydrated } = useSavedAddresses();
-  const bill = buildCartBill(known.map((line) => ({ product: line.product, quantity: line.quantity }) satisfies CartLine));
+  const { saveCurrentCart } = useSavedCarts();
+  const inStockKnown = known.filter((line) => isProductInStock(line.product));
+  const outOfStockKnown = known.filter((line) => !isProductInStock(line.product));
+  const bill = buildCartBill(
+    inStockKnown.map((line) => ({ product: line.product, quantity: line.quantity }) satisfies CartLine),
+  );
+
+  function confirmClearCart() {
+    Alert.alert('Clear cart?', 'Remove all items from your cart on this device.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear cart',
+        style: 'destructive',
+        onPress: () => {
+          clearCart();
+          clearBuyNow();
+        },
+      },
+    ]);
+  }
+
+  function openSaveCart() {
+    setSaveName('My cart');
+    setSaveOpen(true);
+  }
+
+  function commitSaveCart() {
+    const saved = saveCurrentCart(saveName, quantities);
+    if (!saved) {
+      showToast('error', 'Could not save. Enter a name and keep at least one item.');
+      return;
+    }
+    setSaveOpen(false);
+    setSaveName('');
+    showToast('success', `Saved “${saved.name}” on this device.`);
+  }
   const foundCoupon = UI_PREVIEW_MODE ? demoCouponById(couponId) : undefined;
   const coupon = foundCoupon && !isCouponExpired(foundCoupon) ? foundCoupon : undefined;
   const couponOff = coupon ? computeDemoCouponDiscount(coupon, bill.itemTotal) : 0;
@@ -91,11 +142,17 @@ export function ReviewCartScreen() {
         </Pressable>
       </View>
 
-      {lines.length === 0 ? (
+      {!cartHydrated ? (
+        <View style={styles.empty}>
+          <ActivityIndicator color={colors.primaryInk} />
+          <Text style={styles.emptyTitle}>Loading cart</Text>
+          <Text style={styles.emptyCopy}>Restoring items saved on this device…</Text>
+        </View>
+      ) : lines.length === 0 ? (
         <View style={styles.empty}>
           <SoftIcon name="basket" size={56} />
           <Text style={styles.emptyTitle}>Your cart is empty</Text>
-          <Text style={styles.emptyCopy}>Add items from the shop. Prices stay on this device until you leave the app.</Text>
+          <Text style={styles.emptyCopy}>Add items from the shop. Your cart is saved on this device for your account.</Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Browse the shop"
@@ -148,12 +205,71 @@ export function ReviewCartScreen() {
                   <Text style={styles.cardTitle}>Review Items</Text>
                   <Text style={styles.cardSub}>
                     {bill.itemCount} {bill.itemCount === 1 ? 'item' : 'items'}
+                    {outOfStockKnown.length + missing.length > 0
+                      ? ` · ${outOfStockKnown.length + missing.length} unavailable`
+                      : ''}
                   </Text>
                 </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Save cart"
+                  hitSlop={8}
+                  onPress={openSaveCart}
+                  style={({ pressed }) => [styles.clearCartBtn, pressed && styles.pressed]}>
+                  <Text style={styles.saveCartLabel}>Save</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear cart"
+                  hitSlop={8}
+                  onPress={confirmClearCart}
+                  style={({ pressed }) => [styles.clearCartBtn, pressed && styles.pressed]}>
+                  <Text style={styles.clearCartLabel}>Clear</Text>
+                </Pressable>
               </View>
-              {known.map((line) => (
+              {saveOpen ? (
+                <View style={styles.saveRow}>
+                  <TextInput
+                    value={saveName}
+                    onChangeText={setSaveName}
+                    placeholder="Cart name"
+                    placeholderTextColor={colors.textSecondary}
+                    style={styles.saveInput}
+                    maxLength={60}
+                    accessibilityLabel="Saved cart name"
+                    autoFocus
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Confirm save cart"
+                    onPress={commitSaveCart}
+                    style={({ pressed }) => [styles.saveConfirm, pressed && styles.pressed]}>
+                    <Text style={styles.saveConfirmLabel}>OK</Text>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel save cart"
+                    onPress={() => setSaveOpen(false)}>
+                    <Text style={styles.clearCartLabel}>Cancel</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel="Open saved carts"
+                  onPress={() => router.push(profileRoutes.savedCarts)}
+                  style={styles.savedLink}>
+                  <Text style={styles.savedLinkLabel}>View saved carts</Text>
+                </Pressable>
+              )}
+              {inStockKnown.map((line) => (
                 <View key={line.id} style={styles.item}>
-                  <CatalogImage source={line.product.image} style={styles.itemImage} label={line.product.name} />
+                  <CatalogImage
+                    source={line.product.image}
+                    style={styles.itemImage}
+                    label={line.product.name}
+                    identityKey={line.product.id}
+                  />
                   <View style={styles.itemBody}>
                     <View style={styles.itemTop}>
                       <Text numberOfLines={2} style={styles.itemName}>
@@ -184,6 +300,43 @@ export function ReviewCartScreen() {
                   </View>
                 </View>
               ))}
+              {outOfStockKnown.map((line) => (
+                <View key={line.id} style={styles.item}>
+                  <CatalogImage
+                    source={line.product.image}
+                    style={styles.itemImage}
+                    label={line.product.name}
+                    identityKey={line.product.id}
+                  />
+                  <View style={styles.itemBody}>
+                    <Text numberOfLines={2} style={styles.itemName}>
+                      {line.product.name}
+                    </Text>
+                    <Text style={styles.cardSub}>Out of stock — not included in the local subtotal.</Text>
+                    <View style={styles.stepper}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Decrease ${line.product.name}`}
+                        hitSlop={10}
+                        onPress={() => setQuantity(line.id, line.quantity - 1)}
+                        style={styles.stepButton}>
+                        <AppIcon name="minus" color={colors.text} size={18} />
+                      </Pressable>
+                      <Text style={styles.stepCount}>{line.quantity}</Text>
+                      <View style={styles.stepButton} accessibilityElementsHidden>
+                        <AppIcon name="plus" color={colors.border} size={18} />
+                      </View>
+                    </View>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove out of stock ${line.product.name}`}
+                      onPress={() => setQuantity(line.id, 0)}
+                      style={styles.remove}>
+                      <Text style={styles.removeLabel}>Remove</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
               {missing.map((line) => (
                 <View key={line.id} style={styles.item}>
                   <View style={styles.missingImage} />
@@ -200,6 +353,9 @@ export function ReviewCartScreen() {
                   </View>
                 </View>
               ))}
+              <Text style={styles.localBillNote}>
+                Local subtotal uses catalogue prices on this device. It is not a server-confirmed payable amount.
+              </Text>
             </View>
 
             <Pressable
@@ -278,26 +434,59 @@ export function ReviewCartScreen() {
                 <AppIcon name="homeFocused" color={colors.text} size={16} />
               </View>
             </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={UI_PREVIEW_MODE && confirmed ? 'Continue preview checkout' : 'Select delivery option'}
-              onPress={() => {
-                if (UI_PREVIEW_MODE && confirmed) {
-                  // Explicit CART_CHECKOUT — drop any leftover Buy Now session.
-                  clearBuyNow();
-                  router.push({
-                    pathname: '/checkout',
-                    params: { checkoutMode: 'CART_CHECKOUT' },
-                  });
-                  return;
-                }
-                openLocation();
-              }}
-              style={({ pressed }) => [styles.deliveryButton, pressed && styles.pressed]}>
-              <Text style={styles.deliveryLabel}>
-                {UI_PREVIEW_MODE && confirmed ? 'CONTINUE PREVIEW CHECKOUT' : 'SELECT DELIVERY OPTION'}
-              </Text>
-            </Pressable>
+            {!UI_PREVIEW_MODE ? (
+              <View style={styles.unavailableBlock}>
+                <Text style={styles.unavailableTitle}>Checkout not connected</Text>
+                <Text style={styles.unavailableBody}>
+                  Live checkout and payment are not available yet. Your cart stays saved on this device — no order
+                  is placed and no payment is taken from here.
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Choose or update delivery address"
+                  onPress={openLocation}
+                  style={({ pressed }) => [styles.secondaryDeliveryButton, pressed && styles.pressed]}>
+                  <Text style={styles.secondaryDeliveryLabel}>
+                    {confirmed ? 'UPDATE DELIVERY ADDRESS' : 'SELECT DELIVERY ADDRESS'}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Continue shopping"
+                  onPress={() => router.push('/shop')}
+                  style={({ pressed }) => [styles.deliveryButton, pressed && styles.pressed]}>
+                  <Text style={styles.deliveryLabel}>CONTINUE SHOPPING</Text>
+                </Pressable>
+              </View>
+            ) : inStockKnown.length === 0 ? (
+              <View style={styles.unavailableBlock}>
+                <Text style={styles.unavailableTitle}>No available items</Text>
+                <Text style={styles.unavailableBody}>
+                  Remove out-of-stock or unavailable products, or add in-stock items before continuing.
+                </Text>
+              </View>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={confirmed ? 'Continue preview checkout' : 'Select delivery option'}
+                onPress={() => {
+                  if (confirmed) {
+                    // Explicit CART_CHECKOUT — drop any leftover Buy Now session.
+                    clearBuyNow();
+                    router.push({
+                      pathname: '/checkout',
+                      params: { checkoutMode: 'CART_CHECKOUT' },
+                    });
+                    return;
+                  }
+                  openLocation();
+                }}
+                style={({ pressed }) => [styles.deliveryButton, pressed && styles.pressed]}>
+                <Text style={styles.deliveryLabel}>
+                  {confirmed ? 'CONTINUE PREVIEW CHECKOUT' : 'SELECT DELIVERY OPTION'}
+                </Text>
+              </Pressable>
+            )}
           </View>
         </>
       )}
@@ -425,6 +614,71 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   cardSub: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.textSecondary,
+  },
+  clearCartBtn: {
+    minHeight: 36,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clearCartLabel: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.danger,
+  },
+  saveCartLabel: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.primaryInk,
+  },
+  saveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  saveInput: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingHorizontal: 10,
+    fontFamily: fonts.regular,
+    fontSize: 14,
+    color: colors.text,
+    backgroundColor: colors.softBackground,
+  },
+  saveConfirm: {
+    minHeight: 40,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveConfirmLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.primaryInk,
+  },
+  savedLink: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  savedLinkLabel: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.textSecondary,
+  },
+  localBillNote: {
+    marginTop: 8,
     fontFamily: fonts.regular,
     fontSize: 12,
     lineHeight: 16,
@@ -693,6 +947,37 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     color: colors.text,
     letterSpacing: 0.3,
+  },
+  unavailableBlock: {
+    gap: 10,
+  },
+  unavailableTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 14,
+    lineHeight: 18,
+    color: colors.text,
+  },
+  unavailableBody: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.textSecondary,
+  },
+  secondaryDeliveryButton: {
+    minHeight: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryDeliveryLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    lineHeight: 17,
+    color: colors.text,
+    letterSpacing: 0.2,
   },
   empty: {
     flex: 1,

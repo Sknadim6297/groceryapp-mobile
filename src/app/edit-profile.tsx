@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DateOfBirthField } from '@/components/profile/DateOfBirthField';
 import { AppIcon, type AppIconName } from '@/components/ui/AppIcon';
 import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
+import { useToast } from '@/components/ui/AppToast';
 import { colors, fonts, homeLayout, radii, shadow } from '@/constants/theme';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useCustomerAccount } from '@/context/CustomerAccountContext';
@@ -86,6 +87,7 @@ function EditProfileBody({ mobile, initial }: { mobile: string; initial: Custome
   const insets = useSafeAreaInsets();
   const keyboardCover = useKeyboardOverlap();
   const keyboardOverlap = Platform.OS === 'android' ? keyboardCover : 0;
+  const { showToast } = useToast();
   const { saveProfile } = useCustomerProfile();
   const [draft, setDraft] = useState<CustomerProfileDraft>(initial);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -160,21 +162,8 @@ function EditProfileBody({ mobile, initial }: { mobile: string; initial: Custome
     };
 
     const result = await saveProfile(payload);
-
-    if (result.ok && isValidIndiaMobile(mobile)) {
-      const built = buildCustomerUpdate({
-        mobile,
-        name: payload.name,
-        email: payload.email,
-        dateOfBirth: payload.dateOfBirth || null,
-      });
-      if (built.ok) {
-        await updateCustomer(built.body);
-      }
-    }
-    setSaving(false);
-
     if (!result.ok) {
+      setSaving(false);
       setError(
         result.reason === 'no-owner'
           ? 'Sign in again to edit your profile.'
@@ -185,7 +174,33 @@ function EditProfileBody({ mobile, initial }: { mobile: string; initial: Custome
       return;
     }
 
-    // Success: go back immediately — no toast.
+    // Local vault is the source of truth. Best-effort server update must never fake success.
+    let serverSynced = false;
+    if (isValidIndiaMobile(mobile)) {
+      const built = buildCustomerUpdate({
+        mobile,
+        name: payload.name,
+        email: payload.email,
+        dateOfBirth: payload.dateOfBirth || null,
+      });
+      if (built.ok) {
+        try {
+          const remote = await updateCustomer(built.body);
+          serverSynced = remote.confirmed === true;
+        } catch {
+          serverSynced = false;
+        }
+      }
+    }
+    setSaving(false);
+
+    showToast(
+      serverSynced ? 'success' : 'info',
+      serverSynced
+        ? 'Profile updated.'
+        : 'Profile saved on this device. Server sync was not confirmed.',
+    );
+
     if (router.canGoBack()) {
       router.back();
       return;
@@ -211,6 +226,9 @@ function EditProfileBody({ mobile, initial }: { mobile: string; initial: Custome
                 {draft.name.trim() || 'Your account'}
               </Text>
               <Text style={styles.mobileHint}>{mobileLabel}</Text>
+              <Text style={styles.localNote}>
+                Edits save on this device first. Server sync is confirmed only when the profile API accepts the update.
+              </Text>
             </View>
 
             <View style={styles.infoCard}>
@@ -403,6 +421,15 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: 14,
     lineHeight: 18,
+    color: colors.textSecondary,
+  },
+  localNote: {
+    marginTop: 8,
+    maxWidth: 280,
+    textAlign: 'center',
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 16,
     color: colors.textSecondary,
   },
   infoCard: {

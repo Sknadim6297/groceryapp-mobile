@@ -158,11 +158,29 @@ export function matchesRatingStars(average: number | undefined, stars: readonly 
   return stars.includes(rounded as FilterStarRating);
 }
 
+/** Normalize a user query for case-insensitive, space-collapsed matching. */
+export function normalizeSearchNeedle(raw: string | null | undefined): string {
+  if (!raw) {
+    return '';
+  }
+  return raw.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/**
+ * Match against fields that exist on catalogue products.
+ * Does not invent barcode matching — DemoProduct has no barcode field.
+ */
 export function matchesSearch(product: DemoProduct, needle: string): boolean {
-  if (!needle) {
+  const n = normalizeSearchNeedle(needle);
+  if (!n) {
     return true;
   }
-  return product.name.toLowerCase().includes(needle) || product.unit.toLowerCase().includes(needle);
+  const haystack = [product.name, product.unit, product.brand, product.category, product.subcategory]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ')
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+  return haystack.includes(n);
 }
 
 export type ListedProduct = DemoProduct & {
@@ -185,8 +203,8 @@ export type ApplyProductListingArgs = {
   /** When false, ratingStars is ignored (no rating averages on the pool). */
   ratingFilterSupported?: boolean;
   /**
-   * When there is no search and no category multi-select, keep the listing on this shelf
-   * (Shop sidebar selection). Ignored once the customer picks categories or searches.
+   * Selected Shop shelf / subcategory. Search and filters stay inside this shelf
+   * unless the customer explicitly multi-selects categories in the filter sheet.
    */
   activeShelfId?: string;
 };
@@ -200,20 +218,21 @@ export function applyProductListing({
   ratingFilterSupported = true,
   activeShelfId,
 }: ApplyProductListingArgs): ListedProduct[] {
-  const needle = query.trim().toLowerCase();
+  const needle = normalizeSearchNeedle(query);
   const categorySet = filters.categoryIds.length > 0 ? new Set(filters.categoryIds) : null;
-  const shelfScoped = !needle && !categorySet && Boolean(activeShelfId);
+  // Keep selected subcategory/category scope even while searching (Milk + "Amul" stays Milk).
+  const shelfScoped = Boolean(activeShelfId) && !categorySet;
   const ratingActive = ratingFilterSupported && filters.ratingStars.length > 0;
 
   const filtered = products.filter((product) => {
-    if (!matchesSearch(product, needle)) {
-      return false;
-    }
     if (categorySet) {
       if (!product.shelfId || !categorySet.has(product.shelfId)) {
         return false;
       }
     } else if (shelfScoped && product.shelfId !== activeShelfId) {
+      return false;
+    }
+    if (!matchesSearch(product, needle)) {
       return false;
     }
     if (!matchesPriceBounds(product.price, filters.priceMin, filters.priceMax)) {

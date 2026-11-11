@@ -21,6 +21,8 @@ export const sideMenuItems: SideMenuItem[] = [
   { label: 'My Profile', icon: 'profile', href: profileRoutes.account },
   { label: 'My Orders', icon: 'bag', href: '/orders' },
   { label: 'My Favourite', icon: 'heart', href: profileRoutes.wishlist },
+  { label: 'Shopping Lists', icon: 'basket', href: profileRoutes.shoppingLists },
+  { label: 'Saved Carts', icon: 'bag', href: profileRoutes.savedCarts },
   { label: 'Promocode', icon: 'ticket', href: '/coupons' },
   { label: 'Returns & Refunds', icon: 'returns', href: accountRoutes.returns },
   { label: 'Manage Address', icon: 'stores', href: profileRoutes.addresses },

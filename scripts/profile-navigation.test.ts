@@ -53,9 +53,21 @@ clearSignedInSession({
   clearDevTestSession: () => calls.push('dev'),
   clearSavedAddresses: () => calls.push('addresses'),
   clearCustomerProfile: () => calls.push('profile'),
+  clearPreviewAccountState: () => calls.push('preview'),
 });
 
-const expected = ['auth', 'account', 'remembered', 'phone:', 'draft', 'delivery', 'dev', 'addresses', 'profile'];
+const expected = [
+  'auth',
+  'account',
+  'remembered',
+  'phone:',
+  'draft',
+  'delivery',
+  'dev',
+  'addresses',
+  'profile',
+  'preview',
+];
 if (calls.join('|') !== expected.join('|')) {
   throw new Error('logout must clear customer session state including the active profile book');
 }

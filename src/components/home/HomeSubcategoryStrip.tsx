@@ -26,6 +26,7 @@ import {
   resolvePresentationImage,
 } from '@/utils/catalogPresentationAssets';
 import { deriveLiveCategoryTree } from '@/utils/liveCatalogMeta';
+import { resolveShopShelfId } from '@/utils/resolveShopShelf';
 
 const INK = '#171717';
 const TILE_BG = '#FFF4D6';
@@ -50,7 +51,7 @@ type GridTile = {
 export function HomeSubcategoryStrip() {
   const { width } = useWindowDimensions();
   const browse = useOptionalHomeCatalogBrowse();
-  const { liveEnabled, loadSubcategories, products, remoteCategories } = useCatalog();
+  const { liveEnabled, loadSubcategories, listShelves, products, remoteCategories } = useCatalog();
   const [rows, setRows] = useState<LiveSubcategoryRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +60,8 @@ export function HomeSubcategoryStrip() {
   const selected = browse?.selectedCategory ?? null;
   const isAll = selected?.id === HOME_ALL_CATEGORY.id;
   const content = Math.min(width, homeLayout.maxWidth);
-  const cardWidth = content < 360 ? 108 : content < 420 ? 118 : 126;
+  // Keep the 2-row strip compact — oversized tiles looked broken on phone widths.
+  const cardWidth = content < 360 ? 84 : content < 420 ? 90 : 96;
 
   const liveParents = useMemo(() => {
     if (!liveEnabled) {
@@ -73,20 +75,20 @@ export function HomeSubcategoryStrip() {
 
   useEffect(() => {
     if (!liveEnabled || !selected) {
-      setRows([]);
-      setLoading(false);
-      setError(null);
       return;
     }
 
     let cancelled = false;
-    setLoading(true);
-    setError(null);
-
     const requestId = selected.id;
     const requestName = selected.name;
 
     async function loadForSelection() {
+      await Promise.resolve();
+      if (cancelled) {
+        return;
+      }
+      setLoading(true);
+      setError(null);
       try {
         if (isAll) {
           // Mixed subcategory discovery — never main-category cards.
@@ -189,9 +191,15 @@ export function HomeSubcategoryStrip() {
   }
 
   function openTile(tile: GridTile) {
+    const shelves = listShelves(tile.id);
+    const category = resolveShopShelfId(tile.id, shelves, products) ?? tile.id;
     router.push({
       pathname: '/shop',
-      params: { category: tile.id },
+      params: {
+        category,
+        parent: tile.parentName,
+        sub: tile.name,
+      },
     });
   }
 
@@ -217,8 +225,8 @@ export function HomeSubcategoryStrip() {
             <View key={`skel-col-${col}`} style={[styles.column, { width: cardWidth }]}>
               {Array.from({ length: ROWS }, (_, row) => (
                 <View key={`skel-${col}-${row}`} style={styles.skelCard}>
-                  <LoadingSkeleton height={14} width="70%" />
-                  <LoadingSkeleton height={cardWidth - 28} borderRadius={14} style={styles.skelImage} />
+                  <LoadingSkeleton height={12} width="70%" />
+                  <LoadingSkeleton height={cardWidth - 22} borderRadius={10} style={styles.skelImage} />
                 </View>
               ))}
             </View>
@@ -284,7 +292,7 @@ const SubcategoryCard = memo(function SubcategoryCard({ tile, onPress }: Subcate
           />
         ) : (
           <View style={styles.iconFallback}>
-            <SoftIcon name="box" size={28} />
+            <SoftIcon name="box" size={22} />
           </View>
         )}
       </View>
@@ -322,50 +330,50 @@ function hasUsableImage(source: ImageSource | undefined): boolean {
 const styles = StyleSheet.create({
   section: {
     backgroundColor: colors.warmBackground,
-    paddingTop: 10,
-    paddingBottom: 10,
+    paddingTop: 8,
+    paddingBottom: 8,
   },
   heading: {
     marginHorizontal: 14,
-    marginBottom: 10,
+    marginBottom: 8,
     fontFamily: fonts.bold,
-    fontSize: 18,
-    lineHeight: 24,
+    fontSize: 16,
+    lineHeight: 22,
     color: INK,
   },
   row: {
     paddingLeft: 12,
     paddingRight: 12,
-    gap: 10,
+    gap: 8,
   },
   column: {
-    gap: 10,
+    gap: 8,
   },
   card: {
     backgroundColor: TILE_BG,
-    borderRadius: 18,
-    paddingTop: 10,
-    paddingHorizontal: 8,
-    paddingBottom: 8,
-    minHeight: 132,
+    borderRadius: 14,
+    paddingTop: 8,
+    paddingHorizontal: 6,
+    paddingBottom: 6,
+    minHeight: 108,
   },
   pressed: {
     opacity: 0.86,
     transform: [{ scale: 0.98 }],
   },
   cardTitle: {
-    minHeight: 32,
+    minHeight: 28,
     fontFamily: fonts.semibold,
-    fontSize: 13,
-    lineHeight: 16,
+    fontSize: 11,
+    lineHeight: 14,
     color: INK,
     textAlign: 'left',
   },
   imageFrame: {
-    marginTop: 4,
+    marginTop: 2,
     width: '100%',
-    aspectRatio: 1.05,
-    borderRadius: 12,
+    aspectRatio: 1,
+    borderRadius: 10,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
@@ -382,13 +390,13 @@ const styles = StyleSheet.create({
   },
   skelCard: {
     backgroundColor: TILE_BG,
-    borderRadius: 18,
-    padding: 10,
-    minHeight: 132,
-    gap: 10,
+    borderRadius: 14,
+    padding: 8,
+    minHeight: 108,
+    gap: 8,
   },
   skelImage: {
-    marginTop: 4,
+    marginTop: 2,
   },
   empty: {
     marginHorizontal: 14,

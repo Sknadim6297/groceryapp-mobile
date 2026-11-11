@@ -1,7 +1,8 @@
 import { Image } from 'expo-image';
+import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 
 import { BrandLogo } from '@/components/ui/BrandLogo';
@@ -10,6 +11,7 @@ import { useAuthFlow } from '@/context/AuthFlowContext';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { canUseDevelopmentHome, isDevOtpEnabled } from '@/services/devOtp';
 import { shouldSkipPostRegistrationOtp } from '@/services/mobileVerification';
+import { resolveIncomingAppHref } from '@/utils/incomingAppLink';
 
 const SPLASH_MS = 1100;
 
@@ -25,6 +27,7 @@ export default function SplashScreen() {
   const [opacity] = useState(() => new Animated.Value(0));
   const [scale] = useState(() => new Animated.Value(0.84));
   const [shift] = useState(() => new Animated.Value(14));
+  const routed = useRef(false);
 
   useEffect(() => {
     const motion = Animated.parallel([
@@ -39,20 +42,39 @@ export default function SplashScreen() {
       };
     }
     const timer = setTimeout(() => {
-      if (session || canUseDevelopmentHome(devSession)) {
-        router.replace('/home');
-        return;
-      }
-      // OTP-first mid-onboarding: verified unregistered mobile resumes Personal Information.
-      if (
-        (isDevOtpEnabled() && devSession?.destination === 'complete-profile') ||
-        (mobileVerification?.standing === 'unregistered' &&
-          shouldSkipPostRegistrationOtp(mobileVerification, nationalNumber || mobileVerification.mobile))
-      ) {
-        router.replace('/complete-profile');
-        return;
-      }
-      router.replace('/intro');
+      void (async () => {
+        if (routed.current) {
+          return;
+        }
+        // Preserve cold-start deep links (groceryapp://, mayapurbazaar://, trusted hosts).
+        try {
+          const initialUrl = await Linking.getInitialURL();
+          const deepHref = resolveIncomingAppHref(initialUrl);
+          if (deepHref) {
+            routed.current = true;
+            router.replace(deepHref);
+            return;
+          }
+        } catch {
+          // Fall through to default auth routing.
+        }
+
+        routed.current = true;
+        if (session || canUseDevelopmentHome(devSession)) {
+          router.replace('/home');
+          return;
+        }
+        // OTP-first mid-onboarding: verified unregistered mobile resumes Personal Information.
+        if (
+          (isDevOtpEnabled() && devSession?.destination === 'complete-profile') ||
+          (mobileVerification?.standing === 'unregistered' &&
+            shouldSkipPostRegistrationOtp(mobileVerification, nationalNumber || mobileVerification.mobile))
+        ) {
+          router.replace('/complete-profile');
+          return;
+        }
+        router.replace('/intro');
+      })();
     }, SPLASH_MS);
     return () => {
       clearTimeout(timer);

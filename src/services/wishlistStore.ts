@@ -1,9 +1,12 @@
 /**
- * Local wishlist of catalogue product ids.
+ * Owner-scoped local wishlist of catalogue product ids.
  * Ready to swap the store for a future C# / ASP.NET wishlist API.
  */
 
+import { addressOwnerKey } from '@/services/savedAddressStore';
+
 const STORAGE_KEY = 'groceryapp.wishlist';
+export const GUEST_WISHLIST_OWNER = 'guest';
 
 type WishlistStore = {
   read: () => Promise<string | null>;
@@ -31,6 +34,12 @@ let store: WishlistStore = memoryStore;
 export function installWishlistStoreForTests(next: WishlistStore | null): void {
   memory.clear();
   store = next ?? memoryStore;
+}
+
+export function wishlistOwnerKey(
+  input: { mobile?: string | null; kind: 'temporary-ui' | 'development-test' } | null,
+): string {
+  return addressOwnerKey(input) ?? GUEST_WISHLIST_OWNER;
 }
 
 export function normalizeWishlistIds(ids: readonly string[]): string[] {
@@ -76,36 +85,101 @@ export function removeWishlistId(ids: readonly string[], productId: string): str
   return normalizeWishlistIds(ids).filter((item) => item !== id);
 }
 
+type WishlistVault = Record<string, string[]>;
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+export function parseWishlistVault(raw: string | null): WishlistVault {
+  if (!raw) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    // Legacy flat array shape: ["id1","id2"]
+    if (Array.isArray(parsed)) {
+      return {
+        [GUEST_WISHLIST_OWNER]: normalizeWishlistIds(
+          parsed.filter((item): item is string => typeof item === 'string'),
+        ),
+      };
+    }
+    const root = asRecord(parsed);
+    if (!root) {
+      return {};
+    }
+    const vault: WishlistVault = {};
+    for (const [owner, value] of Object.entries(root)) {
+      if (!Array.isArray(value)) {
+        continue;
+      }
+      vault[owner] = normalizeWishlistIds(value.filter((item): item is string => typeof item === 'string'));
+    }
+    return vault;
+  } catch {
+    return {};
+  }
+}
+
+export function serializeWishlistVault(vault: WishlistVault): string {
+  const next: WishlistVault = {};
+  for (const [owner, ids] of Object.entries(vault)) {
+    const normalized = normalizeWishlistIds(ids);
+    if (normalized.length > 0) {
+      next[owner] = normalized;
+    }
+  }
+  return JSON.stringify(next);
+}
+
+/** @deprecated Prefer serializeWishlistVault — kept for unit helpers. */
 export function serializeWishlistIds(ids: readonly string[]): string {
   return JSON.stringify(normalizeWishlistIds(ids));
 }
 
+/** @deprecated Prefer parseWishlistVault — kept for unit helpers. */
 export function parseWishlistIds(raw: string | null): string[] {
   if (!raw) {
     return [];
   }
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) {
-      return [];
+    if (Array.isArray(parsed)) {
+      return normalizeWishlistIds(parsed.filter((item): item is string => typeof item === 'string'));
     }
-    return normalizeWishlistIds(parsed.filter((item): item is string => typeof item === 'string'));
   } catch {
     return [];
   }
+  return [];
 }
 
-export async function loadWishlistIds(): Promise<string[]> {
-  return parseWishlistIds(await store.read());
+export async function loadWishlistIds(ownerKey: string): Promise<string[]> {
+  const vault = parseWishlistVault(await store.read());
+  return vault[ownerKey] ?? [];
 }
 
-export async function saveWishlistIds(ids: readonly string[]): Promise<void> {
+export async function saveWishlistIds(ownerKey: string, ids: readonly string[]): Promise<void> {
+  const vault = parseWishlistVault(await store.read());
   const next = normalizeWishlistIds(ids);
   if (next.length === 0) {
+    delete vault[ownerKey];
+  } else {
+    vault[ownerKey] = next;
+  }
+  const owners = Object.keys(vault);
+  if (owners.length === 0) {
     await store.remove();
     return;
   }
-  await store.write(serializeWishlistIds(next));
+  await store.write(serializeWishlistVault(vault));
+}
+
+export async function clearWishlistForOwner(ownerKey: string): Promise<void> {
+  await saveWishlistIds(ownerKey, []);
 }
 
 export async function clearWishlistStore(): Promise<void> {

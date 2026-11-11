@@ -19,8 +19,12 @@ import {
   withDefaultAddress,
 } from '@/services/savedAddressStore';
 import type { SavedAddress, SavedAddressDraft } from '@/types/savedAddress';
-import { findDuplicateAddress, isAddressDraftReady } from '@/utils/savedAddressValidation';
+import {
+  resolveConfirmedAfterDelete,
+  shouldUpdateConfirmedAfterSave,
+} from '@/utils/addressSelectionRules';
 import { savedAddressToDeliveryLocation } from '@/utils/savedAddressMapping';
+import { findDuplicateAddress, isAddressDraftReady } from '@/utils/savedAddressValidation';
 
 type SaveAddressResult =
   | { ok: true; address: SavedAddress }
@@ -47,6 +51,7 @@ export function SavedAddressesProvider({ children }: { children: ReactNode }) {
   const [ownerKey, setOwnerKey] = useState<string | null>(null);
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const confirmedRef = useRef(confirmed);
+  const previousOwnerRef = useRef<string | null>(null);
   useEffect(() => {
     confirmedRef.current = confirmed;
   }, [confirmed]);
@@ -72,14 +77,23 @@ export function SavedAddressesProvider({ children }: { children: ReactNode }) {
         await activateDeviceSavedAddressStore();
       }
       const nextOwner = resolveOwner();
+      const previousOwner = previousOwnerRef.current;
+
       if (!nextOwner) {
         if (!cancelled) {
+          // Leaving a signed-in book: drop that customer's saved delivery pick so it
+          // cannot linger into a guest session. Keep in-session GPS/map/manual pins.
+          if (previousOwner && confirmedRef.current?.source === 'saved') {
+            clearDelivery();
+          }
+          previousOwnerRef.current = null;
           setOwnerKey(null);
           setAddresses([]);
           setHydrated(true);
         }
         return;
       }
+
       const book = await loadAddressBook(nextOwner);
       if (cancelled) {
         return;
@@ -98,10 +112,24 @@ export function SavedAddressesProvider({ children }: { children: ReactNode }) {
       if (cancelled) {
         return;
       }
+
+      const ownerChanged = Boolean(previousOwner && previousOwner !== nextOwner);
+      previousOwnerRef.current = nextOwner;
       setOwnerKey(nextOwner);
       setAddresses(nextAddresses);
       setHydrated(true);
+
       const defaultAddress = nextAddresses.find((address) => address.isDefault) ?? nextAddresses[0];
+      if (ownerChanged) {
+        // Different signed-in customer: never keep the previous customer's confirmed address.
+        if (defaultAddress) {
+          applyConfirmed(savedAddressToDeliveryLocation(defaultAddress));
+        } else {
+          clearDelivery();
+        }
+        return;
+      }
+
       // Never overwrite an in-session delivery pick (GPS/search/map) with the stored default.
       if (defaultAddress && confirmedRef.current == null) {
         applyConfirmed(savedAddressToDeliveryLocation(defaultAddress));
@@ -111,7 +139,7 @@ export function SavedAddressesProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [applyConfirmed, authHydrated, resolveOwner, session?.mobile]);
+  }, [applyConfirmed, authHydrated, clearDelivery, resolveOwner, session?.mobile]);
 
   const persist = useCallback(async (nextOwner: string, nextAddresses: SavedAddress[]) => {
     setAddresses(nextAddresses);
@@ -161,7 +189,12 @@ export function SavedAddressesProvider({ children }: { children: ReactNode }) {
           next = withDefaultAddress(next, updated.id);
         }
         await persist(nextOwner, next);
-        if (updated.isDefault) {
+        if (
+          shouldUpdateConfirmedAfterSave({
+            saved: updated,
+            confirmedId: confirmedRef.current?.id,
+          })
+        ) {
           applyConfirmed(savedAddressToDeliveryLocation(updated));
         }
         syncAddressBookToServer(next);
@@ -172,7 +205,12 @@ export function SavedAddressesProvider({ children }: { children: ReactNode }) {
       const created = draftToSavedAddress(draft, { isDefault: makeDefault });
       next = makeDefault ? withDefaultAddress([...next, created], created.id) : [...next, created];
       await persist(nextOwner, next);
-      if (created.isDefault) {
+      if (
+        shouldUpdateConfirmedAfterSave({
+          saved: created,
+          confirmedId: confirmedRef.current?.id,
+        })
+      ) {
         applyConfirmed(savedAddressToDeliveryLocation(created));
       }
       syncAddressBookToServer(next);
@@ -192,12 +230,21 @@ export function SavedAddressesProvider({ children }: { children: ReactNode }) {
       }
       const next = removeAddressFromList(addresses, addressId);
       await persist(ownerKey, next);
-      const nextDefault = next.find((address) => address.isDefault) ?? null;
-      if (nextDefault) {
-        applyConfirmed(savedAddressToDeliveryLocation(nextDefault));
-        syncAddressBookToServer(next);
-      } else {
+      const decision = resolveConfirmedAfterDelete({
+        confirmedId: confirmedRef.current?.id,
+        deletedId: addressId,
+        nextAddresses: next,
+      });
+      if (decision === 'clear') {
         clearDelivery();
+      } else if (decision !== 'keep') {
+        const selected = next.find((address) => address.id === decision.applyId);
+        if (selected) {
+          applyConfirmed(savedAddressToDeliveryLocation(selected));
+        }
+      }
+      if (next.length > 0) {
+        syncAddressBookToServer(next);
       }
       return true;
     },

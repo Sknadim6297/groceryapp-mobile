@@ -1,11 +1,12 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, Share, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ProductCard } from '@/components/home/ProductCard';
 import { productCardWidth, productColumns } from '@/components/home/productLayout';
 import { ProductAccordion } from '@/components/product/ProductAccordion';
+import { ProductBrandCard } from '@/components/product/ProductBrandCard';
 import { ProductGallery } from '@/components/product/ProductGallery';
 import { ProductReviewsPanel } from '@/components/product/ProductReviewsPanel';
 import { ProductStarRating } from '@/components/product/ProductStarRating';
@@ -21,11 +22,16 @@ import { useCatalog } from '@/context/CatalogContext';
 import { useCustomerProfile } from '@/context/CustomerProfileContext';
 import { useMockCart } from '@/context/MockCartContext';
 import { useProductReviews } from '@/context/ProductReviewsContext';
+import { useRecentlyViewed } from '@/context/RecentlyViewedContext';
 import { useWishlist } from '@/context/WishlistContext';
 import { productDetailCopy } from '@/data/productDetails';
 import { isProductInStock } from '@/data/resolveWishlistProducts';
 import type { ReviewSortId } from '@/types/productReviews';
+import { useToast } from '@/components/ui/AppToast';
 import { formatRupee } from '@/utils/cartBill';
+import { findCatalogueBrand, isValidBrandName } from '@/utils/brandIdentity';
+import { buildProductShareMessage } from '@/utils/productShareMessage';
+import { computeUnitPrice } from '@/utils/unitPrice';
 
 const PAGE_PAD = 32;
 const CARD_GAP = 8;
@@ -37,8 +43,10 @@ export default function ProductDetailScreen() {
   const productId = Array.isArray(id) ? id[0] : id;
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
+  const { showToast } = useToast();
   const { totalCount, addToCart, startBuyNow } = useMockCart();
   const { isSaved, toggle } = useWishlist();
+  const { recordView } = useRecentlyViewed();
   const { profile } = useCustomerProfile();
   const { session } = useAuthSession();
   const {
@@ -51,6 +59,7 @@ export default function ProductDetailScreen() {
     refresh,
     refreshing,
     loadProductGalleryImages,
+    products: catalogueProducts,
   } = useCatalog();
   const { summaryFor, sortedReviewsFor, voteFor, setVote, submitReview } = useProductReviews();
   const product = productId ? findProduct(productId) : undefined;
@@ -82,9 +91,24 @@ export default function ProductDetailScreen() {
     }
   }
 
-  useEffect(() => {
+  // Reset local PDP UI when Expo Router reuses this screen for another product id.
+  const [uiForProductId, setUiForProductId] = useState(productId);
+  if (productId !== uiForProductId) {
+    setUiForProductId(productId);
     setSelectQty(1);
-  }, [productId]);
+    setOpenAccordion('review');
+    setDetailsOpen(false);
+    setSort('newest');
+    setWriteOpen(false);
+  }
+
+  // Record only after the product is resolved in the catalogue (genuine open).
+  useEffect(() => {
+    if (!product?.id) {
+      return;
+    }
+    recordView(product.id);
+  }, [product?.id, recordView]);
 
   const related = useMemo(
     () => (product ? relatedProducts(product.id, 6) : null),
@@ -134,14 +158,40 @@ export default function ProductDetailScreen() {
     );
   }
 
-  const activeId = product.id;
+  const resolved = product;
+  const activeId = resolved.id;
   const saved = isSaved(activeId);
-  const inStock = isProductInStock(product);
-  const showMrp = product.compareAt != null && product.compareAt > product.price;
+  const inStock = isProductInStock(resolved);
+  const showMrp = resolved.compareAt != null && resolved.compareAt > resolved.price;
+  const unitPriceLabel = computeUnitPrice(resolved.price, resolved.unit)?.label ?? null;
   const shelfName = related?.shelfName;
-  const copy = productDetailCopy(product);
+  const copy = productDetailCopy(resolved);
+  /** Catalogue Brand only — never invent a brand for the explore card. */
+  const catalogueBrand = isValidBrandName(resolved.brand)
+    ? findCatalogueBrand(catalogueProducts, resolved.brand) ?? {
+        id: `brand-${resolved.brand!.trim().toLowerCase()}`,
+        name: resolved.brand!.trim(),
+        image: { uri: '' },
+      }
+    : null;
+  const brandLabel = catalogueBrand?.name ?? (isValidBrandName(resolved.brand) ? resolved.brand!.trim() : null);
   const authorName = profile?.name?.trim() || session?.name?.trim() || 'Guest';
-  const lineTotal = product.price * selectQty;
+  const lineTotal = resolved.price * selectQty;
+
+  async function shareProduct() {
+    const id = resolved.id.trim();
+    if (!id || !findProduct(id)) {
+      showToast('error', 'This product is unavailable and cannot be shared.');
+      return;
+    }
+    try {
+      await Share.share({
+        message: buildProductShareMessage({ productId: id, productName: resolved.name }),
+      });
+    } catch {
+      showToast('error', 'Could not open the share sheet.');
+    }
+  }
 
   function toggleAccordion(id: AccordionId) {
     setOpenAccordion((current) => (current === id ? null : id));
@@ -155,7 +205,8 @@ export default function ProductDetailScreen() {
     if (!inStock) {
       return;
     }
-    addToCart(activeId, selectQty);
+    const qty = Math.max(1, Math.min(99, Math.floor(selectQty)));
+    addToCart(activeId, qty);
     setSelectQty(1);
   }
 
@@ -163,8 +214,9 @@ export default function ProductDetailScreen() {
     if (!inStock) {
       return;
     }
+    const qty = Math.max(1, Math.min(99, Math.floor(selectQty)));
     // Isolated Buy Now session — never merges into / clears the persistent cart.
-    const session = startBuyNow(activeId, selectQty);
+    const session = startBuyNow(activeId, qty);
     if (!session) {
       return;
     }
@@ -184,19 +236,30 @@ export default function ProductDetailScreen() {
       <AppScreenHeader
         title="Product Details"
         right={
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={totalCount > 0 ? `Cart, ${totalCount} items` : 'Cart'}
-            hitSlop={8}
-            onPress={() => router.push('/cart')}
-            style={styles.cart}>
-            <AppIcon name="cart" color={colors.text} size={22} />
-            {totalCount > 0 ? (
-              <View style={styles.badge}>
-                <Text style={styles.badgeLabel}>{totalCount > 9 ? '9+' : String(totalCount)}</Text>
-              </View>
-            ) : null}
-          </Pressable>
+          <View style={styles.headerActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Share ${product.name}`}
+              hitSlop={8}
+              onPress={() => void shareProduct()}
+              style={styles.cart}
+              testID="product-share">
+              <AppIcon name="share" color={colors.text} size={20} />
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={totalCount > 0 ? `Cart, ${totalCount} items` : 'Cart'}
+              hitSlop={8}
+              onPress={() => router.push('/cart')}
+              style={styles.cart}>
+              <AppIcon name="cart" color={colors.text} size={22} />
+              {totalCount > 0 ? (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeLabel}>{totalCount > 9 ? '9+' : String(totalCount)}</Text>
+                </View>
+              ) : null}
+            </Pressable>
+          </View>
         }
       />
 
@@ -232,7 +295,7 @@ export default function ProductDetailScreen() {
             </View>
 
             <View style={styles.brandRow}>
-              <Text style={styles.brand}>{copy.brand}</Text>
+              {brandLabel ? <Text style={styles.brand}>{brandLabel}</Text> : null}
               {shelfName ? <Text style={styles.shelf}>{shelfName}</Text> : null}
             </View>
 
@@ -243,12 +306,13 @@ export default function ProductDetailScreen() {
             <View style={styles.priceRow}>
               <Text style={styles.price}>{formatRupee(product.price)}</Text>
               {showMrp ? <Text style={styles.mrp}>{formatRupee(product.compareAt ?? 0)}</Text> : null}
-              {product.discountLabel ? (
+              {showMrp && product.discountLabel ? (
                 <View style={styles.dealChip}>
                   <Text style={styles.dealChipLabel}>{product.discountLabel}</Text>
                 </View>
               ) : null}
             </View>
+            {unitPriceLabel ? <Text style={styles.unitPrice}>{unitPriceLabel}</Text> : null}
 
             <Pressable
               accessibilityRole="button"
@@ -263,7 +327,7 @@ export default function ProductDetailScreen() {
               <View style={styles.facts}>
                 <Fact label="Pack size" value={product.unit} first />
                 {shelfName ? <Fact label="Category" value={shelfName} /> : null}
-                <Fact label="Brand" value={copy.brand} />
+                {brandLabel ? <Fact label="Brand" value={brandLabel} /> : null}
                 {showMrp ? <Fact label="MRP" value={formatRupee(product.compareAt ?? 0)} /> : null}
                 <Fact label="Availability" value={inStock ? 'In stock' : 'Out of stock'} />
               </View>
@@ -281,16 +345,17 @@ export default function ProductDetailScreen() {
             <Text style={styles.accordionBody}>{copy.about}</Text>
             <Fact label="Pack size" value={product.unit} first />
             {shelfName ? <Fact label="Category" value={shelfName} /> : null}
-            <Fact label="Brand" value={copy.brand} />
+            {brandLabel ? <Fact label="Brand" value={brandLabel} /> : null}
           </ProductAccordion>
 
           <ProductAccordion title="Info" open={openAccordion === 'info'} onToggle={() => toggleAccordion('info')}>
             <Text style={styles.accordionBody}>
-              Store as directed on the pack. Prices shown are for this preview catalogue and may differ from a live
-              store quote.
+              Store as directed on the pack.
+              {liveEnabled
+                ? ' Prices come from the live catalogue and may change when stock updates.'
+                : ' Prices shown are for this preview catalogue and may differ from a live store quote.'}
             </Text>
-            <Fact label="Sold by" value={copy.brand} first />
-            <Fact label="Return window" value="72 hours (store policy)" />
+            <Fact label="Return window" value="72 hours (store policy)" first />
             <Fact label="Support" value="In-app Help & chat" />
           </ProductAccordion>
 
@@ -311,6 +376,8 @@ export default function ProductDetailScreen() {
             />
           </ProductAccordion>
         </View>
+
+        {catalogueBrand ? <ProductBrandCard brand={catalogueBrand} /> : null}
 
         {related && related.products.length > 0 ? (
           <View style={styles.related}>
@@ -465,6 +532,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.warmBackground,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   cart: {
     width: 40,
     height: 40,
@@ -568,6 +640,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+  },
+  unitPrice: {
+    marginTop: 4,
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: colors.textSecondary,
   },
   price: {
     fontFamily: fonts.bold,

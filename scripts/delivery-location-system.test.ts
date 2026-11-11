@@ -79,6 +79,22 @@ if (composeAddressLine1(finalized) !== '12B, Kestopur Main Road') {
   throw new Error('composed address line must join house and street');
 }
 
+const mapHandoff = deliveryLocationToDraft(pinOnly, {
+  ...emptyAddressDraft(),
+  houseNumber: '9',
+  buildingStreet: 'Lane',
+  area: 'Rajarhat',
+  city: 'Kolkata',
+  state: 'West Bengal',
+  postalCode: '700135',
+});
+if (mapHandoff.source !== 'map') {
+  throw new Error('map pin handoff must keep source=map (not collapse to manual)');
+}
+if (mapHandoff.latitude !== pinOnly.latitude || mapHandoff.longitude !== pinOnly.longitude) {
+  throw new Error('map pin handoff must preserve confirmed coordinates');
+}
+
 const afterLocation = locationContinueTarget({
   intent: 'registration',
   canGoBack: true,

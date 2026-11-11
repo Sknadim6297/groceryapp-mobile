@@ -19,6 +19,7 @@ import { findCatalogParent, listSubcategoriesForParent } from '@/data/subcategor
 import type { CatalogSubcategory } from '@/types/subcategory';
 import { enrichLiveCategoryTreePresentation } from '@/utils/catalogPresentationAssets';
 import { findLiveCategoryParent } from '@/utils/liveCatalogMeta';
+import { resolveShopShelfId } from '@/utils/resolveShopShelf';
 import { filterSubcategories } from '@/utils/subcategorySearch';
 
 function paramValue(value: string | string[] | undefined): string {
@@ -33,8 +34,18 @@ export default function SubcategoriesScreen() {
   const { width } = useWindowDimensions();
   const { id } = useLocalSearchParams<{ id?: string | string[] }>();
   const parentId = paramValue(id);
-  const { liveEnabled, products, initialLoading, state, message, refresh, refreshing, loadSubcategories } =
-    useCatalog();
+  const {
+    liveEnabled,
+    products,
+    initialLoading,
+    state,
+    message,
+    refresh,
+    refreshing,
+    loadSubcategories,
+    listShelves,
+    remoteCategories,
+  } = useCatalog();
   const [query, setQuery] = useState('');
   const [retrying, setRetrying] = useState(false);
   const [remoteSubs, setRemoteSubs] = useState<LiveSubcategoryRecord[]>([]);
@@ -44,23 +55,33 @@ export default function SubcategoriesScreen() {
       return undefined;
     }
     const parent = findLiveCategoryParent(products, parentId);
-    if (!parent) {
+    if (parent) {
+      return enrichLiveCategoryTreePresentation([parent])[0];
+    }
+    // Remote categories API may list parents that have zero products yet — still browsable.
+    const remote = remoteCategories.find((row) => row.id === parentId);
+    if (!remote) {
       return undefined;
     }
-    return enrichLiveCategoryTreePresentation([parent])[0];
-  }, [liveEnabled, parentId, products]);
+    return {
+      id: remote.id,
+      name: remote.name,
+      image: remote.image,
+      children: [] as const,
+    };
+  }, [liveEnabled, parentId, products, remoteCategories]);
   const demoParent = liveEnabled ? undefined : findCatalogParent(parentId);
   const parent = liveParent
     ? { id: liveParent.id, name: liveParent.name, image: liveParent.image }
     : demoParent;
 
+  const parentNameKey = liveParent?.name ?? '';
   useEffect(() => {
-    if (!liveEnabled || !liveParent?.name) {
-      setRemoteSubs([]);
+    if (!liveEnabled || !parentNameKey) {
       return;
     }
     let cancelled = false;
-    void loadSubcategories(liveParent.name).then((rows) => {
+    void loadSubcategories(parentNameKey).then((rows) => {
       if (!cancelled) {
         setRemoteSubs(rows);
       }
@@ -68,11 +89,13 @@ export default function SubcategoriesScreen() {
     return () => {
       cancelled = true;
     };
-  }, [liveEnabled, liveParent?.name, loadSubcategories]);
+  }, [liveEnabled, parentNameKey, loadSubcategories]);
 
   const subcategories = useMemo((): CatalogSubcategory[] => {
-    if (liveEnabled && remoteSubs.length > 0) {
-      return remoteSubs.map((child, index) => {
+    const remoteSubsForParent =
+      liveEnabled && parentNameKey.length > 0 ? remoteSubs : ([] as typeof remoteSubs);
+    if (liveEnabled && remoteSubsForParent.length > 0) {
+      return remoteSubsForParent.map((child, index) => {
         const fromProducts = liveParent?.children.find((row) => row.id === child.id);
         return {
           id: child.id,
@@ -104,7 +127,7 @@ export default function SubcategoriesScreen() {
       }));
     }
     return listSubcategoriesForParent(parentId);
-  }, [liveEnabled, liveParent, parentId, remoteSubs]);
+  }, [liveEnabled, liveParent, parentId, parentNameKey, remoteSubs]);
 
   const visible = useMemo(() => filterSubcategories(subcategories, query), [query, subcategories]);
 
@@ -115,9 +138,16 @@ export default function SubcategoriesScreen() {
   const cardWidth = (contentWidth - gutter * 2 - gap) / columns;
 
   function openShop(subcategory: CatalogSubcategory) {
+    const shelves = listShelves(subcategory.id);
+    const category = resolveShopShelfId(subcategory.id, shelves, products) ?? subcategory.id;
+    const parentName = parent?.name ?? subcategory.parentId;
     router.push({
       pathname: '/shop',
-      params: { category: subcategory.id },
+      params: {
+        category,
+        parent: typeof parentName === 'string' ? parentName : undefined,
+        sub: subcategory.name,
+      },
     });
   }
 

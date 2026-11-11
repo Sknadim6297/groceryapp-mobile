@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Modal,
   Pressable,
@@ -30,12 +30,12 @@ export function OrderCancelModal({
 }: OrderCancelModalProps) {
   const insets = useSafeAreaInsets();
   const [selected, setSelected] = useState<OrderCancelReasonId[]>([]);
-
-  useEffect(() => {
-    if (visible) {
-      setSelected([]);
-    }
-  }, [visible, orderId]);
+  const sessionKey = visible ? orderId : '';
+  const [activeSession, setActiveSession] = useState(sessionKey);
+  if (visible && sessionKey !== activeSession) {
+    setActiveSession(sessionKey);
+    setSelected([]);
+  }
 
   const toggle = (id: OrderCancelReasonId) => {
     setSelected((current) =>

@@ -3,9 +3,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import { SoftIcon } from '@/components/ui/SoftIcon';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { colors, fonts, radii, space } from '@/constants/theme';
+import { CATALOGUE_NETWORK_ERROR_HINT } from '@/utils/networkConnectivity';
 
-const DEFAULT_ERROR =
-  'Unable to load content. Please check your internet connection and try again.';
+const DEFAULT_ERROR = CATALOGUE_NETWORK_ERROR_HINT;
 
 type CatalogStatusPanelProps = {
   kind: 'error' | 'empty';

@@ -141,11 +141,11 @@ function EmptyOrdersState() {
       <LinearGradient colors={['#FEF9C3', '#FDE68A']} style={styles.emptyIcon}>
         <AppIcon name="basket" color={colors.text} size={30} />
       </LinearGradient>
-      <Text style={styles.emptyTitle}>No orders yet</Text>
+      <Text style={styles.emptyTitle}>{UI_PREVIEW_MODE ? 'No demo orders yet' : 'Order history unavailable'}</Text>
       <Text style={styles.emptyBody}>
         {UI_PREVIEW_MODE
           ? 'Demo orders will appear here after a simulated checkout, or from seeded preview fixtures.'
-          : 'Your grocery orders will appear here once you place your first order.'}
+          : 'Live order history is not connected yet. No sample orders were invented for this account.'}
       </Text>
       <Pressable
         accessibilityRole="button"

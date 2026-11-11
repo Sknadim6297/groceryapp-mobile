@@ -234,7 +234,7 @@ export default function SupportFaqDetailsScreen() {
 
             {feedback ? (
               <Text style={styles.feedbackNote}>
-                Thanks — feedback is saved on this device only for this demo. It is not sent to support servers.
+                Thanks — noted for this session only. Feedback is not stored or sent to support servers.
               </Text>
             ) : null}
           </>

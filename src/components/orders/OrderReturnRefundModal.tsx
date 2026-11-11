@@ -1,6 +1,6 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -55,15 +55,17 @@ export function OrderReturnRefundModal({
   const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [picking, setPicking] = useState(false);
 
-  useEffect(() => {
-    if (visible) {
-      setStep(0);
-      setSelectedItems(items.map((item) => item.id));
-      setSelectedReasons([]);
-      setPhotoUris([]);
-      setPicking(false);
-    }
-  }, [visible, orderId, items]);
+  const itemIdsKey = items.map((item) => item.id).join('|');
+  const sessionKey = visible ? `${orderId}:${itemIdsKey}` : '';
+  const [activeSession, setActiveSession] = useState(sessionKey);
+  if (visible && sessionKey !== activeSession) {
+    setActiveSession(sessionKey);
+    setStep(0);
+    setSelectedItems(items.map((item) => item.id));
+    setSelectedReasons([]);
+    setPhotoUris([]);
+    setPicking(false);
+  }
 
   const selectedLines = useMemo(
     () => items.filter((item) => selectedItems.includes(item.id)),

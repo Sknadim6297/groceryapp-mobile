@@ -38,6 +38,15 @@ async function main() {
   if (toggleWishlistId([sample.id], sample.id).length !== 0) {
     throw new Error('toggle should remove a saved id');
   }
+
+  // Cart / Buy Now qty clamping stays independent of wishlist (regression guard).
+  const { normalizeCartQuantities } = await import('../src/services/cartStore');
+  if (normalizeCartQuantities({ [sample.id]: 0, bad: 150 })[sample.id] !== undefined) {
+    throw new Error('cart must drop zero quantities');
+  }
+  if (normalizeCartQuantities({ [sample.id]: 150 })[sample.id] !== 99) {
+    throw new Error('cart must clamp quantities to 99');
+  }
   if (addWishlistId([sample.id], sample.id).join(',') !== sample.id) {
     throw new Error('add must not duplicate');
   }
@@ -63,10 +72,16 @@ async function main() {
     },
   });
 
-  await saveWishlistIds([sample.id, sample.id, 'gone-product']);
-  const restored = await loadWishlistIds();
+  const ownerA = 'temporary-ui:9000000001';
+  const ownerB = 'temporary-ui:9000000002';
+  await saveWishlistIds(ownerA, [sample.id, sample.id, 'gone-product']);
+  await saveWishlistIds(ownerB, ['only-b']);
+  const restored = await loadWishlistIds(ownerA);
   if (restored.join(',') !== `${sample.id},gone-product`) {
     throw new Error(`persistence failed: ${restored.join(',')}`);
+  }
+  if ((await loadWishlistIds(ownerB)).join(',') !== 'only-b') {
+    throw new Error('wishlist owners must stay isolated');
   }
 
   const entries = resolveWishlistEntries(restored, lookup);

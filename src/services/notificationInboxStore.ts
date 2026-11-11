@@ -113,6 +113,11 @@ export async function resetNotificationInboxDemo(): Promise<NotificationInboxSta
   return next;
 }
 
+/** Drops inbox overrides so the next session does not inherit another customer's read/cleared state. */
+export async function clearNotificationInboxStorage(): Promise<void> {
+  await store.remove();
+}
+
 export async function activateDeviceNotificationInboxStore(): Promise<void> {
   try {
     const SecureStore = await import('expo-secure-store');

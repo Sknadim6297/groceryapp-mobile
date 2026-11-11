@@ -29,7 +29,6 @@ type DeliveryMapProps = {
 };
 
 /** Avoid static imports from MapLibre — its entrypoint enforces TurboModules at load. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic native map surface
 type MapLibreRuntime = {
   Map: ComponentType<any>;
   Camera: ComponentType<any>;
@@ -120,7 +119,8 @@ export const DeliveryMap = forwardRef<DeliveryMapHandle, DeliveryMapProps>(funct
 ) {
   const mapRef = useRef<unknown>(null);
   const cameraRef = useRef<CameraHandle | null>(null);
-  const initialRegionRef = useRef(initialRegion);
+  /** Capture first region only — later camera moves go through animateToRegion. */
+  const [frozenInitial] = useState(() => initialRegion);
   const [crashed, setCrashed] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [ready, setReady] = useState(false);
@@ -162,7 +162,7 @@ export const DeliveryMap = forwardRef<DeliveryMapHandle, DeliveryMapProps>(funct
   }
 
   const { Map, Camera, UserLocation } = mapLibre;
-  const initialZoom = zoomFromLatitudeDelta(initialRegionRef.current.latitudeDelta);
+  const initialZoom = zoomFromLatitudeDelta(frozenInitial.latitudeDelta);
 
   return (
     <MapCrashBoundary onCrash={() => setCrashed(true)}>
@@ -214,7 +214,7 @@ export const DeliveryMap = forwardRef<DeliveryMapHandle, DeliveryMapProps>(funct
           <Camera
             ref={cameraRef}
             initialViewState={{
-              center: [initialRegionRef.current.longitude, initialRegionRef.current.latitude],
+              center: [frozenInitial.longitude, frozenInitial.latitude],
               zoom: initialZoom,
             }}
           />

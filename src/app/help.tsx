@@ -218,15 +218,17 @@ export default function HelpScreen() {
               </View>
             </View>
             <View style={styles.chatCopy}>
-              <Text style={styles.chatTitle}>Live Chat</Text>
-              <Text style={styles.chatBody}>Get instant help from our support team</Text>
+              <Text style={styles.chatTitle}>Demo Chat</Text>
+              <Text style={styles.chatBody}>
+                Local practice chat on this device — not connected to a live support agent
+              </Text>
               <AnimatedPressable
                 accessibilityRole="button"
-                accessibilityLabel="Start Chat"
+                accessibilityLabel="Open demo chat"
                 onPress={openLiveChat}
                 style={styles.chatCta}>
                 <AppIcon name="chat" color={colors.white} size={14} />
-                <Text style={styles.chatCtaLabel}>Start Chat</Text>
+                <Text style={styles.chatCtaLabel}>Open Demo Chat</Text>
               </AnimatedPressable>
             </View>
           </Animated.View>

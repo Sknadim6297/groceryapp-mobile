@@ -117,7 +117,6 @@ export function logLocationDiagnostics(tag: string, diagnostics: LocationDiagnos
   if (!__DEV__) {
     return;
   }
-  // eslint-disable-next-line no-console -- intentional dev-only GPS diagnostics
   console.info(`[location:${tag}]`, diagnostics);
 }
 
@@ -213,6 +212,7 @@ async function acquireBestPosition(coarsePermission: boolean): Promise<{
     }
 
     let settled = false;
+    let aborted = false;
 
     const watchPromise = new Promise<void>((resolve) => {
       const finish = () => {
@@ -231,6 +231,9 @@ async function acquireBestPosition(coarsePermission: boolean): Promise<{
           mayShowUserSettingsDialog: true,
         },
         (position) => {
+          if (aborted) {
+            return;
+          }
           push(position);
           const best = pickBestGpsSample(samples);
           if (
@@ -246,9 +249,14 @@ async function acquireBestPosition(coarsePermission: boolean): Promise<{
       )
         .then((sub) => {
           cleanup.stop = () => {
-            sub.remove();
+            try {
+              sub.remove();
+            } catch {
+              // Subscription may already be removed.
+            }
           };
-          if (settled) {
+          // Race timeout can finish before the subscription resolves — stop immediately.
+          if (settled || aborted) {
             cleanup.stop();
           }
         })
@@ -264,6 +272,8 @@ async function acquireBestPosition(coarsePermission: boolean): Promise<{
         setTimeout(resolve, LOCATE_TIMEOUT_MS);
       }),
     ]);
+    aborted = true;
+    settled = true;
   } finally {
     cleanup.stop();
   }

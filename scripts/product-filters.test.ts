@@ -208,7 +208,8 @@ const shelfScoped = applyProductListing({
 });
 assert(shelfScoped.map((p) => p.id).join(',') === 'd', 'active shelf scopes when no search/category filter');
 
-const searchOverridesShelf = applyProductListing({
+// Search inside a selected shelf must stay inside that shelf (Milk + Amul ≠ every Amul).
+const searchRespectsShelf = applyProductListing({
   products: sample,
   query: 'apple',
   filters: createDefaultFilters(),
@@ -216,7 +217,28 @@ const searchOverridesShelf = applyProductListing({
   stockFilterSupported: false,
   activeShelfId: 'grains',
 });
-assert(searchOverridesShelf.map((p) => p.id).join(',') === 'a', 'search ignores active shelf scope');
+assert(searchRespectsShelf.length === 0, 'search keeps active shelf scope (no apples in grains)');
+
+const dairyMilkSearch = applyProductListing({
+  products: [
+    ...sample,
+    listed({ id: 'amul-milk', name: 'Amul Taaza', price: 28, shelfId: 'dairy', brand: 'Amul' }),
+    listed({ id: 'amul-butter', name: 'Amul Butter', price: 58, shelfId: 'spreads', brand: 'Amul' }),
+  ],
+  query: 'Amul',
+  filters: createDefaultFilters(),
+  sort: 'catalogue',
+  stockFilterSupported: false,
+  activeShelfId: 'dairy',
+});
+assert(
+  dairyMilkSearch.map((p) => p.id).join(',') === 'amul-milk',
+  'search inside dairy shelf returns only dairy Amul',
+);
+
+assert(matchesSearch(listed({ id: 'b1', name: 'X', price: 1, brand: 'Amul' }), 'amul'), 'brand search');
+assert(matchesSearch(listed({ id: 'b2', name: 'X', price: 1, category: 'Dairy', subcategory: 'Milk' }), 'milk'), 'subcategory search');
+assert(matchesSearch(listed({ id: 'b3', name: 'Farm  Milk', price: 1 }), 'farm milk'), 'collapsed spaces');
 
 // 15. Invalid / missing product fields
 const weird = listed({ id: 'x', name: 'Odd', price: Number.NaN, shelfId: 'fruits', compareAt: undefined });

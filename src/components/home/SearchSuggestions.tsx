@@ -58,6 +58,13 @@ export function openSuggestion(item: SearchSuggestion) {
     router.push({ pathname: '/product/[id]', params: { id: item.productId } });
     return;
   }
+  if (item.kind === 'brand' && item.title) {
+    router.push({
+      pathname: '/shop',
+      params: { brand: item.title, category: undefined, parent: undefined, sub: undefined },
+    });
+    return;
+  }
   if (item.kind === 'category' && item.categoryId) {
     const parentId = resolveParentIdForCategory(item.categoryId);
     if (parentId) {

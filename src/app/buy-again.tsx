@@ -1,76 +1,87 @@
-import { FlatList, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { router } from 'expo-router';
+import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useMemo } from 'react';
-
-import { ProductCard } from '@/components/home/ProductCard';
 import { DemoBanner } from '@/components/preview/DemoBanner';
+import { AppIcon } from '@/components/ui/AppIcon';
 import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
 import { colors, fonts, homeLayout } from '@/constants/theme';
-import { useCatalog } from '@/context/CatalogContext';
-import { listBuyAgainProducts } from '@/data/listCatalogProducts';
 
+/**
+ * Buy Again requires real past-order history from the backend.
+ * Until that API exists, show an honest empty state — never catalogue fixtures as purchases.
+ */
 export default function BuyAgainScreen() {
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const { liveEnabled, products: catalogProducts } = useCatalog();
-  const contentWidth = Math.min(width, homeLayout.maxWidth);
-  const gutter = homeLayout.gutter;
-  const gap = 10;
-  const cardWidth = (contentWidth - gutter * 2 - gap) / 2;
-  const products = useMemo(() => {
-    if (liveEnabled) {
-      // No past-order API yet — surface live catalogue so Buy Again stays usable.
-      return catalogProducts.slice(0, 24);
-    }
-    return listBuyAgainProducts();
-  }, [catalogProducts, liveEnabled]);
 
   return (
     <View style={styles.screen}>
       <AppScreenHeader title="Buy Again" fallbackHref="/home" />
-      <FlatList
-        data={products}
-        keyExtractor={(item) => item.id}
-        numColumns={2}
-        columnWrapperStyle={styles.row}
-        contentContainerStyle={[
-          styles.content,
-          { paddingBottom: Math.max(insets.bottom, 20), maxWidth: homeLayout.maxWidth, width: '100%', alignSelf: 'center' },
-        ]}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            {UI_PREVIEW_MODE ? (
-              <DemoBanner message="Buy Again uses local catalogue fixtures until past-order APIs exist." />
-            ) : liveEnabled ? (
-              <Text style={styles.note}>Showing live catalogue products until past-order history is connected.</Text>
-            ) : (
-              <Text style={styles.note}>Items you’ve purchased before will appear here when order history is connected.</Text>
-            )}
-          </View>
-        }
-        ListEmptyComponent={<Text style={styles.note}>No buy-again products available yet.</Text>}
-        renderItem={({ item }) => (
-          <View style={{ width: cardWidth }}>
-            <ProductCard product={item} compact={cardWidth < 140} />
-          </View>
-        )}
-        showsVerticalScrollIndicator={false}
-      />
+      {UI_PREVIEW_MODE ? (
+        <View style={styles.bannerPad}>
+          <DemoBanner message="Buy Again needs past-order history. Demo does not invent purchases." />
+        </View>
+      ) : null}
+      <View style={[styles.body, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+        <EmptyState
+          title="No purchase history yet"
+          body="Items you buy will appear here after order history is connected. We never invent past purchases from the catalogue."
+          art={
+            <View style={styles.emptyIcon}>
+              <AppIcon name="refresh" color={colors.primaryInk} size={32} />
+            </View>
+          }
+          action={
+            <View style={styles.emptyAction}>
+              <PrimaryButton
+                label="Browse shop"
+                accessibilityLabel="Browse shop"
+                onPress={() => router.push('/shop')}
+              />
+            </View>
+          }
+        />
+        <Text style={styles.footnote}>
+          Looking for something you viewed recently? Open Home after browsing products — Recently Viewed is saved on
+          this device.
+        </Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.softBackground },
-  content: { paddingHorizontal: homeLayout.gutter, paddingTop: 12 },
-  header: { marginBottom: 12 },
-  row: { gap: 10, marginBottom: 10 },
-  note: {
+  bannerPad: {
+    paddingHorizontal: homeLayout.gutter,
+    paddingTop: 8,
+  },
+  body: {
+    flex: 1,
+    paddingHorizontal: homeLayout.gutter,
+    justifyContent: 'center',
+    gap: 16,
+  },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.softYellow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyAction: {
+    minWidth: 200,
+  },
+  footnote: {
     fontFamily: fonts.regular,
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 17,
     color: colors.textSecondary,
+    textAlign: 'center',
+    paddingHorizontal: 8,
   },
 });

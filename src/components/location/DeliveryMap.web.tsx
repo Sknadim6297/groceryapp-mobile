@@ -157,6 +157,12 @@ export const DeliveryMap = forwardRef<DeliveryMapHandle, DeliveryMapProps>(funct
           map?.resize();
         });
 
+        map.on('error', () => {
+          if (!cancelled) {
+            setFailed(true);
+          }
+        });
+
         // Style fetch can fail without crashing the page — surface a soft fallback.
         styleLoadTimer = setTimeout(() => {
           if (!cancelled && map && !map.isStyleLoaded()) {

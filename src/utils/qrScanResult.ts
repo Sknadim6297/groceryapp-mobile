@@ -111,7 +111,8 @@ export function parseQrPayload(rawInput: string): ParsedQrResult {
 }
 
 function parseAppDeepLink(raw: string): ParsedQrResult | null {
-  const match = raw.match(/^(?:groceryapp|mayapurbazaar):\/\/(.+)$/i);
+  // Accept production, brand, and preview schemes so older QR codes keep working.
+  const match = raw.match(/^(?:groceryapp-preview|groceryapp|mayapurbazaar):\/\/(.+)$/i);
   if (!match?.[1]) {
     return null;
   }

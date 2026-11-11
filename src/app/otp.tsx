@@ -90,7 +90,7 @@ export default function OtpScreen() {
   const { setAccount } = useCustomerAccount();
   const [code, setCode] = useState('');
   const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
-  const [resendMessage, setResendMessage] = useState<string | null>(null);
+  const [, setResendMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [devOtp, setDevOtp] = useState<DevOtpView | null>(() => (isDevOtpEnabled() ? peekDevTestOtp(nationalNumber) : null));
   const { showToast } = useToast();
@@ -103,7 +103,10 @@ export default function OtpScreen() {
   const lastFailedCodeRef = useRef<string | null>(null);
   const lastAutoSubmittedCodeRef = useRef<string | null>(null);
   const codeRef = useRef(code);
-  codeRef.current = code;
+
+  useEffect(() => {
+    codeRef.current = code;
+  }, [code]);
 
   useEffect(() => {
     mountedRef.current = true;

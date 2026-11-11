@@ -23,6 +23,7 @@ import { useConfirmDeliveryLocation } from '@/hooks/useConfirmDeliveryLocation';
 import { locationRoutes } from '@/navigation/locationRoutes';
 import { readCurrentLocation, reverseGeocodeCoords } from '@/services/location/locationService';
 import type { DeliveryLocation } from '@/types/location';
+import { asManualMapPin, describeDeliveryLocationOrigin } from '@/utils/addressSelectionRules';
 import { distanceKmBetween, formatDistanceKm } from '@/utils/deliveryAddress';
 import { isValidMapCoordinate, regionsNearlyEqual } from '@/utils/mapCameraGuards';
 import { openExternalNavigation } from '@/utils/openExternalNavigation';
@@ -121,25 +122,21 @@ export default function LocationMapScreen() {
         return;
       }
       lastResolvedCoords.current = coords;
-      // Reverse geocode must never rewrite the pin coordinates.
-      const pinned: DeliveryLocation = {
-        ...location,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        fixKind:
-          location.source === 'gps'
-            ? location.fixKind
-            : location.source === 'map'
-              ? 'map-pin'
-              : location.fixKind,
-      };
+      // Reverse geocode must never rewrite the pin coordinates. Map drags drop GPS accuracy metadata.
+      const pinned: DeliveryLocation =
+        location.source === 'map'
+          ? asManualMapPin(location, coords)
+          : {
+              ...location,
+              latitude: coords.latitude,
+              longitude: coords.longitude,
+            };
       setPreview(pinned);
       setSelection(pinned);
       setQuery(pinned.locality || pinned.label);
       setGeocodeError(null);
       setPendingRetry(null);
       if (__DEV__) {
-        // eslint-disable-next-line no-console -- intentional map/GPS diagnostics
         console.info('[location-map:preview]', {
           source: pinned.source,
           fixKind: pinned.fixKind,
@@ -152,6 +149,37 @@ export default function LocationMapScreen() {
           platform: Platform.OS,
         });
       }
+    },
+    [setSelection],
+  );
+
+  const applyCoordinateOnlyPin = useCallback(
+    (next: MapRegion) => {
+      if (!mounted.current || !isValidMapCoordinate(next.latitude, next.longitude)) {
+        return;
+      }
+      lastResolvedCoords.current = { latitude: next.latitude, longitude: next.longitude };
+      setPreview((current) => {
+        const base: DeliveryLocation = current ?? {
+          id: `map-${Date.now()}`,
+          label: 'Pinned location',
+          addressLine1: `${next.latitude.toFixed(5)}, ${next.longitude.toFixed(5)}`,
+          source: 'map',
+        };
+        const pinned = asManualMapPin(
+          {
+            ...base,
+            addressLine1:
+              base.addressLine1?.trim().length > 0
+                ? base.addressLine1
+                : `${next.latitude.toFixed(5)}, ${next.longitude.toFixed(5)}`,
+          },
+          { latitude: next.latitude, longitude: next.longitude },
+        );
+        setSelection(pinned);
+        setQuery(pinned.locality || pinned.label);
+        return pinned;
+      });
     },
     [setSelection],
   );
@@ -177,7 +205,8 @@ export default function LocationMapScreen() {
           return;
         }
         if (outcome.status !== 'ready') {
-          // Keep the pin and last preview; do not reset the camera.
+          // Keep the customer's pin coordinates even when reverse geocode fails.
+          applyCoordinateOnlyPin(next);
           setGeocodeError('Address could not be resolved. You can retry or Set Location with coordinates.');
           setPendingRetry(next);
           return;
@@ -187,6 +216,7 @@ export default function LocationMapScreen() {
         if (!mounted.current || requestId !== reverseRequestId.current) {
           return;
         }
+        applyCoordinateOnlyPin(next);
         setGeocodeError('Address lookup failed. Retry when the network is available.');
         setPendingRetry(next);
       } finally {
@@ -195,7 +225,7 @@ export default function LocationMapScreen() {
         }
       }
     },
-    [applyResolved],
+    [applyCoordinateOnlyPin, applyResolved],
   );
 
   const scheduleReverseGeocode = useCallback(
@@ -475,9 +505,12 @@ export default function LocationMapScreen() {
               <Text numberOfLines={2} style={styles.previewBody}>
                 {preview ? formatDeliveryAddress(preview) : 'Move the map to choose a delivery point.'}
               </Text>
-              {preview && isValidMapCoordinate(preview.latitude, preview.longitude) ? (
+              {preview ? (
                 <Text numberOfLines={1} style={styles.coordsText}>
-                  {preview.latitude!.toFixed(5)}, {preview.longitude!.toFixed(5)}
+                  {describeDeliveryLocationOrigin(preview)}
+                  {isValidMapCoordinate(preview.latitude, preview.longitude)
+                    ? ` · ${preview.latitude!.toFixed(5)}, ${preview.longitude!.toFixed(5)}`
+                    : ''}
                   {preview.landmark ? ` · ${preview.landmark}` : ''}
                 </Text>
               ) : null}

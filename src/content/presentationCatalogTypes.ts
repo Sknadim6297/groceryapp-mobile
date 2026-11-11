@@ -65,12 +65,12 @@ export type PresentationTreeParent = {
   name: string;
   image: ImageSource;
   erpAliases: string[];
-  children: Array<{
+  children: {
     id: string;
     parentId: string;
     name: string;
     image: ImageSource;
     productCount: number;
     erpAliases: string[];
-  }>;
+  }[];
 };

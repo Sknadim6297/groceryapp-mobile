@@ -3,6 +3,7 @@ import { PRODUCTS_COMPANY } from '@/constants/liveData';
 import { getJson, isCancelledApiResult } from '@/services/api/http';
 import type { DemoProduct } from '@/types/catalog';
 import { hasSuccessStatus } from '@/services/api/interpretCustomerResponse';
+import { sanitizeProductBrand } from '@/utils/brandIdentity';
 import {
   collectProductImageSources,
   normalizeBoundedCategoryImageSource,
@@ -206,9 +207,10 @@ export function mapProductRecord(value: unknown, options?: MapProductOptions): D
 
   if (compareAt != null && compareAt > price) {
     product.compareAt = compareAt;
-  }
-  if (discountLabel) {
-    product.discountLabel = discountLabel;
+    // Only show a discount badge when MRP is strictly above selling price.
+    const fromMrp = Math.round(((compareAt - price) / compareAt) * 100);
+    product.discountLabel =
+      discountLabel ?? (fromMrp > 0 ? `${fromMrp}% OFF` : undefined);
   }
   if (available !== undefined) {
     product.available = available;
@@ -225,8 +227,10 @@ export function mapProductRecord(value: unknown, options?: MapProductOptions): D
   if (subcategoryImage) {
     product.subcategoryImage = subcategoryImage;
   }
-  if (brand) {
-    product.brand = brand;
+  // Drop placeholder/junk ERP Brand values so Home/PDP/Shop stay consistent.
+  const cleanBrand = sanitizeProductBrand(brand);
+  if (cleanBrand) {
+    product.brand = cleanBrand;
   }
 
   return product;

@@ -14,31 +14,59 @@ import {
   type ListedProduct,
 } from '@/utils/productFilters';
 
+type ListingChange = {
+  filters: ProductFiltersState;
+  sort: ProductSortId;
+};
+
 type UseProductListingControlsArgs = {
   /** Full catalogue pool with shelfId when known. */
   pool: readonly ListedProduct[];
   query: string;
   /** Active Shop sidebar shelf — default scope when not searching / multi-selecting. */
   activeShelfId?: string;
-  /** Reset filters when this key changes (e.g. active shelf id). Sort is preserved. */
+  /** Reset filters when this key changes (e.g. active shelf id). Sort is preserved unless seedKey changes. */
   scopeKey: string;
+  /** Seed from URL / navigation state. */
+  seedFilters?: ProductFiltersState;
+  seedSort?: ProductSortId;
+  /** When this changes, re-apply seedFilters/seedSort (URL restore). */
+  seedKey?: string;
+  /** Persist listing state for back/forward (e.g. router.setParams). */
+  onListingChange?: (next: ListingChange) => void;
 };
 
 /**
  * Draft vs applied filter state for product listings.
  * Closing the filter sheet without Apply discards draft edits.
  */
-export function useProductListingControls({ pool, query, activeShelfId, scopeKey }: UseProductListingControlsArgs) {
-  const [filters, setFilters] = useState<ProductFiltersState>(createDefaultFilters);
-  const [sort, setSort] = useState<ProductSortId>(DEFAULT_PRODUCT_SORT);
+export function useProductListingControls({
+  pool,
+  query,
+  activeShelfId,
+  scopeKey,
+  seedFilters,
+  seedSort,
+  seedKey = '',
+  onListingChange,
+}: UseProductListingControlsArgs) {
+  const [filters, setFilters] = useState<ProductFiltersState>(
+    () => (seedFilters ? cloneFilters(seedFilters) : createDefaultFilters()),
+  );
+  const [sort, setSort] = useState<ProductSortId>(() => seedSort ?? DEFAULT_PRODUCT_SORT);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
   const [seenScope, setSeenScope] = useState(scopeKey);
+  const [seenSeed, setSeenSeed] = useState(seedKey);
 
   const stockFilterSupported = useMemo(() => catalogueHasStockSignals(pool), [pool]);
   const ratingFilterSupported = useMemo(() => catalogueHasRatingSignals(pool), [pool]);
 
-  if (scopeKey !== seenScope) {
+  if (seedKey !== seenSeed) {
+    setSeenSeed(seedKey);
+    setFilters(seedFilters ? cloneFilters(seedFilters) : createDefaultFilters());
+    setSort(seedSort ?? DEFAULT_PRODUCT_SORT);
+  } else if (scopeKey !== seenScope) {
     setSeenScope(scopeKey);
     setFilters(createDefaultFilters());
   } else if (!stockFilterSupported && filters.inStockOnly) {
@@ -82,26 +110,36 @@ export function useProductListingControls({ pool, query, activeShelfId, scopeKey
     setSortOpen(false);
   }, []);
 
-  const applyFilters = useCallback((next: ProductFiltersState) => {
-    const sanitized = cloneFilters(next);
-    if (!stockFilterSupported) {
-      sanitized.inStockOnly = false;
-    }
-    if (!ratingFilterSupported) {
-      sanitized.ratingStars = [];
-    }
-    setFilters(sanitized);
-    setFiltersOpen(false);
-  }, [ratingFilterSupported, stockFilterSupported]);
+  const applyFilters = useCallback(
+    (next: ProductFiltersState) => {
+      const sanitized = cloneFilters(next);
+      if (!stockFilterSupported) {
+        sanitized.inStockOnly = false;
+      }
+      if (!ratingFilterSupported) {
+        sanitized.ratingStars = [];
+      }
+      setFilters(sanitized);
+      setFiltersOpen(false);
+      onListingChange?.({ filters: sanitized, sort });
+    },
+    [onListingChange, ratingFilterSupported, sort, stockFilterSupported],
+  );
 
   const clearFilters = useCallback(() => {
-    setFilters(createDefaultFilters());
-  }, []);
+    const next = createDefaultFilters();
+    setFilters(next);
+    onListingChange?.({ filters: next, sort });
+  }, [onListingChange, sort]);
 
-  const selectSort = useCallback((next: ProductSortId) => {
-    setSort(next);
-    setSortOpen(false);
-  }, []);
+  const selectSort = useCallback(
+    (next: ProductSortId) => {
+      setSort(next);
+      setSortOpen(false);
+      onListingChange?.({ filters, sort: next });
+    },
+    [filters, onListingChange],
+  );
 
   /** Preview count for the filter sheet Apply button (draft filters). */
   const previewCount = useCallback(

@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
-import { LayoutChangeEvent, PanResponder, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { LayoutChangeEvent, PanResponder, StyleSheet, View, type PanResponderInstance } from 'react-native';
 
 import { colors } from '@/constants/theme';
 
@@ -13,6 +13,9 @@ type PriceRangeDualSliderProps = {
 
 const THUMB = 22;
 
+/** Per-instance gesture bags kept off React state so pan handlers stay stable under the Compiler. */
+const handlerBags = new Map<symbol, HandlerBag>();
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -21,6 +24,63 @@ function snap(value: number, min: number, max: number) {
   const span = Math.max(1, max - min);
   const step = span > 500 ? 10 : span > 100 ? 5 : 1;
   return Math.round(value / step) * step;
+}
+
+type ValuesBag = {
+  boundMin: number;
+  boundMax: number;
+  low: number;
+  high: number;
+  onChange: (low: number, high: number) => void;
+};
+
+type DragBag = {
+  thumb: 'low' | 'high';
+  startLow: number;
+  startHigh: number;
+};
+
+type HandlerBag = {
+  values: ValuesBag;
+  width: number;
+  drag: DragBag;
+};
+
+function createResponders(bag: HandlerBag): { low: PanResponderInstance; high: PanResponderInstance } {
+  const make = (thumb: 'low' | 'high') =>
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        bag.drag = {
+          thumb,
+          startLow: bag.values.low,
+          startHigh: bag.values.high,
+        };
+      },
+      onPanResponderMove: (_evt, gesture) => {
+        const { boundMin: min, boundMax: max, onChange: emit } = bag.values;
+        const track = Math.max(1, bag.width - THUMB);
+        const localSpan = Math.max(1, max - min);
+        const deltaValue = (gesture.dx / track) * localSpan;
+        if (bag.drag.thumb === 'low') {
+          const nextLow = clamp(
+            snap(bag.drag.startLow + deltaValue, min, max),
+            min,
+            bag.drag.startHigh - 1,
+          );
+          emit(nextLow, bag.drag.startHigh);
+        } else {
+          const nextHigh = clamp(
+            snap(bag.drag.startHigh + deltaValue, min, max),
+            bag.drag.startLow + 1,
+            max,
+          );
+          emit(bag.drag.startLow, nextHigh);
+        }
+      },
+    });
+  return { low: make('low'), high: make('high') };
 }
 
 /**
@@ -34,79 +94,62 @@ export function PriceRangeDualSlider({
   high,
   onChange,
 }: PriceRangeDualSliderProps) {
-  const widthRef = useRef(1);
   const [width, setWidth] = useState(1);
-  const valuesRef = useRef({ boundMin, boundMax, low, high, onChange });
-  valuesRef.current = { boundMin, boundMax, low, high, onChange };
+  const [runtime] = useState(() => {
+    const id = Symbol('price-range-slider');
+    const bag: HandlerBag = {
+      values: { boundMin, boundMax, low, high, onChange },
+      width: 1,
+      drag: { thumb: 'low', startLow: low, startHigh: high },
+    };
+    handlerBags.set(id, bag);
+    return { id, responders: createResponders(bag) };
+  });
+
+  useEffect(() => {
+    const bag = handlerBags.get(runtime.id);
+    if (!bag) {
+      return;
+    }
+    bag.values = { boundMin, boundMax, low, high, onChange };
+  }, [runtime.id, boundMin, boundMax, low, high, onChange]);
+
+  useEffect(() => {
+    const id = runtime.id;
+    return () => {
+      handlerBags.delete(id);
+    };
+  }, [runtime.id]);
 
   const span = Math.max(1, boundMax - boundMin);
   const lowRatio = clamp((low - boundMin) / span, 0, 1);
   const highRatio = clamp((high - boundMin) / span, 0, 1);
 
-  const dragRef = useRef({
-    thumb: 'low' as 'low' | 'high',
-    startLow: low,
-    startHigh: high,
-  });
-
-  const responders = useMemo(() => {
-    const make = (thumb: 'low' | 'high') =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: () => {
-          dragRef.current = {
-            thumb,
-            startLow: valuesRef.current.low,
-            startHigh: valuesRef.current.high,
-          };
-        },
-        onPanResponderMove: (_evt, gesture) => {
-          const { boundMin: min, boundMax: max, onChange: emit } = valuesRef.current;
-          const track = Math.max(1, widthRef.current - THUMB);
-          const localSpan = Math.max(1, max - min);
-          const deltaValue = (gesture.dx / track) * localSpan;
-          if (dragRef.current.thumb === 'low') {
-            const nextLow = clamp(
-              snap(dragRef.current.startLow + deltaValue, min, max),
-              min,
-              dragRef.current.startHigh - 1,
-            );
-            emit(nextLow, dragRef.current.startHigh);
-          } else {
-            const nextHigh = clamp(
-              snap(dragRef.current.startHigh + deltaValue, min, max),
-              dragRef.current.startLow + 1,
-              max,
-            );
-            emit(dragRef.current.startLow, nextHigh);
-          }
-        },
-      });
-    return { low: make('low'), high: make('high') };
-  }, []);
-
   function onLayout(event: LayoutChangeEvent) {
     const next = event.nativeEvent.layout.width;
-    widthRef.current = next;
+    const bag = handlerBags.get(runtime.id);
+    if (bag) {
+      bag.width = next;
+    }
     setWidth(next);
   }
 
   const trackInner = Math.max(0, width - THUMB);
   const lowLeft = lowRatio * trackInner;
   const highLeft = highRatio * trackInner;
+  const { responders } = runtime;
 
   return (
     <View
-      style={styles.wrap}
+      style={styles.track}
       onLayout={onLayout}
-      testID="price-range-slider"
       accessibilityRole="adjustable"
-      accessibilityLabel={`Price range ${low} to ${high}`}>
-      <View style={styles.track} />
+      accessibilityLabel="Price range"
+      accessibilityValue={{ min: boundMin, max: boundMax, now: low, text: `${low} to ${high}` }}>
+      <View style={styles.rail} />
       <View
         style={[
-          styles.fill,
+          styles.active,
           {
             left: lowLeft + THUMB / 2,
             width: Math.max(0, highLeft - lowLeft),
@@ -128,21 +171,20 @@ export function PriceRangeDualSlider({
 }
 
 const styles = StyleSheet.create({
-  wrap: {
-    height: 36,
-    justifyContent: 'center',
-    marginTop: 4,
-  },
   track: {
+    height: THUMB,
+    justifyContent: 'center',
+  },
+  rail: {
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: colors.border,
   },
-  fill: {
+  active: {
     position: 'absolute',
     height: 4,
     borderRadius: 2,
-    backgroundColor: colors.primaryDark,
+    backgroundColor: colors.primary,
   },
   thumb: {
     position: 'absolute',
@@ -151,12 +193,7 @@ const styles = StyleSheet.create({
     borderRadius: THUMB / 2,
     backgroundColor: colors.white,
     borderWidth: 2,
-    borderColor: colors.primaryDark,
-    top: (36 - THUMB) / 2,
-    elevation: 2,
-    shadowColor: '#111827',
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
-    shadowOffset: { width: 0, height: 1 },
+    borderColor: colors.primaryInk,
+    top: 0,
   },
 });

@@ -1,3 +1,4 @@
+import { router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useMemo, useState } from "react";
 import {
@@ -8,6 +9,7 @@ import {
     View,
 } from "react-native";
 
+import { BrandCarousel } from "@/components/home/BrandCarousel";
 import { DeliveryHeader } from "@/components/home/DeliveryHeader";
 import { HomePromoCarousel } from "@/components/home/HomePromoCarousel";
 import { PopularPicks } from "@/components/home/PopularPicks";
@@ -19,13 +21,16 @@ import { UI_PREVIEW_MODE } from "@/constants/preview";
 import { colors, homeLayout } from "@/constants/theme";
 import { useCatalog } from "@/context/CatalogContext";
 import { HomeCatalogBrowseProvider } from "@/context/HomeCatalogBrowseContext";
+import { useRecentlyViewed } from "@/context/RecentlyViewedContext";
 import {
     recommendedProducts,
     spotlightProducts,
     topSelling,
 } from "@/data/homeFeed";
+import { resolveRecentlyViewedProducts } from "@/data/resolveRecentlyViewedProducts";
 import { mockProducts } from "@/data/mockProducts";
 import { contentColumnWidth } from "@/utils/contentWidth";
+import { deriveCatalogueBrands } from "@/utils/brandIdentity";
 import { buildHomeCatalogueSections } from "@/utils/homeCatalogueSections";
 
 export default function HomeScreen() {
@@ -47,7 +52,9 @@ function HomeScreenBody() {
     products,
     message,
     refresh,
+    findProduct,
   } = useCatalog();
+  const { ids: recentlyViewedIds } = useRecentlyViewed();
   const [retrying, setRetrying] = useState(false);
 
   async function handleRetry() {
@@ -66,6 +73,14 @@ function HomeScreenBody() {
   const liveSections = useMemo(
     () => buildHomeCatalogueSections(products),
     [products],
+  );
+  const catalogueBrands = useMemo(
+    () => (liveEnabled ? deriveCatalogueBrands(products) : []),
+    [liveEnabled, products],
+  );
+  const recentlyViewed = useMemo(
+    () => resolveRecentlyViewedProducts(recentlyViewedIds, findProduct, 8),
+    [findProduct, recentlyViewedIds],
   );
 
   // Distinct product rails only — category browse lives in the header.
@@ -125,7 +140,8 @@ function HomeScreenBody() {
     );
   }
 
-  if (liveEnabled && products.length === 0) {
+  // Only treat a successful empty response as "no products" — never mask a network error.
+  if (liveEnabled && state.status === "ready" && products.length === 0) {
     return (
       <View style={styles.screen}>
         <StatusBar style="dark" />
@@ -171,6 +187,16 @@ function HomeScreenBody() {
             />
           ) : null}
           {showDemoChrome ? <HomePromoCarousel /> : null}
+          {catalogueBrands.length > 0 ? <BrandCarousel brands={catalogueBrands} /> : null}
+          {recentlyViewed.length > 0 ? (
+            <ProductSection
+              title="Recently viewed"
+              subtitle="From products you opened on this device"
+              products={recentlyViewed}
+              columns={2}
+              onViewAll={() => router.push('/recently-viewed')}
+            />
+          ) : null}
           {productRails.recommended.length > 0 ? (
             <ProductSection
               title="Recommended for you"

@@ -15,16 +15,23 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DrawerHeader } from "@/components/navigation/drawer/DrawerHeader";
 import { DrawerItem } from "@/components/navigation/drawer/DrawerItem";
 import { colors } from "@/constants/theme";
+import { useAuthFlow } from "@/context/AuthFlowContext";
 import { useAuthSession } from "@/context/AuthSessionContext";
 import { useCustomerAccount } from "@/context/CustomerAccountContext";
+import { useCustomerProfile } from "@/context/CustomerProfileContext";
+import { useDeliveryLocation } from "@/context/DeliveryLocationContext";
+import { useProfileDraft } from "@/context/ProfileDraftContext";
 import { useRememberedCustomer } from "@/context/RememberedCustomerContext";
+import { useSavedAddresses } from "@/context/SavedAddressesContext";
 import {
     isSideMenuItemActive,
     sideMenuItems,
     type SideMenuItem,
 } from "@/navigation/sideMenuItems";
-import { isDevOtpEnabled } from "@/services/devOtp";
+import { clearDevTestSession, isDevOtpEnabled } from "@/services/devOtp";
 import { activeLoginForDisplay, displayCustomer } from "@/services/rememberedCustomer";
+import { clearPreviewAccountState } from "@/utils/clearPreviewAccountState";
+import { clearSignedInSession } from "@/utils/customerSession";
 import {
     registeredDisplayName,
     registeredDisplayPhone,
@@ -40,8 +47,13 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
   const { width } = useWindowDimensions();
   const pathname = usePathname();
   const { session, devSession, clearAuthSession } = useAuthSession();
-  const { account } = useCustomerAccount();
-  const { customer: remembered } = useRememberedCustomer();
+  const { account, clearAccount } = useCustomerAccount();
+  const { clearRememberedCustomer, customer: remembered } = useRememberedCustomer();
+  const { setNationalNumber } = useAuthFlow();
+  const { clearDraft } = useProfileDraft();
+  const { clearDelivery } = useDeliveryLocation();
+  const { clearActiveBook } = useSavedAddresses();
+  const { clearActiveProfile } = useCustomerProfile();
   const panelWidth = Math.min(300, Math.max(240, Math.round(width * 0.78)));
   const [translateX] = useState(() => new Animated.Value(-panelWidth));
   const [backdrop] = useState(() => new Animated.Value(0));
@@ -100,7 +112,20 @@ export function SideMenu({ visible, onClose }: SideMenuProps) {
   function openItem(item: SideMenuItem) {
     if (item.action === 'logout') {
       onClose();
-      clearAuthSession();
+      clearSignedInSession({
+        clearAuthSession,
+        clearAccount,
+        clearRememberedCustomer,
+        setNationalNumber,
+        clearDraft,
+        clearDelivery,
+        clearDevTestSession,
+        clearSavedAddresses: clearActiveBook,
+        clearCustomerProfile: clearActiveProfile,
+        clearPreviewAccountState: () => {
+          void clearPreviewAccountState();
+        },
+      });
       router.replace('/login');
       return;
     }

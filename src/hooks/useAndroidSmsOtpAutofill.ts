@@ -39,9 +39,12 @@ export function useAndroidSmsOtpAutofill({
   length = OTP_LENGTH,
 }: UseAndroidSmsOtpAutofillArgs): UseAndroidSmsOtpAutofillResult {
   const onCodeRef = useRef(onCode);
-  onCodeRef.current = onCode;
   const lastFilledRef = useRef<string | null>(null);
   const supported = Platform.OS === 'android' && isAndroidSmsOtpSupported();
+
+  useEffect(() => {
+    onCodeRef.current = onCode;
+  }, [onCode]);
 
   useEffect(() => {
     if (!enabled || !supported || isDevOtpEnabled()) {

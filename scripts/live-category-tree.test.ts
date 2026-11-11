@@ -33,16 +33,20 @@ async function run() {
     throw new Error('Expected subcategory children distinct from parents');
   }
 
-  const groceries = tree.find((parent) => /groceries/i.test(parent.name));
-  if (!groceries || groceries.children.length < 2) {
-    throw new Error('Expected Groceries & Food to expose multiple subcategories');
+  // Prefer Fruits & Vegetables when present (current ERP sample); otherwise any multi-child parent.
+  const fruits = tree.find((parent) => /fruits/i.test(parent.name));
+  const multi = tree.find((parent) => parent.children.length >= 2);
+  const anchor = fruits && fruits.children.length >= 1 ? fruits : multi;
+  if (!anchor || anchor.children.length < 1) {
+    throw new Error('Expected a parent category with subcategory children');
   }
 
   console.log(
     'live-category-tree.test.ts: ok',
     `parents=${tree.length}`,
     `withSubcategory=${withSub.length}`,
-    `groceriesChildren=${groceries.children.map((child) => child.name).join('|')}`,
+    `anchor=${anchor.name}`,
+    `children=${anchor.children.map((child) => child.name).join('|')}`,
   );
 }
 

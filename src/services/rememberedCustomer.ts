@@ -122,6 +122,7 @@ export function profileFromVerifiedOtp(result: CustomerApiResult, requestedMobil
  * A remembered profile is used only when the device login is for the same mobile.
  * Mobile is always returned when the active login has a valid number — even if Name
  * was missing from verify-otp (backend often omits CustomerId/Name).
+ * Never borrow another mobile’s remembered/account fields onto the active login.
  */
 export function displayCustomer(
   login: { mobile: string; name?: string; customerId?: string } | null,
@@ -132,13 +133,17 @@ export function displayCustomer(
   if (!sessionMobile) {
     return null;
   }
-  if (account && nationalMobile(account.mobile) === sessionMobile && account.name.trim().length > 0) {
+
+  const accountMatches = Boolean(account && nationalMobile(account.mobile) === sessionMobile);
+  const rememberedMatches = Boolean(remembered && remembered.mobile === sessionMobile);
+
+  if (accountMatches && account && account.name.trim().length > 0) {
     return {
       ...account,
       mobile: sessionMobile,
     };
   }
-  if (remembered && remembered.mobile === sessionMobile && remembered.name.trim().length > 0) {
+  if (rememberedMatches && remembered && remembered.name.trim().length > 0) {
     return {
       customerId: remembered.customerId,
       name: remembered.name,
@@ -146,12 +151,13 @@ export function displayCustomer(
       companyMobile: null,
     };
   }
+
   const loginName = login?.name?.trim() ?? '';
   return {
-    customerId: login?.customerId?.trim() || account?.customerId?.trim() || remembered?.customerId || '',
-    name: loginName || account?.name?.trim() || '',
+    customerId: login?.customerId?.trim() || (accountMatches ? account?.customerId?.trim() || '' : '') || '',
+    name: loginName || (accountMatches ? account?.name?.trim() || '' : ''),
     mobile: sessionMobile,
-    companyMobile: account?.companyMobile ?? null,
+    companyMobile: accountMatches ? (account?.companyMobile ?? null) : null,
   };
 }
 

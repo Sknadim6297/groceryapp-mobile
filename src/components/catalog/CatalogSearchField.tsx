@@ -6,6 +6,8 @@ import { colors, fonts } from '@/constants/theme';
 type CatalogSearchFieldProps = {
   value: string;
   onChange: (next: string) => void;
+  /** Commit the current query (e.g. sync into route params for back/forward). */
+  onSubmit?: (next: string) => void;
   placeholder?: string;
   accessibilityLabel?: string;
   testID?: string;
@@ -15,6 +17,7 @@ type CatalogSearchFieldProps = {
 export function CatalogSearchField({
   value,
   onChange,
+  onSubmit,
   placeholder = 'Search',
   accessibilityLabel = 'Search',
   testID = 'catalog-search',
@@ -26,6 +29,7 @@ export function CatalogSearchField({
       <TextInput
         value={value}
         onChangeText={onChange}
+        onSubmitEditing={() => onSubmit?.(value.trim())}
         placeholder={placeholder}
         placeholderTextColor={colors.textSecondary}
         accessibilityLabel={accessibilityLabel}
@@ -42,7 +46,10 @@ export function CatalogSearchField({
           accessibilityRole="button"
           accessibilityLabel="Clear search"
           hitSlop={8}
-          onPress={() => onChange('')}
+          onPress={() => {
+            onChange('');
+            onSubmit?.('');
+          }}
           style={({ pressed }) => [styles.clear, pressed && styles.pressed]}
           testID={`${testID}-clear`}>
           <AppIcon name="close" color={colors.textSecondary} size={16} />

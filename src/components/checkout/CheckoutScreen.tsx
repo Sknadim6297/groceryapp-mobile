@@ -163,7 +163,14 @@ export function CheckoutScreen() {
   }
 
   if (!UI_PREVIEW_MODE) {
-    return <PlaceholderScreen title="Checkout" message="Checkout is not connected yet." withHeader />;
+    return (
+      <PlaceholderScreen
+        title="Checkout"
+        message="Live checkout is not connected yet. Your cart remains saved on this device."
+        detail="No order is placed and no payment is taken until checkout is connected to the store backend. You can keep shopping or update your delivery address from Cart."
+        withHeader
+      />
+    );
   }
 
   return (

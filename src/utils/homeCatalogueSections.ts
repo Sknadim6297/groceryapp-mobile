@@ -10,7 +10,8 @@ export type HomeCatalogueSections = {
 
 /**
  * Splits one live catalogue into Home rails without inventing products or history.
- * Recently viewed / bought-again stay empty until those APIs exist.
+ * Recently viewed is device-local (RecentlyViewedContext) — not derived here.
+ * Buy Again needs a past-order API and must not invent purchases from this split.
  */
 export function buildHomeCatalogueSections(products: readonly DemoProduct[]): HomeCatalogueSections {
   const list = [...products];

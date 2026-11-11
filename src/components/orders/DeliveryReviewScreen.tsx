@@ -87,7 +87,7 @@ export function DeliveryReviewScreen() {
     );
   }, []);
 
-  const submit = useCallback(async () => {
+  async function submit() {
     if (submitting || alreadySubmitted) {
       return;
     }
@@ -119,7 +119,7 @@ export function DeliveryReviewScreen() {
       setError('Could not save your review. Please try again.');
       setSubmitting(false);
     }
-  }, [alreadySubmitted, body, orderId, rating, showToast, submitting, tags]);
+  }
 
   if (!UI_PREVIEW_MODE && !order) {
     return (

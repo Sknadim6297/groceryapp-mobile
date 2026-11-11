@@ -435,9 +435,15 @@ async function main() {
   if (!profileSaved || profileRestored?.name !== 'Asha' || profileRestored.customerId !== '2017' || canEnterHome(null)) {
     throw new Error('a restart may restore the remembered customer without opening Home');
   }
+  if (displayCustomer(null, null, profileRestored)) {
+    throw new Error('a remembered customer must not be shown without a matching server session');
+  }
+  // Active login for a different mobile must not inherit the remembered name/id.
+  const mismatchedLogin = displayCustomer({ mobile: '9000000002' }, null, profileRestored);
   if (
-    displayCustomer(null, null, profileRestored) ||
-    displayCustomer({ mobile: '9000000002' }, null, profileRestored)
+    mismatchedLogin?.name === 'Asha' ||
+    mismatchedLogin?.customerId === '2017' ||
+    mismatchedLogin?.mobile === '9000000001'
   ) {
     throw new Error('a remembered customer must not be shown without a matching server session');
   }

@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -35,14 +35,26 @@ import {
 } from '@/data/shoppingCollections';
 import { useProductListingControls } from '@/hooks/useProductListingControls';
 import type { ShoppingCollectionId } from '@/types/shoppingCollection';
+import type { ProductFiltersState, ProductSortId } from '@/types/productFilters';
 import { buildCategoryOptions, type ListedProduct } from '@/utils/productFilters';
 import { contentColumnWidth } from '@/utils/contentWidth';
+import { encodeShopFilters, encodeShopSort } from '@/utils/shopListingParams';
 
 type CategoryShoppingScreenProps = {
   collectionId: ShoppingCollectionId;
+  seedQuery?: string;
+  seedSort?: ProductSortId;
+  seedFilters?: ProductFiltersState;
+  seedKey?: string;
 };
 
-export function CategoryShoppingScreen({ collectionId }: CategoryShoppingScreenProps) {
+export function CategoryShoppingScreen({
+  collectionId,
+  seedQuery = '',
+  seedSort,
+  seedFilters,
+  seedKey,
+}: CategoryShoppingScreenProps) {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const contentWidth = contentColumnWidth(width);
@@ -62,29 +74,37 @@ export function CategoryShoppingScreen({ collectionId }: CategoryShoppingScreenP
       setRetrying(false);
     }
   }
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(seedQuery);
   const [chipId, setChipId] = useState('all');
   const listRef = useRef<{ scrollToOffset: (options: { offset: number; animated?: boolean }) => void } | null>(
     null,
   );
 
   const shelves = useMemo(() => listShelves(), [listShelves]);
+  const shelfNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const shelf of shelves) {
+      map.set(shelf.id, shelf.name);
+    }
+    return map;
+  }, [shelves]);
   const baseProducts = useMemo(
     () => listCollectionProducts(collectionId, products, shelves),
     [collectionId, products, shelves],
   );
   const chips = useMemo(() => listCollectionChips(collectionId, baseProducts), [baseProducts, collectionId]);
 
-  useEffect(() => {
+  const [chipForCollection, setChipForCollection] = useState(collectionId);
+  if (collectionId !== chipForCollection) {
+    setChipForCollection(collectionId);
     setChipId('all');
-    setQuery('');
-  }, [collectionId]);
+    setQuery(seedQuery);
+  }
 
-  useEffect(() => {
-    if (!chips.some((chip) => chip.id === chipId)) {
-      setChipId('all');
-    }
-  }, [chipId, chips]);
+  const chipExists = chips.some((chip) => chip.id === chipId);
+  if (!chipExists && chipId !== 'all') {
+    setChipId('all');
+  }
 
   const chipProducts = useMemo(() => filterCollectionByChip(baseProducts, chipId), [baseProducts, chipId]);
   const pool = useMemo<ListedProduct[]>(
@@ -95,12 +115,32 @@ export function CategoryShoppingScreen({ collectionId }: CategoryShoppingScreenP
       })),
     [chipProducts],
   );
-  const categoryOptions = useMemo(() => buildCategoryOptionsFromPool(pool), [pool]);
+  const categoryOptions = useMemo(
+    () => buildCategoryOptionsFromPool(pool, shelfNameById),
+    [pool, shelfNameById],
+  );
+
+  const syncListingParams = useCallback((next: { filters: ProductFiltersState; sort: ProductSortId }) => {
+    router.setParams({
+      filters: encodeShopFilters(next.filters),
+      sort: encodeShopSort(next.sort),
+    });
+  }, []);
+
+  const commitQuery = useCallback((next: string) => {
+    setQuery(next);
+    const trimmed = next.trim();
+    router.setParams({ q: trimmed.length > 0 ? trimmed : undefined });
+  }, []);
 
   const listing = useProductListingControls({
     pool,
     query,
     scopeKey: `${collectionId}:${chipId}`,
+    seedFilters,
+    seedSort,
+    seedKey,
+    onListingChange: syncListingParams,
   });
 
   const gap = 10;
@@ -214,7 +254,7 @@ export function CategoryShoppingScreen({ collectionId }: CategoryShoppingScreenP
 
               <CatalogSearchField
                 value={query}
-                onChange={setQuery}
+                onChange={commitQuery}
                 placeholder={`Search in ${definition.title}`}
                 accessibilityLabel={`Search in ${definition.title}`}
                 testID="collection-search"
@@ -246,7 +286,7 @@ export function CategoryShoppingScreen({ collectionId }: CategoryShoppingScreenP
               hasFilters={listing.hasActiveFilters}
               title={definition.emptyTitle}
               body={definition.emptyBody}
-              onClearSearch={() => setQuery('')}
+              onClearSearch={() => commitQuery('')}
               onClearFilters={listing.clearFilters}
             />
           }
@@ -366,7 +406,10 @@ function CollectionEmptyState({
   );
 }
 
-function buildCategoryOptionsFromPool(pool: readonly ListedProduct[]) {
+function buildCategoryOptionsFromPool(
+  pool: readonly ListedProduct[],
+  shelfNameById: ReadonlyMap<string, string>,
+) {
   const byShelf = new Map<string, ListedProduct[]>();
   for (const product of pool) {
     if (!product.shelfId) {
@@ -379,7 +422,7 @@ function buildCategoryOptionsFromPool(pool: readonly ListedProduct[]) {
   return buildCategoryOptions(
     [...byShelf.entries()].map(([id, products]) => ({
       id,
-      name: id,
+      name: shelfNameById.get(id) ?? products[0]?.category ?? id,
       products,
     })),
   );

@@ -108,17 +108,20 @@ export function HomePromoCarousel({ banners }: HomePromoCarouselProps) {
     return clearTimer;
   }, [clearTimer, startTimer]);
 
-  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<ListViewToken> }) => {
+  const onViewableItemsChanged = useCallback(({ viewableItems }: { viewableItems: ListViewToken[] }) => {
     const first = viewableItems.find((item) => item.isViewable && typeof item.index === 'number');
     if (typeof first?.index === 'number') {
       indexRef.current = first.index;
       setActiveIndex(first.index);
     }
-  }).current;
+  }, []);
 
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 60,
-  }).current;
+  const viewabilityConfig = useMemo(
+    () => ({
+      itemVisiblePercentThreshold: 60,
+    }),
+    [],
+  );
 
   function syncIndexFromOffset(offset: number) {
     const nearest = Math.round(offset / snapInterval);

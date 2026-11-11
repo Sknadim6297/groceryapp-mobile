@@ -1,178 +1,165 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { memo, useCallback } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View, type ListRenderItem } from 'react-native';
 
-import { AppIcon } from '@/components/ui/AppIcon';
-import { colors, fonts } from '@/constants/theme';
-import { mockBrands } from '@/data/mockBrands';
+import { colors, fonts, homeLayout } from '@/constants/theme';
 import type { DemoBrand } from '@/types/catalog';
+import { brandInitials } from '@/utils/brandIdentity';
 
 type BrandCarouselProps = {
-  /** Live brands derived from product Brand fields. */
-  brands?: DemoBrand[];
+  /** Live brands derived from product Brand fields only. */
+  brands: readonly DemoBrand[];
 };
 
-function hasRemoteMark(brand: DemoBrand): boolean {
+function hasVerifiedBrandArtwork(brand: DemoBrand): boolean {
   return (
     typeof brand.image === 'object' &&
     brand.image != null &&
     'uri' in brand.image &&
     typeof brand.image.uri === 'string' &&
-    /^https?:\/\//i.test(brand.image.uri)
+    /^https?:\/\//i.test(brand.image.uri.trim())
   );
 }
 
-export function BrandCarousel({ brands: liveBrands }: BrandCarouselProps) {
-  const brands = liveBrands ?? mockBrands;
-  const live = liveBrands != null;
+function openBrand(brand: DemoBrand) {
+  router.push({
+    pathname: '/shop',
+    params: {
+      brand: brand.name,
+      category: undefined,
+      parent: undefined,
+      sub: undefined,
+    },
+  });
+}
+
+/**
+ * Home "Shop by Brand" — unique catalogue brands only.
+ * Never uses product photos as logos; initials when no verified brand artwork.
+ */
+export function BrandCarousel({ brands }: BrandCarouselProps) {
+  const renderItem = useCallback<ListRenderItem<DemoBrand>>(
+    ({ item }) => <BrandTile brand={item} />,
+    [],
+  );
 
   if (brands.length === 0) {
     return null;
   }
 
   return (
-    <View style={styles.section}>
-      <View style={styles.headingRow}>
-        <View style={styles.headingCopy}>
-          <Text accessibilityRole="header" style={styles.heading}>
-            Shop by Brands
-          </Text>
-          {live ? <Text style={styles.subtitle}>From this store’s catalogue</Text> : null}
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="View all brands"
-          hitSlop={8}
-          onPress={() => router.push('/shop')}
-          style={({ pressed }) => [styles.viewAll, pressed && styles.pressed]}>
-          <Text style={styles.viewAllLabel}>View all</Text>
-          <AppIcon name="chevron" color={colors.textSecondary} size={14} />
-        </Pressable>
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-        {brands.map((brand) => (
-          <Pressable
-            key={brand.id}
-            accessibilityRole="button"
-            accessibilityLabel={
-              live ? `${brand.name}. Live brand from catalogue.` : `${brand.name}. Demo brand, not a live supplier.`
-            }
-            onPress={() =>
-              router.push({
-                pathname: '/shop',
-                params: live ? { brand: brand.name } : { brand: brand.id },
-              })
-            }
-            style={({ pressed }) => [styles.brand, pressed && styles.pressed]}>
-            {hasRemoteMark(brand) ? (
-              <Image source={brand.image} style={styles.mark} contentFit="cover" accessible={false} />
-            ) : live ? (
-              <View style={styles.markFallback}>
-                <Text style={styles.markLetter}>{brand.name.trim().charAt(0).toUpperCase()}</Text>
-              </View>
-            ) : (
-              <Image source={brand.image} style={styles.mark} contentFit="cover" accessible={false} />
-            )}
-            <Text numberOfLines={1} style={styles.name}>
-              {brand.name}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+    <View style={styles.section} testID="shop-by-brand">
+      <Text accessibilityRole="header" style={styles.heading}>
+        Shop by Brand
+      </Text>
+      <FlatList
+        horizontal
+        data={brands as DemoBrand[]}
+        keyExtractor={brandKeyExtractor}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.row}
+        renderItem={renderItem}
+        initialNumToRender={8}
+        maxToRenderPerBatch={6}
+        windowSize={5}
+        removeClippedSubviews={false}
+      />
     </View>
   );
 }
 
+function brandKeyExtractor(item: DemoBrand): string {
+  return item.id;
+}
+
+const BrandTile = memo(function BrandTile({ brand }: { brand: DemoBrand }) {
+  const artwork = hasVerifiedBrandArtwork(brand);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${brand.name}. Shop products from this brand.`}
+      onPress={() => openBrand(brand)}
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
+      testID={`brand-card-${brand.id}`}>
+      <View style={styles.markFrame}>
+        {artwork ? (
+          <Image source={brand.image} style={styles.mark} contentFit="contain" accessible={false} />
+        ) : (
+          <View style={styles.markFallback} accessibilityElementsHidden>
+            <Text style={styles.markLetter}>{brandInitials(brand.name)}</Text>
+          </View>
+        )}
+      </View>
+      <Text numberOfLines={2} style={styles.name}>
+        {brand.name}
+      </Text>
+    </Pressable>
+  );
+});
+
 const styles = StyleSheet.create({
   section: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    backgroundColor: colors.white,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingTop: 14,
-    paddingBottom: 12,
-    shadowColor: '#000000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
-  },
-  headingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    marginBottom: 12,
-    gap: 8,
-  },
-  headingCopy: {
-    flex: 1,
-    minWidth: 0,
+    marginHorizontal: homeLayout.gutter,
+    marginTop: 14,
+    marginBottom: 4,
   },
   heading: {
     fontFamily: fonts.bold,
     fontSize: 18,
     lineHeight: 22,
     color: colors.text,
-  },
-  subtitle: {
-    marginTop: 2,
-    fontFamily: fonts.regular,
-    fontSize: 12,
-    lineHeight: 16,
-    color: colors.textSecondary,
-  },
-  viewAll: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 28,
-  },
-  viewAllLabel: {
-    fontFamily: fonts.medium,
-    fontSize: 13,
-    lineHeight: 18,
-    color: colors.textSecondary,
-  },
-  pressed: {
-    opacity: 0.75,
+    marginBottom: 12,
+    paddingHorizontal: 2,
   },
   row: {
-    paddingHorizontal: 8,
-    gap: 2,
+    gap: 12,
+    paddingRight: 8,
+    paddingBottom: 4,
   },
-  brand: {
-    width: 72,
+  card: {
+    width: 88,
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
-  mark: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  pressed: {
+    opacity: 0.78,
+  },
+  markFrame: {
+    width: 76,
+    height: 76,
+    borderRadius: 16,
+    backgroundColor: colors.white,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     overflow: 'hidden',
-    backgroundColor: colors.softBackground,
-  },
-  markFallback: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.softYellow,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  mark: {
+    width: '78%',
+    height: '78%',
+  },
+  markFallback: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.softYellow,
+  },
   markLetter: {
     fontFamily: fonts.bold,
-    fontSize: 18,
+    fontSize: 22,
+    lineHeight: 26,
     color: colors.primaryInk,
   },
   name: {
     width: '100%',
     fontFamily: fonts.medium,
-    fontSize: 10,
-    lineHeight: 13,
+    fontSize: 12,
+    lineHeight: 15,
     color: colors.text,
     textAlign: 'center',
+    minHeight: 30,
   },
 });

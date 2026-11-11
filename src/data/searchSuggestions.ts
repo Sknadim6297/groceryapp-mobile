@@ -1,7 +1,6 @@
 import type { ImageSource } from 'expo-image';
 
 import { listCatalogProducts } from '@/data/listCatalogProducts';
-import { mockBrands } from '@/data/mockBrands';
 import { productDetailCopy } from '@/data/productDetails';
 import { listShopShelves, type ShopShelf } from '@/data/shopCatalog';
 import type { DemoProduct } from '@/types/catalog';
@@ -43,8 +42,11 @@ export function searchSuggestions(raw: string, catalog?: SearchCatalog): SearchS
     const brand = product.brand?.trim() || productDetailCopy(product).brand;
     const category = productShelf.get(product.id) ?? null;
     const categoryName = category?.name ?? product.category ?? '';
-    const haystack = `${product.name} ${product.unit} ${brand} ${categoryName}`.toLowerCase();
-    if (!haystack.includes(needle)) {
+    const subcategoryName = product.subcategory?.trim() ?? '';
+    const haystack = `${product.name} ${product.unit} ${brand} ${categoryName} ${subcategoryName}`
+      .toLowerCase()
+      .replace(/\s+/g, ' ');
+    if (!haystack.includes(needle.replace(/\s+/g, ' '))) {
       continue;
     }
     products.push({
@@ -79,9 +81,13 @@ export function searchSuggestions(raw: string, catalog?: SearchCatalog): SearchS
   const brands: SearchSuggestion[] = [];
   const seenBrands = new Set<string>();
   for (const product of catalogue) {
-    const brand = product.brand?.trim() || productDetailCopy(product).brand;
-    const key = brand.toLowerCase();
-    if (!brand || key === 'fresh basket' || seenBrands.has(key) || !key.includes(needle)) {
+    // Catalogue Brand field only — never invent brands from demo copy.
+    const brand = product.brand?.trim();
+    if (!brand) {
+      continue;
+    }
+    const key = brand.toLowerCase().replace(/\s+/g, ' ');
+    if (seenBrands.has(key) || !key.includes(needle.replace(/\s+/g, ' '))) {
       continue;
     }
     seenBrands.add(key);
@@ -90,24 +96,8 @@ export function searchSuggestions(raw: string, catalog?: SearchCatalog): SearchS
       kind: 'brand',
       title: brand,
       subtitle: 'in Brands',
-      image: product.image,
+      image: { uri: '' },
     });
-  }
-  if (!catalog?.products) {
-    for (const brand of mockBrands) {
-      const key = brand.name.toLowerCase();
-      if (seenBrands.has(key) || !key.includes(needle)) {
-        continue;
-      }
-      seenBrands.add(key);
-      brands.push({
-        key: `brand:${brand.id}`,
-        kind: 'brand',
-        title: brand.name,
-        subtitle: 'in Brands',
-        image: brand.image,
-      });
-    }
   }
 
   return [...categories, ...brands, ...products].slice(0, LIMIT);

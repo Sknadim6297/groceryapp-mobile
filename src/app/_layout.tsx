@@ -12,6 +12,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
 import { BrandLogo } from '@/components/ui/BrandLogo';
+import { OfflineBanner } from '@/components/ui/OfflineBanner';
 import { colors, fonts } from '@/constants/theme';
 import { ToastProvider } from '@/components/ui/AppToast';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
@@ -29,6 +30,10 @@ import { PreviewSessionProvider } from '@/context/PreviewSessionContext';
 import { ProfileDraftProvider } from '@/context/ProfileDraftContext';
 import { SavedAddressesProvider } from '@/context/SavedAddressesContext';
 import { ProductReviewsProvider } from '@/context/ProductReviewsContext';
+import { RecentSearchesProvider } from '@/context/RecentSearchesContext';
+import { RecentlyViewedProvider } from '@/context/RecentlyViewedContext';
+import { SavedCartsProvider } from '@/context/SavedCartsContext';
+import { ShoppingListsProvider } from '@/context/ShoppingListsContext';
 import { WishlistProvider } from '@/context/WishlistContext';
 
 SplashScreen.preventAutoHideAsync();
@@ -93,8 +98,14 @@ export default function RootLayout() {
         <MockCartProvider>
         <CatalogProvider>
         <WishlistProvider>
+        <RecentlyViewedProvider>
+        <RecentSearchesProvider>
+        <ShoppingListsProvider>
+        <SavedCartsProvider>
         <ProductReviewsProvider>
         <PreviewSessionProvider>
+        <View style={bootStyles.appRoot}>
+        <OfflineBanner />
         <Stack
           screenOptions={{
             headerShown: false,
@@ -112,6 +123,10 @@ export default function RootLayout() {
         <Stack.Screen name="addresses" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="address-form" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="wishlist" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="shopping-lists/index" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="shopping-lists/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="saved-carts/index" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="recently-viewed" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="help" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="support/faq/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="support/chat" options={{ headerShown: false, animation: 'slide_from_right' }} />
@@ -144,8 +159,13 @@ export default function RootLayout() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="menu" options={{ headerShown: false, animation: 'slide_from_right' }} />
         </Stack>
+        </View>
         </PreviewSessionProvider>
         </ProductReviewsProvider>
+        </SavedCartsProvider>
+        </ShoppingListsProvider>
+        </RecentSearchesProvider>
+        </RecentlyViewedProvider>
         </WishlistProvider>
         </CatalogProvider>
         </MockCartProvider>
@@ -163,6 +183,9 @@ export default function RootLayout() {
 }
 
 const bootStyles = StyleSheet.create({
+  appRoot: {
+    flex: 1,
+  },
   screen: {
     flex: 1,
     alignItems: 'center',

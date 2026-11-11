@@ -1,5 +1,6 @@
 import type { DemoBrand, DemoProduct } from '@/types/catalog';
 import type { Category, LiveCategoryChild, LiveCategoryParent } from '@/types/category';
+import { brandIdFromName, deriveCatalogueBrands } from '@/utils/brandIdentity';
 
 const PLACEHOLDER = { uri: '' } as const;
 
@@ -17,7 +18,7 @@ export function liveShelfIdForSubcategory(category: string, subcategory: string)
 }
 
 export function liveBrandId(brand: string): string {
-  return `brand-${brand.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+  return brandIdFromName(brand);
 }
 
 function usableImage(source: DemoProduct['image'] | DemoProduct['categoryImage'] | undefined) {
@@ -171,22 +172,10 @@ export function findLiveCategoryParent(
 
 /**
  * Unique brands present on live products.
- * No brand logo API exists — mark image is a placeholder only.
+ * No brand logo API exists — UI uses initials (never product photos as logos).
  */
 export function deriveLiveBrands(products: readonly DemoProduct[]): DemoBrand[] {
-  const seen = new Map<string, DemoBrand>();
-  for (const product of products) {
-    const name = product.brand?.trim();
-    if (!name) {
-      continue;
-    }
-    const id = liveBrandId(name);
-    if (seen.has(id)) {
-      continue;
-    }
-    seen.set(id, { id, name, image: PLACEHOLDER });
-  }
-  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return deriveCatalogueBrands(products);
 }
 
 export type DailyEssentialTile = {

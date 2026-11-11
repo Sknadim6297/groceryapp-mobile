@@ -57,6 +57,11 @@ export async function saveCollectedCouponIds(ids: readonly string[]): Promise<bo
   return true;
 }
 
+/** Clears locally collected demo coupons (logout / account switch). */
+export async function clearCollectedCouponIds(): Promise<void> {
+  await store.remove();
+}
+
 export async function activateDeviceCouponCollectionStore(): Promise<void> {
   try {
     const SecureStore = await import('expo-secure-store');

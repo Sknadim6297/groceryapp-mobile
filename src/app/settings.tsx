@@ -36,6 +36,7 @@ import {
   saveAppSettings,
   type AppSettingsPrefs,
 } from '@/services/appSettingsStore';
+import { clearPreviewAccountState } from '@/utils/clearPreviewAccountState';
 import { clearSignedInSession } from '@/utils/customerSession';
 
 function appVersion(): string {
@@ -94,6 +95,9 @@ export default function SettingsScreen() {
       clearDevTestSession,
       clearSavedAddresses: clearActiveBook,
       clearCustomerProfile: clearActiveProfile,
+      clearPreviewAccountState: () => {
+        void clearPreviewAccountState();
+      },
     });
     setLogoutOpen(false);
     router.replace(profileRoutes.login);
@@ -109,14 +113,14 @@ export default function SettingsScreen() {
 
   return (
     <AccountScreenShell title="Settings" fallbackHref={profileRoutes.profile}>
-      <DemoBanner message="Notification toggles save on this device only — nothing syncs to a server yet." />
+      <DemoBanner message="Preferences save on this device only. They do not send push alerts or sync to a server." />
 
       <Text style={styles.sectionLabel}>Account</Text>
       <AccountSectionCard>
         <AccountActionRow
           icon="profile"
           title="Personal Information"
-          subtitle="Name, email, and photo"
+          subtitle="Name, email, and date of birth"
           onPress={() => router.push(profileRoutes.account)}
         />
         <View style={styles.divider} />
@@ -139,14 +143,14 @@ export default function SettingsScreen() {
       <AccountSectionCard>
         <PrefSwitch
           title="Order alerts"
-          subtitle="Delivery and order updates on this device"
+          subtitle="Preference only — no push delivery yet"
           value={prefs.orderAlerts}
           onChange={(orderAlerts) => void persist({ ...prefs, orderAlerts })}
         />
         <View style={styles.divider} />
         <PrefSwitch
           title="Offer notifications"
-          subtitle="Promos and tips — local preference only"
+          subtitle="Preference only — no offer pushes yet"
           value={prefs.offerAlerts}
           onChange={(offerAlerts) => void persist({ ...prefs, offerAlerts })}
         />

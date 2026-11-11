@@ -2,11 +2,24 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
+import { Platform } from 'react-native';
+
+import { useAuthSession } from '@/context/AuthSessionContext';
+import {
+  activateDeviceCartStore,
+  cartOwnerKey,
+  clearCartQuantities,
+  loadCartQuantities,
+  normalizeCartQuantities,
+  saveCartQuantities,
+} from '@/services/cartStore';
+import { isDevOtpEnabled } from '@/services/devOtp';
 
 export type CheckoutMode = 'CART_CHECKOUT' | 'BUY_NOW_CHECKOUT';
 
@@ -19,6 +32,8 @@ export type BuyNowSession = {
 };
 
 type MockCartContextValue = {
+  /** False until the owner-scoped cart has been restored from device storage. */
+  hydrated: boolean;
   /** Persistent basket (badge + Cart tab). */
   quantities: Record<string, number>;
   /** Active Buy Now session, if any. */
@@ -45,6 +60,8 @@ type MockCartContextValue = {
    */
   startBuyNow: (productId: string, quantity: number) => BuyNowSession | null;
   clearBuyNow: () => void;
+  /** Empties the persistent basket for the active owner (not Buy Now). */
+  clearCart: () => void;
   setLeaveAtDoor: (value: boolean) => void;
 };
 
@@ -58,11 +75,16 @@ function withQuantity(
   productId: string,
   quantity: number,
 ): Record<string, number> {
+  const id = productId.trim();
+  if (!id) {
+    return current;
+  }
   const next = { ...current };
-  if (quantity <= 0) {
-    delete next[productId];
+  const clamped = Math.min(99, Math.max(0, Math.floor(quantity)));
+  if (clamped <= 0) {
+    delete next[id];
   } else {
-    next[productId] = quantity;
+    next[id] = clamped;
   }
   return next;
 }
@@ -70,23 +92,82 @@ function withQuantity(
 let buyNowSessionSeq = 0;
 
 export function MockCartProvider({ children }: { children: ReactNode }) {
+  const { hydrated: authHydrated, session, devSession } = useAuthSession();
+  const [hydrated, setHydrated] = useState(false);
+  const [ownerKey, setOwnerKey] = useState<string | null>(null);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [buyNowSession, setBuyNowSession] = useState<BuyNowSession | null>(null);
   const [leaveAtDoor, setLeaveAtDoor] = useState(false);
   const buyNowTapLock = useRef(0);
+  const persistReady = useRef(false);
+  const ownerRef = useRef<string | null>(null);
+
+  const resolveOwner = useCallback(() => {
+    if (session) {
+      return cartOwnerKey({ kind: 'temporary-ui', mobile: session.mobile });
+    }
+    if (isDevOtpEnabled() && devSession) {
+      return cartOwnerKey({ kind: 'development-test', mobile: devSession.mobile });
+    }
+    return cartOwnerKey(null);
+  }, [devSession, session]);
+
+  useEffect(() => {
+    if (!authHydrated) {
+      return;
+    }
+    let cancelled = false;
+
+    void (async () => {
+      persistReady.current = false;
+      if (Platform.OS !== 'web') {
+        await activateDeviceCartStore();
+      }
+      const nextOwner = resolveOwner();
+      const restored = await loadCartQuantities(nextOwner);
+      if (cancelled) {
+        return;
+      }
+      // Switch owner + quantities together so we never persist one customer's cart under another key.
+      ownerRef.current = nextOwner;
+      setOwnerKey(nextOwner);
+      setQuantities(restored);
+      persistReady.current = true;
+      setHydrated(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authHydrated, resolveOwner]);
+
+  useEffect(() => {
+    if (!hydrated || !persistReady.current || !ownerKey) {
+      return;
+    }
+    void saveCartQuantities(ownerKey, quantities);
+  }, [hydrated, ownerKey, quantities]);
 
   const add = useCallback((productId: string) => {
-    setQuantities((current) => ({
-      ...current,
-      [productId]: (current[productId] ?? 0) + 1,
-    }));
+    const id = productId.trim();
+    if (!id) {
+      return;
+    }
+    setQuantities((current) => {
+      const nextQty = Math.min(99, (current[id] ?? 0) + 1);
+      return { ...current, [id]: nextQty };
+    });
   }, []);
 
   const addToCart = useCallback((productId: string, quantity: number = 1) => {
+    const id = productId.trim();
+    if (!id) {
+      return;
+    }
     const qty = Math.max(1, Math.min(99, Math.floor(quantity)));
     setQuantities((current) => ({
       ...current,
-      [productId]: (current[productId] ?? 0) + qty,
+      [id]: Math.min(99, (current[id] ?? 0) + qty),
     }));
   }, []);
 
@@ -110,6 +191,14 @@ export function MockCartProvider({ children }: { children: ReactNode }) {
   const clearBuyNow = useCallback(() => {
     syncBuyNowSession = null;
     setBuyNowSession(null);
+  }, []);
+
+  const clearCart = useCallback(() => {
+    setQuantities({});
+    const owner = ownerRef.current;
+    if (owner) {
+      void clearCartQuantities(owner);
+    }
   }, []);
 
   const startBuyNow = useCallback((productId: string, quantity: number): BuyNowSession | null => {
@@ -148,12 +237,13 @@ export function MockCartProvider({ children }: { children: ReactNode }) {
   }, [activeSession, quantities]);
 
   const totalCount = useMemo(
-    () => Object.values(quantities).reduce((sum, count) => sum + count, 0),
+    () => Object.values(normalizeCartQuantities(quantities)).reduce((sum, count) => sum + count, 0),
     [quantities],
   );
 
   const value = useMemo(
     () => ({
+      hydrated,
       quantities,
       buyNowSession: activeSession,
       checkoutMode,
@@ -167,6 +257,7 @@ export function MockCartProvider({ children }: { children: ReactNode }) {
       setBuyNowQuantity,
       startBuyNow,
       clearBuyNow,
+      clearCart,
       setLeaveAtDoor,
     }),
     [
@@ -176,6 +267,8 @@ export function MockCartProvider({ children }: { children: ReactNode }) {
       checkoutMode,
       checkoutQuantities,
       clearBuyNow,
+      clearCart,
+      hydrated,
       isBuyNow,
       leaveAtDoor,
       quantities,

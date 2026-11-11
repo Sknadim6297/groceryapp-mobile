@@ -241,8 +241,9 @@ export async function fetchSubcategories(
     if (!record) {
       continue;
     }
-    const parentName =
-      textField(record.Category, record.category) ?? trimmedCategory;
+    // Shelf ids must use the requested parent so Home/Category navigation stays
+    // aligned with the browse path. ERP rows sometimes return a mismatched
+    // Category string; Shop remaps onto product-derived shelves via subcategory slug.
     const name = textField(
       record.Subcategory,
       record.SubCategory,
@@ -253,7 +254,7 @@ export async function fetchSubcategories(
     if (!name) {
       continue;
     }
-    const id = liveShelfIdForSubcategory(parentName, name);
+    const id = liveShelfIdForSubcategory(trimmedCategory, name);
     if (seen.has(id)) {
       continue;
     }
@@ -261,7 +262,7 @@ export async function fetchSubcategories(
     subcategories.push({
       id,
       parentId,
-      parentName: titleCaseCategory(parentName),
+      parentName: titleCaseCategory(trimmedCategory),
       name: titleCaseCategory(name),
       image: normalizeBoundedCategoryImageSource(
         record.SubcategoryImage ??

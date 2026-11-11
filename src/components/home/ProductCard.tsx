@@ -3,15 +3,17 @@ import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { CatalogImage } from '@/components/home/CatalogImage';
-import { AnimatedPressable } from '@/components/ui/AnimatedPressable';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { DiscountOff } from '@/components/ui/DiscountOff';
-import { colors, fonts, radii, space } from '@/constants/theme';
+import { colors, fonts, space } from '@/constants/theme';
 import { useMockCart } from '@/context/MockCartContext';
+import { useWishlist } from '@/context/WishlistContext';
 import { isProductInStock } from '@/data/resolveWishlistProducts';
+import { isDiscountedProduct } from '@/utils/productFilters';
+import { computeUnitPrice } from '@/utils/unitPrice';
 import type { DemoProduct } from '@/types/catalog';
 import { formatRupee } from '@/utils/cartBill';
-import { hapticLight } from '@/utils/haptics';
+import { hapticLight, hapticSelection } from '@/utils/haptics';
 
 type ProductCardProps = {
   product: DemoProduct;
@@ -19,14 +21,30 @@ type ProductCardProps = {
   compact?: boolean;
 };
 
+/** Fixed cart control width so ADD ↔ stepper never reflows the grid. */
+const ACTION_WIDTH = 88;
+const ACTION_HEIGHT = 32;
+
 function ProductCardComponent({ product, compact = false }: ProductCardProps) {
   const { add, quantities, setQuantity } = useMockCart();
+  const { isSaved, toggle } = useWishlist();
   const quantity = quantities[product.id] ?? 0;
+  const saved = isSaved(product.id);
   const inStock = isProductInStock(product);
   const showMrp = product.compareAt != null && product.compareAt > product.price;
+  const unitPrice = !compact ? computeUnitPrice(product.price, product.unit) : null;
 
   function openProduct() {
-    router.push({ pathname: '/product/[id]', params: { id: product.id } });
+    const id = product.id.trim();
+    if (!id) {
+      return;
+    }
+    router.push({ pathname: '/product/[id]', params: { id } });
+  }
+
+  function toggleWish() {
+    void hapticSelection();
+    toggle(product.id);
   }
 
   return (
@@ -37,20 +55,44 @@ function ProductCardComponent({ product, compact = false }: ProductCardProps) {
         onPress={openProduct}
         style={styles.details}>
         <View style={[styles.photoFrame, compact && styles.photoFrameCompact]}>
-          {product.discountLabel ? <DiscountOff label={product.discountLabel} tone="deal" /> : null}
-          <CatalogImage source={product.image} style={styles.photo} label={product.name} contentFit="cover" />
+          {isDiscountedProduct(product) && product.discountLabel ? (
+            <DiscountOff label={product.discountLabel} tone="deal" />
+          ) : null}
+          <CatalogImage
+            source={product.image}
+            style={styles.photo}
+            label={product.name}
+            contentFit="cover"
+            identityKey={product.id}
+          />
           {!inStock ? (
             <View style={styles.oosBadge}>
               <Text style={styles.oosBadgeLabel}>OUT OF STOCK</Text>
             </View>
           ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={saved ? `Remove ${product.name} from wishlist` : `Save ${product.name} to wishlist`}
+            accessibilityState={{ selected: saved }}
+            hitSlop={6}
+            onPress={(event) => {
+              event.stopPropagation?.();
+              toggleWish();
+            }}
+            style={({ pressed }) => [styles.wishBtn, pressed && styles.wishPressed]}
+            testID={`product-wish-${product.id}`}>
+            <AppIcon name={saved ? 'heartFill' : 'heart'} color={saved ? colors.danger : colors.text} size={16} />
+          </Pressable>
         </View>
         <Text numberOfLines={2} ellipsizeMode="tail" style={[styles.name, compact && styles.nameCompact]}>
           {product.name}
         </Text>
-        {product.unit ? (
-          <Text numberOfLines={1} ellipsizeMode="tail" style={styles.unit}>
-            {product.unit}
+        <Text numberOfLines={1} ellipsizeMode="tail" style={styles.unit}>
+          {product.unit?.trim() ? product.unit : ' '}
+        </Text>
+        {unitPrice ? (
+          <Text numberOfLines={1} style={styles.unitPrice}>
+            {unitPrice.label}
           </Text>
         ) : null}
       </Pressable>
@@ -60,59 +102,66 @@ function ProductCardComponent({ product, compact = false }: ProductCardProps) {
           <Text numberOfLines={1} style={[styles.price, compact && styles.priceCompact]}>
             {formatRupee(product.price)}
           </Text>
-          {showMrp ? (
-            <Text numberOfLines={1} style={styles.mrp}>
-              {formatRupee(product.compareAt ?? 0)}
-            </Text>
-          ) : null}
+          <Text numberOfLines={1} style={[styles.mrp, !showMrp && styles.mrpHidden]}>
+            {showMrp ? formatRupee(product.compareAt ?? 0) : ' '}
+          </Text>
         </View>
-        {!inStock ? (
-          <View style={styles.oos}>
-            <Text style={styles.oosLabel}>OUT</Text>
-          </View>
-        ) : quantity > 0 ? (
-          <View style={styles.stepper} accessibilityRole="adjustable" accessibilityValue={{ min: 0, now: quantity }}>
-            <AnimatedPressable
-              accessibilityRole="button"
-              accessibilityLabel={`Decrease ${product.name}`}
-              hitSlop={6}
-              onPress={() => {
-                void hapticLight();
-                setQuantity(product.id, quantity - 1);
-              }}
-              style={styles.step}>
-              <AppIcon name="minus" color={colors.success} size={14} />
-            </AnimatedPressable>
-            <View style={styles.countSlot}>
-              <Text style={styles.count} numberOfLines={1}>
-                {quantity}
-              </Text>
+
+        <View style={styles.actionSlot}>
+          {!inStock && quantity <= 0 ? (
+            <View style={styles.oos}>
+              <Text style={styles.oosLabel}>OUT</Text>
             </View>
-            <AnimatedPressable
+          ) : quantity > 0 ? (
+            <View style={styles.stepper} accessibilityRole="adjustable" accessibilityValue={{ min: 0, now: quantity }}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Decrease ${product.name}`}
+                hitSlop={6}
+                onPress={() => {
+                  void hapticLight();
+                  setQuantity(product.id, quantity - 1);
+                }}
+                style={({ pressed }) => [styles.step, pressed && styles.pressed]}>
+                <AppIcon name="minus" color={colors.success} size={14} />
+              </Pressable>
+              <View style={styles.countSlot}>
+                <Text style={styles.count} numberOfLines={1}>
+                  {quantity}
+                </Text>
+              </View>
+              {inStock ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Increase ${product.name}`}
+                  hitSlop={6}
+                  onPress={() => {
+                    void hapticLight();
+                    setQuantity(product.id, quantity + 1);
+                  }}
+                  style={({ pressed }) => [styles.step, pressed && styles.pressed]}>
+                  <AppIcon name="plus" color={colors.success} size={14} />
+                </Pressable>
+              ) : (
+                <View style={styles.step} accessibilityElementsHidden>
+                  <AppIcon name="plus" color={colors.border} size={14} />
+                </View>
+              )}
+            </View>
+          ) : (
+            <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`Increase ${product.name}`}
-              hitSlop={6}
+              accessibilityLabel={`Add ${product.name} to the basket`}
               onPress={() => {
                 void hapticLight();
-                setQuantity(product.id, quantity + 1);
+                add(product.id);
               }}
-              style={styles.step}>
-              <AppIcon name="plus" color={colors.success} size={14} />
-            </AnimatedPressable>
-          </View>
-        ) : (
-          <AnimatedPressable
-            accessibilityRole="button"
-            accessibilityLabel={`Add ${product.name} to the basket`}
-            onPress={() => {
-              void hapticLight();
-              add(product.id);
-            }}
-            style={styles.add}
-            testID={`product-add-${product.id}`}>
-            <Text style={styles.addLabel}>ADD</Text>
-          </AnimatedPressable>
-        )}
+              style={({ pressed }) => [styles.add, pressed && styles.pressed]}
+              testID={`product-add-${product.id}`}>
+              <Text style={styles.addLabel}>ADD</Text>
+            </Pressable>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -155,6 +204,23 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  wishBtn: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    zIndex: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wishPressed: {
+    opacity: 0.85,
+  },
   oosBadge: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
@@ -182,22 +248,33 @@ const styles = StyleSheet.create({
   },
   unit: {
     marginTop: 2,
+    minHeight: 15,
     fontFamily: fonts.regular,
     fontSize: 12,
     lineHeight: 15,
     color: colors.textSecondary,
     includeFontPadding: false,
   },
+  unitPrice: {
+    marginTop: 1,
+    fontFamily: fonts.regular,
+    fontSize: 11,
+    lineHeight: 14,
+    color: colors.textSecondary,
+    includeFontPadding: false,
+  },
   footer: {
     marginTop: 8,
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
+    minHeight: ACTION_HEIGHT,
   },
   prices: {
     flex: 1,
     minWidth: 0,
+    justifyContent: 'center',
     gap: 1,
   },
   price: {
@@ -217,10 +294,18 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textDecorationLine: 'line-through',
   },
+  mrpHidden: {
+    opacity: 0,
+    textDecorationLine: 'none',
+  },
+  actionSlot: {
+    width: ACTION_WIDTH,
+    height: ACTION_HEIGHT,
+    flexShrink: 0,
+  },
   add: {
-    minWidth: 64,
-    height: 32,
-    paddingHorizontal: 12,
+    width: '100%',
+    height: '100%',
     borderRadius: 8,
     borderWidth: 1.5,
     borderColor: colors.success,
@@ -237,8 +322,8 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   oos: {
-    minWidth: 52,
-    height: 32,
+    width: '100%',
+    height: '100%',
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
@@ -254,8 +339,8 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   stepper: {
-    minWidth: 84,
-    height: 32,
+    width: '100%',
+    height: '100%',
     borderRadius: 8,
     borderWidth: 1.5,
     borderColor: colors.success,
@@ -266,7 +351,7 @@ const styles = StyleSheet.create({
   },
   step: {
     flex: 1,
-    minWidth: 26,
+    minWidth: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -283,5 +368,8 @@ const styles = StyleSheet.create({
     lineHeight: 16,
     color: colors.success,
     includeFontPadding: false,
+  },
+  pressed: {
+    opacity: 0.82,
   },
 });

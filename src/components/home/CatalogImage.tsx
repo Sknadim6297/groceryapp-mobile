@@ -17,13 +17,24 @@ type CatalogImageProps = {
   style: StyleProp<ImageStyle>;
   label?: string;
   contentFit?: ImageContentFit;
+  /**
+   * Stable cell identity (usually product id). Required for FlatList recycling so
+   * load/fail state resets when a different product reuses the same native view.
+   */
+  identityKey?: string;
 };
 
 /**
  * Catalog product image with pulse placeholder while loading and a soft fallback on failure.
  * Supports HTTP(S) URLs and data-URI / Base64 sources. Uses memory-disk cache.
  */
-export function CatalogImage({ source, style, label, contentFit = 'contain' }: CatalogImageProps) {
+export function CatalogImage({
+  source,
+  style,
+  label,
+  contentFit = 'contain',
+  identityKey,
+}: CatalogImageProps) {
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const remote = isRemote(source);
@@ -39,13 +50,20 @@ export function CatalogImage({ source, style, label, contentFit = 'contain' }: C
       ? source.cacheKey
       : undefined;
   // Prefer explicit cacheKey (content fingerprint) so ERP image replacements invalidate disk cache.
-  const recyclingKey = usable ? explicitCacheKey ?? recyclingKeyForImageUri(uri) : undefined;
+  // Always include identityKey so empty/missing URIs still reset across recycled list cells.
+  const recyclingKey = usable
+    ? `${identityKey ?? ''}|${explicitCacheKey ?? recyclingKeyForImageUri(uri)}`
+    : identityKey
+      ? `empty:${identityKey}`
+      : undefined;
 
-  // Reset load/error when the URI changes (list recycling / gallery thumb swap).
-  useEffect(() => {
+  // Reset load/error when the URI or list-cell identity changes (filter recycle / gallery swap).
+  const [seenRecyclingKey, setSeenRecyclingKey] = useState(recyclingKey);
+  if (recyclingKey !== seenRecyclingKey) {
+    setSeenRecyclingKey(recyclingKey);
     setFailed(false);
     setLoaded(false);
-  }, [recyclingKey]);
+  }
 
   if (failed || (remote && !usable)) {
     return (

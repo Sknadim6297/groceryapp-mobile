@@ -1,5 +1,5 @@
 import * as ImagePicker from 'expo-image-picker';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Image,
   KeyboardAvoidingView,
@@ -53,16 +53,17 @@ export function WriteReviewSheet({
   const [photoUris, setPhotoUris] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!visible) {
-      return;
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) {
+      setRating(0);
+      setBody('');
+      setTags([]);
+      setPhotoUris([]);
+      setError(null);
     }
-    setRating(0);
-    setBody('');
-    setTags([]);
-    setPhotoUris([]);
-    setError(null);
-  }, [visible]);
+  }
 
   function toggleTag(tag: string) {
     setTags((current) => (current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag].slice(0, 4)));

@@ -1,18 +1,22 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 
+import { useAuthSession } from '@/context/AuthSessionContext';
+import { isDevOtpEnabled } from '@/services/devOtp';
 import {
   activateDeviceWishlistStore,
   addWishlistId,
-  clearWishlistStore,
+  clearWishlistForOwner,
   loadWishlistIds,
   removeWishlistId,
   saveWishlistIds,
   toggleWishlistId,
+  wishlistOwnerKey,
 } from '@/services/wishlistStore';
 
 type WishlistContextValue = {
   hydrated: boolean;
+  ownerKey: string | null;
   ids: string[];
   count: number;
   isSaved: (productId: string) => boolean;
@@ -25,35 +29,55 @@ type WishlistContextValue = {
 const WishlistContext = createContext<WishlistContextValue | null>(null);
 
 export function WishlistProvider({ children }: { children: ReactNode }) {
+  const { hydrated: authHydrated, session, devSession } = useAuthSession();
   const [hydrated, setHydrated] = useState(false);
+  const [ownerKey, setOwnerKey] = useState<string | null>(null);
   const [ids, setIds] = useState<string[]>([]);
+  const persistReady = useRef(false);
+
+  const resolveOwner = useCallback(() => {
+    if (session) {
+      return wishlistOwnerKey({ kind: 'temporary-ui', mobile: session.mobile });
+    }
+    if (isDevOtpEnabled() && devSession) {
+      return wishlistOwnerKey({ kind: 'development-test', mobile: devSession.mobile });
+    }
+    return wishlistOwnerKey(null);
+  }, [devSession, session]);
 
   useEffect(() => {
+    if (!authHydrated) {
+      return;
+    }
     let cancelled = false;
 
     void (async () => {
+      persistReady.current = false;
       if (Platform.OS !== 'web') {
         await activateDeviceWishlistStore();
       }
-      const loaded = await loadWishlistIds();
+      const nextOwner = resolveOwner();
+      const loaded = await loadWishlistIds(nextOwner);
       if (cancelled) {
         return;
       }
+      setOwnerKey(nextOwner);
       setIds(loaded);
+      persistReady.current = true;
       setHydrated(true);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authHydrated, resolveOwner]);
 
   useEffect(() => {
-    if (!hydrated) {
+    if (!hydrated || !persistReady.current || !ownerKey) {
       return;
     }
-    void saveWishlistIds(ids);
-  }, [hydrated, ids]);
+    void saveWishlistIds(ownerKey, ids);
+  }, [hydrated, ids, ownerKey]);
 
   const isSaved = useCallback((productId: string) => ids.includes(productId.trim()), [ids]);
 
@@ -71,12 +95,15 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
 
   const clearWishlist = useCallback(() => {
     setIds([]);
-    void clearWishlistStore();
-  }, []);
+    if (ownerKey) {
+      void clearWishlistForOwner(ownerKey);
+    }
+  }, [ownerKey]);
 
   const value = useMemo(
     () => ({
       hydrated,
+      ownerKey,
       ids,
       count: ids.length,
       isSaved,
@@ -85,7 +112,7 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
       remove,
       clearWishlist,
     }),
-    [add, clearWishlist, hydrated, ids, isSaved, remove, toggle],
+    [add, clearWishlist, hydrated, ids, isSaved, ownerKey, remove, toggle],
   );
 
   return <WishlistContext.Provider value={value}>{children}</WishlistContext.Provider>;

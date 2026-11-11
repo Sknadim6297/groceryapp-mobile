@@ -8,7 +8,7 @@ import { AppIcon } from '@/components/ui/AppIcon';
 import { useToast } from '@/components/ui/AppToast';
 import { PlaceholderScreen } from '@/components/ui/PlaceholderScreen';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
-import { colors, fonts, radii, shadow, space } from '@/constants/theme';
+import { colors, fonts, radii, shadow } from '@/constants/theme';
 import { useAuthSession } from '@/context/AuthSessionContext';
 import { useCustomerAccount } from '@/context/CustomerAccountContext';
 import { useRememberedCustomer } from '@/context/RememberedCustomerContext';

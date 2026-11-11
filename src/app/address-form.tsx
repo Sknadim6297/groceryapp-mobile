@@ -25,6 +25,7 @@ import { canUseDevelopmentHome } from '@/services/devOtp';
 import { profileRoutes } from '@/navigation/profileRoutes';
 import { locationRoutes } from '@/navigation/locationRoutes';
 import type { AddressLabel, SavedAddress, SavedAddressDraft } from '@/types/savedAddress';
+import { describeDeliveryLocationOrigin } from '@/utils/addressSelectionRules';
 import { deliveryLocationToDraft, finalizeAddressDraft, savedAddressToDraft } from '@/utils/savedAddressMapping';
 import {
   emptyAddressDraft,
@@ -32,6 +33,7 @@ import {
   normalizePostalCode,
   validateAddressDraft,
 } from '@/utils/savedAddressValidation';
+import { isValidMapCoordinate } from '@/utils/mapCameraGuards';
 
 function firstParam(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -107,17 +109,28 @@ function AddressFormBody({
   const [fieldErrors, setFieldErrors] = useState<ReturnType<typeof validateAddressDraft>>({});
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const bakedResult = useRef(false);
+  const lastBakedResultId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!addressBookResult || bakedResult.current) {
+    if (!addressBookResult) {
       return;
     }
-    bakedResult.current = true;
+    const resultKey = [
+      addressBookResult.id,
+      addressBookResult.latitude ?? '',
+      addressBookResult.longitude ?? '',
+      addressBookResult.source,
+    ].join(':');
+    if (lastBakedResultId.current === resultKey) {
+      return;
+    }
+    lastBakedResultId.current = resultKey;
     setDraft((current) => deliveryLocationToDraft(addressBookResult, current));
     consumeAddressBookResult();
     setDirty(true);
   }, [addressBookResult, consumeAddressBookResult]);
+
+  const hasPin = isValidMapCoordinate(draft.latitude, draft.longitude);
 
   const ready = isAddressDraftReady(draft);
 
@@ -129,9 +142,19 @@ function AddressFormBody({
   }
 
   function openLocationPicker() {
+    const returnParams: Record<string, string> = {};
+    if (editId) {
+      returnParams.id = editId;
+    }
+    if (selectMode) {
+      returnParams.mode = 'select';
+    }
     beginAddressBookPick({
       selectMode,
-      returnTo: selectMode ? { pathname: '/address-form', params: { mode: 'select' } } : '/address-form',
+      returnTo:
+        Object.keys(returnParams).length > 0
+          ? { pathname: '/address-form', params: returnParams }
+          : '/address-form',
     });
     router.push(locationRoutes.search);
   }
@@ -216,6 +239,27 @@ function AddressFormBody({
               <Text style={styles.changeLocationLabel}>Change location</Text>
               <AppIcon name="chevron" color={colors.textSecondary} size={18} />
             </Pressable>
+
+            <View style={styles.pinBanner} accessibilityRole="text">
+              {hasPin ? (
+                <>
+                  <Text style={styles.pinTitle}>
+                    Delivery pin · {describeDeliveryLocationOrigin({ source: draft.source, fixKind: draft.source === 'map' ? 'map-pin' : undefined })}
+                  </Text>
+                  <Text style={styles.pinCoords}>
+                    {draft.latitude!.toFixed(5)}, {draft.longitude!.toFixed(5)}
+                  </Text>
+                  <Text style={styles.pinHint}>House number and landmark are saved with this pin.</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.pinTitle}>No map pin yet</Text>
+                  <Text style={styles.pinHint}>
+                    Use Change location to set a delivery pin. Text-only addresses can still be saved.
+                  </Text>
+                </>
+              )}
+            </View>
 
             <Field
               label="House / Flat No."
@@ -436,6 +480,31 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     fontSize: 14,
     color: colors.primaryInk,
+  },
+  pinBanner: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.softBackground,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 4,
+  },
+  pinTitle: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.text,
+  },
+  pinCoords: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.primaryInk,
+  },
+  pinHint: {
+    fontFamily: fonts.regular,
+    fontSize: 12,
+    lineHeight: 16,
+    color: colors.textSecondary,
   },
   section: {
     marginTop: 4,

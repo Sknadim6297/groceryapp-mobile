@@ -30,6 +30,22 @@ function run() {
   );
   assert(registeredDisplayName(named) === 'Riya', 'account name wins');
 
+  // Remembered profile for another mobile must not leak onto the active login.
+  const mismatched = displayCustomer(
+    { mobile: '9000000002' },
+    null,
+    { mobile: '9000000001', customerId: '2017', name: 'Asha' },
+  );
+  assert(mismatched != null, 'active login still has a display identity');
+  assert(mismatched!.mobile === '9000000002', 'active mobile preserved');
+  assert(mismatched!.name !== 'Asha', 'remembered name must not leak');
+  assert(mismatched!.customerId !== '2017', 'remembered customerId must not leak');
+
+  assert(
+    displayCustomer(null, null, { mobile: '9000000001', customerId: '2017', name: 'Asha' }) == null,
+    'remembered alone is not authenticated',
+  );
+
   console.log('display-customer.test.ts: ok');
 }
 

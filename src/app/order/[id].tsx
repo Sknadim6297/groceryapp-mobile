@@ -25,6 +25,11 @@ import { canUseDevelopmentHome } from '@/services/devOtp';
 import type { SimulatedOrder } from '@/types/order';
 import { formatRupee } from '@/utils/cartBill';
 import {
+  DEMO_ORDER_CANCEL_TOAST,
+  DEMO_ORDER_RETURN_NOTE,
+  DEMO_ORDER_RETURN_TOAST,
+} from '@/utils/demoOrderActions';
+import {
   buildOrderTimeline,
   isActiveOrder,
   orderItemCount,
@@ -209,7 +214,11 @@ export default function OrderDetailScreen() {
                       : '—'}
                 </Text>
               </View>
-              <Text style={styles.note}>Bill figures are demo display values until a live order API exists.</Text>
+              <Text style={styles.note}>
+                {UI_PREVIEW_MODE
+                  ? 'Bill figures are demo display values — not a store receipt.'
+                  : 'Order totals stay unavailable until a live order API is connected.'}
+              </Text>
             </View>
 
             <Text style={styles.section}>Delivery progress</Text>
@@ -273,7 +282,7 @@ export default function OrderDetailScreen() {
             {previewOrder?.returnRequested ? (
               <View style={styles.returnNote}>
                 <AppIcon name="check" color={colors.success} size={16} />
-                <Text style={styles.returnNoteText}>Return request submitted for this order.</Text>
+                <Text style={styles.returnNoteText}>{DEMO_ORDER_RETURN_NOTE}</Text>
               </View>
             ) : null}
           </>
@@ -296,9 +305,9 @@ export default function OrderDetailScreen() {
             setCancelling(false);
             setCancelOpen(false);
             if (ok) {
-              showToast('success', 'Order cancelled. Thanks for the feedback.');
+              showToast('info', DEMO_ORDER_CANCEL_TOAST);
             } else {
-              showToast('error', 'This order can no longer be cancelled.');
+              showToast('error', 'This demo order can no longer be cancelled.');
             }
           }}
         />
@@ -321,9 +330,9 @@ export default function OrderDetailScreen() {
             setReturning(false);
             setReturnOpen(false);
             if (ok) {
-              showToast('success', 'Return request submitted with product photos.');
+              showToast('info', DEMO_ORDER_RETURN_TOAST);
             } else {
-              showToast('error', 'A return cannot be requested for this order.');
+              showToast('error', 'A return cannot be requested for this demo order.');
             }
           }}
         />

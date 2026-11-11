@@ -1,6 +1,7 @@
 import {
     createContext,
     useContext,
+    useEffect,
     useMemo,
     useState,
     type ReactNode,
@@ -9,6 +10,7 @@ import {
 import { UI_PREVIEW_MODE } from "@/constants/preview";
 import { DEMO_SEED_ORDERS } from "@/data/demoOrders";
 import type { SimulatedOrder } from "@/types/order";
+import { registerPreviewSessionReset } from "@/utils/clearPreviewAccountState";
 
 export type { SimulatedOrder };
 
@@ -27,6 +29,8 @@ type PreviewSessionValue = {
     },
   ) => boolean;
   findOrder: (id: string | undefined | null) => SimulatedOrder | null;
+  /** Clears in-memory demo orders/coupon (logout / account switch). */
+  resetPreviewSession: () => void;
 };
 
 const PreviewSessionContext = createContext<PreviewSessionValue | null>(null);
@@ -38,6 +42,18 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
       : [],
   );
   const [couponId, setCouponId] = useState<string | null>(null);
+
+  useEffect(() => {
+    registerPreviewSessionReset(() => {
+      setCouponId(null);
+      setOrders(
+        UI_PREVIEW_MODE
+          ? DEMO_SEED_ORDERS.map((order) => ({ ...order, items: [...order.items] }))
+          : [],
+      );
+    });
+    return () => registerPreviewSessionReset(null);
+  }, []);
 
   const value = useMemo<PreviewSessionValue>(
     () => ({
@@ -130,6 +146,14 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
           return null;
         }
         return orders.find((order) => order.id === id) ?? null;
+      },
+      resetPreviewSession: () => {
+        setCouponId(null);
+        setOrders(
+          UI_PREVIEW_MODE
+            ? DEMO_SEED_ORDERS.map((order) => ({ ...order, items: [...order.items] }))
+            : [],
+        );
       },
     }),
     [couponId, orders],

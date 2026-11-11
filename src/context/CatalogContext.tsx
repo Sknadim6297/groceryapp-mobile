@@ -391,10 +391,14 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       loadProductGalleryImages,
       loadSubcategories,
       findProduct: (id) => {
-        if (liveEnabled) {
-          return liveProducts.find((product) => product.id === id);
+        const needle = String(id ?? "").trim();
+        if (!needle) {
+          return undefined;
         }
-        return findDemoProduct(id);
+        if (liveEnabled) {
+          return liveProducts.find((product) => product.id === needle);
+        }
+        return findDemoProduct(needle);
       },
       listShelves: (requestedId) => {
         if (liveEnabled) {

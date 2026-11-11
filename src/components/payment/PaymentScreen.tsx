@@ -1,5 +1,5 @@
 import { Redirect, router, useIsFocused, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -56,7 +56,7 @@ export function PaymentScreen() {
   const contentWidth = Math.min(width, homeLayout.maxWidth);
 
   const { hydrated: authHydrated, session, devSession } = useAuthSession();
-  const { setQuantity, isBuyNow, clearBuyNow } = useMockCart();
+  const { isBuyNow, clearBuyNow, clearCart } = useMockCart();
   const { known } = useCheckoutLines();
   const { confirmed, beginAddressBookPick } = useDeliveryLocation();
   const { addresses, hydrated } = useSavedAddresses();
@@ -65,14 +65,15 @@ export function PaymentScreen() {
 
   const initialMethod = useMemo(() => resolveCheckoutPaymentMethodId(params.method), [params.method]);
   const [methodId, setMethodId] = useState<CheckoutPaymentMethodId>(initialMethod);
+  const [seenInitialMethod, setSeenInitialMethod] = useState(initialMethod);
+  if (initialMethod !== seenInitialMethod) {
+    setSeenInitialMethod(initialMethod);
+    setMethodId(initialMethod);
+  }
   const [billExpanded, setBillExpanded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState<ActionError | null>(null);
   const submitLock = useRef(false);
-
-  useEffect(() => {
-    setMethodId(initialMethod);
-  }, [initialMethod]);
 
   const lines = useMemo(
     () => known.map((line) => ({ product: line.product, quantity: line.quantity })),
@@ -169,9 +170,8 @@ export function PaymentScreen() {
         // Buy Now never touched the main basket — just drop the express bag.
         clearBuyNow();
       } else {
-        for (const line of lines) {
-          setQuantity(line.product.id, 0);
-        }
+        // Clear every owner quantity, including catalogue-missing leftovers.
+        clearCart();
       }
       router.replace({ pathname: '/order-confirmed', params: { id } });
     } catch {
@@ -189,6 +189,7 @@ export function PaymentScreen() {
   }, [
     bill.grandTotal,
     clearBuyNow,
+    clearCart,
     complete,
     confirmed,
     isBuyNow,
@@ -196,7 +197,6 @@ export function PaymentScreen() {
     method.title,
     openAddressFlow,
     placeOrder,
-    setQuantity,
     submitting,
   ]);
 
@@ -223,7 +223,8 @@ export function PaymentScreen() {
     return (
       <PlaceholderScreen
         title="Payment"
-        message="Payment is not connected yet. No charge will be made."
+        message="Live payment is not connected yet. No charge will be made."
+        detail="Card, UPI, and wallet checkout need a payment provider. Your cart is unchanged. Return to Cart to keep shopping."
         withHeader
       />
     );
