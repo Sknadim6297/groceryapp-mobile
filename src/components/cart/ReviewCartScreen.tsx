@@ -434,31 +434,7 @@ export function ReviewCartScreen() {
                 <AppIcon name="homeFocused" color={colors.text} size={16} />
               </View>
             </Pressable>
-            {!UI_PREVIEW_MODE ? (
-              <View style={styles.unavailableBlock}>
-                <Text style={styles.unavailableTitle}>Checkout not connected</Text>
-                <Text style={styles.unavailableBody}>
-                  Live checkout and payment are not available yet. Your cart stays saved on this device — no order
-                  is placed and no payment is taken from here.
-                </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Choose or update delivery address"
-                  onPress={openLocation}
-                  style={({ pressed }) => [styles.secondaryDeliveryButton, pressed && styles.pressed]}>
-                  <Text style={styles.secondaryDeliveryLabel}>
-                    {confirmed ? 'UPDATE DELIVERY ADDRESS' : 'SELECT DELIVERY ADDRESS'}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Continue shopping"
-                  onPress={() => router.push('/shop')}
-                  style={({ pressed }) => [styles.deliveryButton, pressed && styles.pressed]}>
-                  <Text style={styles.deliveryLabel}>CONTINUE SHOPPING</Text>
-                </Pressable>
-              </View>
-            ) : inStockKnown.length === 0 ? (
+            {inStockKnown.length === 0 ? (
               <View style={styles.unavailableBlock}>
                 <Text style={styles.unavailableTitle}>No available items</Text>
                 <Text style={styles.unavailableBody}>
@@ -468,7 +444,7 @@ export function ReviewCartScreen() {
             ) : (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={confirmed ? 'Continue preview checkout' : 'Select delivery option'}
+                accessibilityLabel={confirmed ? 'Continue to checkout' : 'Select delivery option'}
                 onPress={() => {
                   if (confirmed) {
                     // Explicit CART_CHECKOUT — drop any leftover Buy Now session.
@@ -483,7 +459,7 @@ export function ReviewCartScreen() {
                 }}
                 style={({ pressed }) => [styles.deliveryButton, pressed && styles.pressed]}>
                 <Text style={styles.deliveryLabel}>
-                  {confirmed ? 'CONTINUE PREVIEW CHECKOUT' : 'SELECT DELIVERY OPTION'}
+                  {confirmed ? 'CONTINUE TO CHECKOUT' : 'SELECT DELIVERY OPTION'}
                 </Text>
               </Pressable>
             )}

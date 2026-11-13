@@ -292,7 +292,7 @@ export function CategoryShoppingScreen({
           }
           renderItem={({ item }) => (
             <View style={{ width: cardWidth }}>
-              <ProductCard product={item} compact={cardWidth < 150} />
+              <ProductCard product={item} compact={cardWidth < 140} />
             </View>
           )}
           refreshControl={

@@ -109,7 +109,7 @@ export default function RecentlyViewedScreen() {
           removeClippedSubviews
           renderItem={({ item }) => (
             <View style={{ width: cardWidth }}>
-              <ProductCard product={item} compact={cardWidth < 100} />
+              <ProductCard product={item} compact={cardWidth < 140} />
             </View>
           )}
         />

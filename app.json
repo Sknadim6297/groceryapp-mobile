@@ -5,12 +5,53 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": ["groceryapp", "mayapurbazaar"],
+    "scheme": [
+      "groceryapp",
+      "mayapurbazaar"
+    ],
     "userInterfaceStyle": "automatic",
     "androidStatusBar": {
       "barStyle": "dark-content",
       "backgroundColor": "#00000000",
       "translucent": true
+    },
+    "ios": {
+      "bundleIdentifier": "com.groceryapp.mayapurbazaar",
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "amazonpay",
+          "upi",
+          "credpay",
+          "bhim",
+          "paytmmp",
+          "phonepe",
+          "tez",
+          "navipay",
+          "mobikwik",
+          "myairtel",
+          "popclubapp",
+          "super",
+          "kiwi",
+          "simplypayupi",
+          "whatsapp",
+          "amazonpay",
+          "upi",
+          "credpay",
+          "bhim",
+          "paytmmp",
+          "phonepe",
+          "tez",
+          "navipay",
+          "mobikwik",
+          "myairtel",
+          "popclubapp",
+          "super",
+          "kiwi",
+          "simplypayupi",
+          "whatsapp"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.groceryapp.mayapurbazaar",
@@ -29,12 +70,14 @@
       ]
     },
     "web": {
-      "output": "server",
+      "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       "expo-router",
+      "expo-dev-client",
       "expo-secure-store",
+      "expo-web-browser",
       [
         "expo-location",
         {
@@ -68,11 +111,10 @@
         {
           "android": {
             "enableMinifyInReleaseBuilds": true,
-            "extraProguardRules": "-keep class * extends androidx.room.RoomDatabase { <init>(); }\n-keep class * extends androidx.work.InputMerger { <init>(); }\n-keep class org.maplibre.** { *; }"
+            "extraProguardRules": "-keep class * extends androidx.room.RoomDatabase { <init>(); }\n-keep class * extends androidx.work.InputMerger { <init>(); }"
           }
         }
-      ],
-      "@maplibre/maplibre-react-native"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

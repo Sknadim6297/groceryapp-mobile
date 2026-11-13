@@ -6,8 +6,8 @@ import { SectionHeader } from '@/components/home/SectionHeader';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { colors, fonts } from '@/constants/theme';
 
-const snacks = require('@/assets/images/home/cutouts/snacks-drinks.png');
-const produce = require('@/assets/images/home/cutouts/produce-offer.png');
+const snacks = require('@/assets/images/home/cutouts/snacks-drinks.webp');
+const produce = require('@/assets/images/home/cutouts/produce-offer.webp');
 
 const offers = [
   { id: 'groceries', title: 'Up to\n50% OFF', detail: 'On Groceries', color: '#FCE7F3', image: produce },

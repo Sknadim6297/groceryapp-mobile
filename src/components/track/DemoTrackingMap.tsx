@@ -19,7 +19,7 @@ type DemoTrackingMapProps = {
 
 /**
  * Canvas demo map for preview orders — not GPS, traffic, or live routing.
- * Used when a real MapLibre tracking feed is unavailable.
+ * Used when a live Google Maps tracking feed is unavailable.
  */
 export function DemoTrackingMap({
   tracking,

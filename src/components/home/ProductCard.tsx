@@ -49,65 +49,82 @@ function ProductCardComponent({ product, compact = false }: ProductCardProps) {
 
   return (
     <View style={[styles.card, compact && styles.cardCompact, !inStock && styles.cardMuted]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Open ${product.name}`}
-        onPress={openProduct}
-        style={styles.details}>
+      {/*
+        Wishlist must be a sibling of the open-product Pressable — not a child.
+        On web, nested Pressables become nested <button>s and break hydration.
+      */}
+      <View style={styles.details}>
         <View style={[styles.photoFrame, compact && styles.photoFrameCompact]}>
-          {isDiscountedProduct(product) && product.discountLabel ? (
-            <DiscountOff label={product.discountLabel} tone="deal" />
-          ) : null}
-          <CatalogImage
-            source={product.image}
-            style={styles.photo}
-            label={product.name}
-            contentFit="cover"
-            identityKey={product.id}
-          />
-          {!inStock ? (
-            <View style={styles.oosBadge}>
-              <Text style={styles.oosBadgeLabel}>OUT OF STOCK</Text>
-            </View>
-          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${product.name}`}
+            onPress={openProduct}
+            style={styles.photoHit}>
+            {isDiscountedProduct(product) && product.discountLabel ? (
+              <DiscountOff label={product.discountLabel} tone="deal" />
+            ) : null}
+            <CatalogImage
+              source={product.image}
+              style={styles.photo}
+              label={product.name}
+              contentFit="cover"
+              identityKey={product.id}
+            />
+            {!inStock ? (
+              <View style={styles.oosBadge}>
+                <Text style={styles.oosBadgeLabel}>OUT OF STOCK</Text>
+              </View>
+            ) : null}
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={saved ? `Remove ${product.name} from wishlist` : `Save ${product.name} to wishlist`}
             accessibilityState={{ selected: saved }}
             hitSlop={6}
-            onPress={(event) => {
-              event.stopPropagation?.();
-              toggleWish();
-            }}
+            onPress={toggleWish}
             style={({ pressed }) => [styles.wishBtn, pressed && styles.wishPressed]}
             testID={`product-wish-${product.id}`}>
             <AppIcon name={saved ? 'heartFill' : 'heart'} color={saved ? colors.danger : colors.text} size={16} />
           </Pressable>
         </View>
-        <Text numberOfLines={2} ellipsizeMode="tail" style={[styles.name, compact && styles.nameCompact]}>
-          {product.name}
-        </Text>
-        <Text numberOfLines={1} ellipsizeMode="tail" style={styles.unit}>
-          {product.unit?.trim() ? product.unit : ' '}
-        </Text>
-        {unitPrice ? (
-          <Text numberOfLines={1} style={styles.unitPrice}>
-            {unitPrice.label}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${product.name}`}
+          onPress={openProduct}
+          style={styles.copyHit}>
+          <Text numberOfLines={2} ellipsizeMode="tail" style={[styles.name, compact && styles.nameCompact]}>
+            {product.name}
           </Text>
-        ) : null}
-      </Pressable>
+          <Text numberOfLines={1} ellipsizeMode="tail" style={styles.unit}>
+            {product.unit?.trim() ? product.unit : ' '}
+          </Text>
+          {unitPrice ? (
+            <Text numberOfLines={1} style={styles.unitPrice}>
+              {unitPrice.label}
+            </Text>
+          ) : null}
+        </Pressable>
+      </View>
 
-      <View style={styles.footer}>
-        <View style={styles.prices}>
-          <Text numberOfLines={1} style={[styles.price, compact && styles.priceCompact]}>
+      <View style={[styles.footer, compact && styles.footerCompact]}>
+        <View style={[styles.prices, compact && styles.pricesCompact]}>
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
+            style={[styles.price, compact && styles.priceCompact]}>
             {formatRupee(product.price)}
           </Text>
-          <Text numberOfLines={1} style={[styles.mrp, !showMrp && styles.mrpHidden]}>
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
+            style={[styles.mrp, compact && styles.mrpCompact, !showMrp && styles.mrpHidden]}>
             {showMrp ? formatRupee(product.compareAt ?? 0) : ' '}
           </Text>
         </View>
 
-        <View style={styles.actionSlot}>
+        <View style={[styles.actionSlot, compact && styles.actionSlotCompact]}>
           {!inStock && quantity <= 0 ? (
             <View style={styles.oos}>
               <Text style={styles.oosLabel}>OUT</Text>
@@ -200,9 +217,16 @@ const styles = StyleSheet.create({
   photoFrameCompact: {
     borderRadius: 10,
   },
+  photoHit: {
+    width: '100%',
+    height: '100%',
+  },
   photo: {
     width: '100%',
     height: '100%',
+  },
+  copyHit: {
+    minWidth: 0,
   },
   wishBtn: {
     position: 'absolute',
@@ -271,11 +295,22 @@ const styles = StyleSheet.create({
     gap: 8,
     minHeight: ACTION_HEIGHT,
   },
+  /** Narrow cards: price on its own row so ADD never squeezes ₹… away. */
+  footerCompact: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: 6,
+    minHeight: 0,
+  },
   prices: {
     flex: 1,
     minWidth: 0,
     justifyContent: 'center',
     gap: 1,
+  },
+  pricesCompact: {
+    flex: 0,
+    width: '100%',
   },
   price: {
     fontFamily: fonts.bold,
@@ -284,8 +319,8 @@ const styles = StyleSheet.create({
     color: colors.ink,
   },
   priceCompact: {
-    fontSize: 13,
-    lineHeight: 16,
+    fontSize: 14,
+    lineHeight: 17,
   },
   mrp: {
     fontFamily: fonts.regular,
@@ -293,6 +328,10 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     color: colors.textSecondary,
     textDecorationLine: 'line-through',
+  },
+  mrpCompact: {
+    fontSize: 11,
+    lineHeight: 14,
   },
   mrpHidden: {
     opacity: 0,
@@ -302,6 +341,10 @@ const styles = StyleSheet.create({
     width: ACTION_WIDTH,
     height: ACTION_HEIGHT,
     flexShrink: 0,
+  },
+  actionSlotCompact: {
+    width: '100%',
+    alignSelf: 'stretch',
   },
   add: {
     width: '100%',

@@ -19,6 +19,11 @@ type PreviewSessionValue = {
   couponId: string | null;
   setCouponId: (id: string | null) => void;
   placeOrder: (order: SimulatedOrder) => void;
+  /**
+   * Records a Cashfree-verified paid order in both preview and live modes.
+   * Idempotent by order id — safe for verify retries.
+   */
+  recordVerifiedPaidOrder: (order: SimulatedOrder) => void;
   cancelOrder: (id: string, reasonIds: string[]) => boolean;
   requestReturn: (
     id: string,
@@ -62,6 +67,16 @@ export function PreviewSessionProvider({ children }: { children: ReactNode }) {
       setCouponId,
       placeOrder: (order) => {
         if (!UI_PREVIEW_MODE) {
+          return;
+        }
+        setOrders((current) => [
+          order,
+          ...current.filter((item) => item.id !== order.id),
+        ]);
+        setCouponId(null);
+      },
+      recordVerifiedPaidOrder: (order) => {
+        if (!order?.id) {
           return;
         }
         setOrders((current) => [

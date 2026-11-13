@@ -21,6 +21,8 @@ tools/
 agent-tools/
 **/*.bak
 **/*.orig.*
+assets/images/brand_images/pexels-*.jpg
+assets/images/home/cutouts/*.png
 *.jks
 *.p8
 *.p12

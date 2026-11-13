@@ -106,7 +106,7 @@ export default function WishlistScreen() {
           renderItem={({ item }) => (
             <View style={{ width: cardWidth }}>
               {item.kind === 'ready' ? (
-                <ProductCard product={item.product} compact={cardWidth < 100} />
+                <ProductCard product={item.product} compact={cardWidth < 140} />
               ) : (
                 <UnavailableCard entry={item} onRemove={() => remove(item.id)} />
               )}

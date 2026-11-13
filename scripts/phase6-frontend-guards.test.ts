@@ -1,5 +1,5 @@
 /**
- * Phase 6 regression: Android APK profile, MapLibre/OpenFreeMap config, GPS cleanup markers.
+ * Phase 6 regression: Android APK profile, Google Maps config, GPS cleanup markers.
  * Run: npx --yes tsx scripts/phase6-frontend-guards.test.ts
  */
 
@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { OPEN_FREE_MAP_ATTRIBUTION, OPEN_FREE_MAP_STYLE_URL } from '../src/constants/mapStyle';
+import { DELIVERY_MAP_PROVIDER, GOOGLE_MAPS_ATTRIBUTION } from '../src/constants/mapStyle';
 import {
   latLngFromMapLibreCenter,
   mapLibreCenterFromLatLng,
@@ -41,13 +41,15 @@ function main() {
     'client-apk must pin HTTPS API base',
   );
 
-  // --- app.config keeps MapLibre for EXPO_PUBLIC_UI_PREVIEW=on (not ui-preview slim) ---
+  // --- app.config wires Google Maps for normal builds (not ui-preview slim) ---
   const appConfig = read('app.config.ts');
   assert(appConfig.includes("PREVIEW_PROFILE = 'ui-preview'"), 'slim strip only for ui-preview');
-  assert(appConfig.includes('@maplibre/maplibre-react-native'), 'MapLibre plugin wired');
-  assert(appConfig.includes('deliveryMapProvider'), 'delivery map provider extra present');
+  assert(appConfig.includes('react-native-maps'), 'react-native-maps plugin wired');
+  assert(appConfig.includes('withGoogleMapsPlugin'), 'Google Maps plugin helper present');
+  assert(appConfig.includes("deliveryMapProvider: 'google-maps'"), 'Google Maps provider extra');
+  assert(!appConfig.includes('withMapLibrePlugin'), 'MapLibre plugin helper removed');
 
-  // --- app.json permissions / MapLibre / project ownership ---
+  // --- app.json permissions / project ownership ---
   const appJson = JSON.parse(read('app.json')) as {
     expo?: {
       owner?: string;
@@ -60,22 +62,22 @@ function main() {
   assert(typeof appJson.expo?.extra?.eas?.projectId === 'string', 'EAS projectId present');
   assert(
     Array.isArray(appJson.expo?.plugins) &&
-      appJson.expo.plugins.some(
-        (p) =>
-          p === '@maplibre/maplibre-react-native' ||
-          (Array.isArray(p) && p[0] === 'expo-location'),
-      ),
-    'MapLibre + expo-location plugins present',
+      appJson.expo.plugins.some((p) => Array.isArray(p) && p[0] === 'expo-location'),
+    'expo-location plugin present',
+  );
+  assert(
+    !JSON.stringify(appJson.expo?.plugins ?? []).includes('@maplibre/maplibre-react-native'),
+    'MapLibre removed from app.json plugins',
   );
   assert(appJson.expo?.android?.package === 'com.groceryapp.mayapurbazaar', 'android package stable');
 
-  // --- OpenFreeMap style + attribution ---
-  assert(OPEN_FREE_MAP_STYLE_URL.includes('openfreemap.org'), 'OpenFreeMap style URL');
-  assert(OPEN_FREE_MAP_ATTRIBUTION.toLowerCase().includes('openstreetmap'), 'OSM attribution required');
+  // --- Google Maps branding constants ---
+  assert(DELIVERY_MAP_PROVIDER === 'google-maps', 'delivery map provider is google-maps');
+  assert(GOOGLE_MAPS_ATTRIBUTION.toLowerCase().includes('google'), 'Google attribution present');
 
-  // --- Coordinate sync helpers (lng/lat MapLibre order) ---
+  // --- Coordinate helpers still round-trip lng/lat pairs ---
   const center = mapLibreCenterFromLatLng(22.57, 88.36);
-  assert(center[0] === 88.36 && center[1] === 22.57, 'MapLibre center is [lng, lat]');
+  assert(center[0] === 88.36 && center[1] === 22.57, 'center is [lng, lat]');
   const back = latLngFromMapLibreCenter(center);
   assert(back?.latitude === 22.57 && back?.longitude === 88.36, 'round-trip lat/lng');
   assert(isValidMapCoordinate(22.57, 88.36), 'valid delivery coordinate');
@@ -88,6 +90,8 @@ function main() {
   assert(locationService.includes('cleanup.stop'), 'watcher cleanup stop hook present');
   assert(locationService.includes('sub.remove()'), 'subscription remove on cleanup');
   assert(locationService.includes('aborted = true'), 'abort flag after race');
+  assert(locationService.includes('googlePlacesAutocomplete'), 'Google Places search wired');
+  assert(locationService.includes('googleReverseGeocode'), 'Google reverse geocode wired');
 
   // --- Manual pin preservation comment/guard in location-map ---
   const locationMap = read('src/app/location-map.tsx');
@@ -96,11 +100,14 @@ function main() {
     'manual/GPS pin coords preserved across reverse geocode',
   );
 
-  // --- expo-network present for offline banner (auto permissions; no config plugin required) ---
+  // --- Packages ---
   const pkg = JSON.parse(read('package.json')) as { dependencies?: Record<string, string> };
-  assert(typeof pkg.dependencies?.['expo-network'] === 'string', 'expo-network dependency installed');
+  assert(Boolean(pkg.dependencies?.['expo-network']), 'expo-network dependency present');
+  assert(Boolean(pkg.dependencies?.['react-native-maps']), 'react-native-maps dependency present');
+  assert(!pkg.dependencies?.['@maplibre/maplibre-react-native'], 'MapLibre native package removed');
+  assert(!pkg.dependencies?.['maplibre-gl'], 'maplibre-gl package removed');
 
-  console.log('phase6-frontend-guards: ok');
+  console.log('phase6-frontend-guards.test.ts: ok');
 }
 
 main();

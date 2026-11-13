@@ -37,7 +37,8 @@ export type ApiPostResult = {
   body: unknown;
 };
 
-const SECRET_KEY = /otp|token|password|authorization|secret|cookie|session|jwt|bearer|exception|stack|customerid|customer_id|^name$/i;
+const SECRET_KEY =
+  /otp|token|password|authorization|secret|cookie|session|jwt|bearer|exception|stack|customerid|customer_id|paymentsession|payment_session|^name$/i;
 const PHONE_KEY = /mobile|phone|msisdn/i;
 /** Never dump Base64 product photos into Metro logs. */
 const IMAGE_KEY = /^image\d*$|imageurl|photo|thumbnail|avatar/i;

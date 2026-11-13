@@ -4,7 +4,7 @@ import { Image, StyleSheet, Text, View } from 'react-native';
 import { DEMO_PAYMENT_CARD } from '@/data/demoPaymentCard';
 import { colors, fonts } from '@/constants/theme';
 
-const groceryBag = require('@/assets/images/home/cutouts/produce-offer.png') as number;
+const groceryBag = require('@/assets/images/home/cutouts/produce-offer.webp') as number;
 
 type DemoPaymentCardProps = {
   hidden?: boolean;

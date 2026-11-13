@@ -1,6 +1,6 @@
 import type { AppIconName } from '@/components/ui/AppIcon';
 
-export const checkoutPaymentMethodIds = ['cod', 'upi', 'card'] as const;
+export const checkoutPaymentMethodIds = ['cod', 'online'] as const;
 
 export type CheckoutPaymentMethodId = (typeof checkoutPaymentMethodIds)[number];
 
@@ -11,9 +11,11 @@ export type CheckoutPaymentMethod = {
   icon: AppIconName;
   /**
    * Preview can place a simulated COD order locally.
-   * UPI/Card have no gateway — never invent a successful charge.
+   * Online uses Cashfree — never invent a successful charge client-side.
    */
   canPlaceDemoOrder: boolean;
+  /** Opens Cashfree checkout after create-payment-order. */
+  usesCashfree: boolean;
   demoBadge?: string;
 };
 
@@ -24,30 +26,35 @@ export const CHECKOUT_PAYMENT_METHODS: readonly CheckoutPaymentMethod[] = [
     subtitle: 'Pay when your order arrives',
     icon: 'bag',
     canPlaceDemoOrder: true,
+    usesCashfree: false,
   },
   {
-    id: 'upi',
-    title: 'Pay using UPI',
-    subtitle: 'Secure payment using your UPI app',
-    icon: 'phone',
-    canPlaceDemoOrder: false,
-    demoBadge: 'Demo · gateway not connected',
-  },
-  {
-    id: 'card',
-    title: 'Credit / Debit Card',
-    subtitle: 'Visa, Mastercard and supported cards',
+    id: 'online',
+    title: 'Online Payment',
+    subtitle: 'UPI, cards, net banking via Cashfree',
     icon: 'card',
     canPlaceDemoOrder: false,
-    demoBadge: 'Demo · gateway not connected',
+    usesCashfree: true,
   },
 ] as const;
+
+/** Legacy route params `upi` / `card` map to Cashfree online checkout. */
+const LEGACY_ONLINE_IDS = new Set(['upi', 'card', 'cashfree', 'online']);
 
 export function resolveCheckoutPaymentMethodId(
   raw: string | string[] | undefined | null,
 ): CheckoutPaymentMethodId {
   const value = Array.isArray(raw) ? raw[0] : raw;
-  if (value && (checkoutPaymentMethodIds as readonly string[]).includes(value)) {
+  if (!value) {
+    return 'cod';
+  }
+  if (value === 'cod') {
+    return 'cod';
+  }
+  if (LEGACY_ONLINE_IDS.has(value)) {
+    return 'online';
+  }
+  if ((checkoutPaymentMethodIds as readonly string[]).includes(value)) {
     return value as CheckoutPaymentMethodId;
   }
   return 'cod';

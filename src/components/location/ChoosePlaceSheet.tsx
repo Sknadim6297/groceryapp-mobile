@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -18,9 +18,8 @@ import { AppIcon } from '@/components/ui/AppIcon';
 import { colors, fonts } from '@/constants/theme';
 import { useSavedAddresses } from '@/context/SavedAddressesContext';
 import { useKeyboardOverlap } from '@/hooks/useKeyboardOverlap';
-import { formatDeliveryAddress, referenceLocations } from '@/data/referenceLocations';
-import { readCurrentLocation } from '@/services/location/locationService';
-import type { DeliveryLocation } from '@/types/location';
+import { readCurrentLocation, searchDeliveryLocations } from '@/services/location/locationService';
+import type { DeliveryLocation, LocationSearchResult } from '@/types/location';
 import { formatSavedAddressLines, savedAddressToDeliveryLocation } from '@/utils/savedAddressMapping';
 import { displayAddressLabel } from '@/utils/savedAddressValidation';
 
@@ -63,14 +62,37 @@ export function ChoosePlaceSheet({
   const [detecting, setDetecting] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [matches, setMatches] = useState<LocationSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
   const copy = { ...defaultStatusCopy, ...statusCopy };
-  const trimmed = query.trim().toLowerCase();
-  const matches =
-    trimmed.length === 0
-      ? []
-      : referenceLocations.filter((place) =>
-          `${place.label} ${formatDeliveryAddress(place)}`.toLowerCase().includes(trimmed),
-        );
+  const trimmed = query.trim();
+
+  useEffect(() => {
+    if (!visible) {
+      setMatches([]);
+      setSearching(false);
+      return;
+    }
+    if (trimmed.length < 2) {
+      setMatches([]);
+      setSearching(false);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    const timer = setTimeout(() => {
+      void searchDeliveryLocations(trimmed).then((results) => {
+        if (!cancelled) {
+          setMatches(results);
+          setSearching(false);
+        }
+      });
+    }, 320);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [trimmed, visible]);
 
   async function detectCurrentLocation() {
     if (detecting) {
@@ -197,19 +219,25 @@ export function ChoosePlaceSheet({
                   ))
                 : null}
 
-              {matches.length > 0 ? <Text style={styles.section}>Suggested areas</Text> : null}
-              {trimmed.length > 0 && matches.length === 0 ? (
-                <Text style={styles.note}>No matching area. Enter an address manually instead.</Text>
+              {trimmed.length >= 2 ? <Text style={styles.section}>Search results</Text> : null}
+              {searching ? (
+                <View style={styles.searchBusy}>
+                  <ActivityIndicator color={colors.primaryInk} />
+                  <Text style={styles.note}>Searching Google Places…</Text>
+                </View>
+              ) : null}
+              {!searching && trimmed.length >= 2 && matches.length === 0 ? (
+                <Text style={styles.note}>No matching place. Enter an address manually instead.</Text>
               ) : null}
               {matches.map((place) => (
                 <Pressable
                   key={place.id}
                   accessibilityRole="button"
-                  accessibilityLabel={`${place.label}, ${formatDeliveryAddress(place)}`}
-                  onPress={() => pick(place)}
+                  accessibilityLabel={`${place.title}, ${place.subtitle}`}
+                  onPress={() => pick(place.location)}
                   style={({ pressed }) => [styles.result, pressed && styles.pressed]}>
-                  <Text style={styles.resultTitle}>{place.label}</Text>
-                  <Text style={styles.resultDetail}>{formatDeliveryAddress(place)}</Text>
+                  <Text style={styles.resultTitle}>{place.title}</Text>
+                  <Text style={styles.resultDetail}>{place.subtitle}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -272,6 +300,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
     paddingVertical: 10,
+  },
+  searchBusy: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
   },
   sheetScroll: {
     flex: 1,

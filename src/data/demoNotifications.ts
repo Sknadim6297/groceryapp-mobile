@@ -11,8 +11,8 @@ const ART: Record<NotificationArtKey, ImageSource> = {
   household: require('@/assets/images/home/household.jpg') as ImageSource,
   produce: require('@/assets/images/home/produce.jpg') as ImageSource,
   baby: require('@/assets/images/home/baby-care.jpg') as ImageSource,
-  grocery: require('@/assets/images/home/cutouts/produce-offer.png') as ImageSource,
-  bag: require('@/assets/images/home/cutouts/bread.png') as ImageSource,
+  grocery: require('@/assets/images/home/cutouts/produce-offer.webp') as ImageSource,
+  bag: require('@/assets/images/home/cutouts/bread.webp') as ImageSource,
   truck: require('@/assets/images/home/banner-produce.jpg') as ImageSource,
   milk: require('@/assets/images/home/product-milk.jpg') as ImageSource,
 };

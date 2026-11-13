@@ -2,11 +2,11 @@ import type { ImageSource } from 'expo-image';
 
 import type { DemoCoupon } from '@/types/coupons';
 
-const produce = require('@/assets/images/home/cutouts/produce-offer.png') as ImageSource;
+const produce = require('@/assets/images/home/cutouts/produce-offer.webp') as ImageSource;
 const dairy = require('@/assets/images/home/dairy-eggs.jpg') as ImageSource;
 const fruits = require('@/assets/images/home/fresh-fruits.jpg') as ImageSource;
-const household = require('@/assets/images/home/cutouts/household.png') as ImageSource;
-const snacks = require('@/assets/images/home/cutouts/snacks-drinks.png') as ImageSource;
+const household = require('@/assets/images/home/cutouts/household.webp') as ImageSource;
+const snacks = require('@/assets/images/home/cutouts/snacks-drinks.webp') as ImageSource;
 
 export const COUPON_ILLUSTRATIONS: Record<DemoCoupon['illustration'], ImageSource> = {
   produce,

@@ -21,7 +21,6 @@ import {
 import { DemoBanner } from '@/components/preview/DemoBanner';
 import { AppIcon } from '@/components/ui/AppIcon';
 import { AppScreenHeader } from '@/components/ui/AppScreenHeader';
-import { PlaceholderScreen } from '@/components/ui/PlaceholderScreen';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { SoftIcon } from '@/components/ui/SoftIcon';
 import { UI_PREVIEW_MODE } from '@/constants/preview';
@@ -86,7 +85,9 @@ export function CheckoutScreen() {
   const { hydrated: authHydrated, session, devSession } = useAuthSession();
 
   const [instructions, setInstructions] = useState('');
-  const [methodId, setMethodId] = useState<CheckoutPaymentMethodId>('cod');
+  const [methodId, setMethodId] = useState<CheckoutPaymentMethodId>(
+    UI_PREVIEW_MODE ? 'cod' : 'online',
+  );
   const [submitting, setSubmitting] = useState(false);
   const submitLock = useRef(false);
 
@@ -114,7 +115,7 @@ export function CheckoutScreen() {
   const customerName = profile?.name?.trim() || session?.name?.trim() || 'Guest';
   const customerPhone = profile?.mobile?.trim() || session?.mobile?.trim() || devSession?.mobile?.trim() || null;
 
-  const canContinue = UI_PREVIEW_MODE && known.length > 0 && complete && !submitting;
+  const canContinue = known.length > 0 && complete && !submitting;
 
   function adjustCheckoutQty(lineId: string, nextQty: number) {
     if (isBuyNow) {
@@ -160,17 +161,6 @@ export function CheckoutScreen() {
 
   if (authHydrated && focused && !session && !canUseDevelopmentHome(devSession)) {
     return <Redirect href="/login" />;
-  }
-
-  if (!UI_PREVIEW_MODE) {
-    return (
-      <PlaceholderScreen
-        title="Checkout"
-        message="Live checkout is not connected yet. Your cart remains saved on this device."
-        detail="No order is placed and no payment is taken until checkout is connected to the store backend. You can keep shopping or update your delivery address from Cart."
-        withHeader
-      />
-    );
   }
 
   return (
@@ -226,7 +216,9 @@ export function CheckoutScreen() {
               ]}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}>
-              <DemoBanner message="Simulated checkout — payment providers are not contacted." />
+              {UI_PREVIEW_MODE ? (
+                <DemoBanner message="Preview checkout — COD is simulated; Online Payment uses live Cashfree sandbox APIs." />
+              ) : null}
 
               <View style={styles.card}>
                 <View style={styles.sectionHead}>

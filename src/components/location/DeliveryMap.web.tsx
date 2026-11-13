@@ -9,12 +9,11 @@ import {
 import { StyleSheet, Text, View } from 'react-native';
 
 import {
-  latitudeDeltaFromZoom,
   type DeliveryMapHandle,
   type MapRegion,
   zoomFromLatitudeDelta,
 } from '@/components/location/mapRegion';
-import { OPEN_FREE_MAP_ATTRIBUTION, OPEN_FREE_MAP_STYLE_URL } from '@/constants/mapStyle';
+import { GOOGLE_MAPS_ATTRIBUTION } from '@/constants/mapStyle';
 import { colors, fonts } from '@/constants/theme';
 
 type DeliveryMapProps = {
@@ -25,23 +24,87 @@ type DeliveryMapProps = {
   showsUserLocation?: boolean;
 };
 
-type MapLibreMap = import('maplibre-gl').Map;
+type GoogleMapsNamespace = {
+  Map: new (
+    el: HTMLElement,
+    opts: {
+      center: { lat: number; lng: number };
+      zoom: number;
+      disableDefaultUI?: boolean;
+      gestureHandling?: string;
+      mapTypeControl?: boolean;
+      streetViewControl?: boolean;
+      fullscreenControl?: boolean;
+    },
+  ) => GoogleMapInstance;
+  event: {
+    addListener: (target: unknown, name: string, handler: () => void) => { remove: () => void };
+  };
+};
 
-const MAPLIBRE_CSS_ID = 'mayapur-maplibre-gl-css';
+type GoogleMapInstance = {
+  setCenter: (center: { lat: number; lng: number }) => void;
+  setZoom: (zoom: number) => void;
+  getCenter: () => { lat: () => number; lng: () => number } | undefined;
+  getZoom: () => number | undefined;
+};
 
-function ensureMapLibreStylesheet(): void {
-  if (typeof document === 'undefined') {
-    return;
+declare global {
+  // eslint-disable-next-line no-var -- Google Maps bootstrap attaches to window
+  var google: { maps?: GoogleMapsNamespace } | undefined;
+}
+
+const SCRIPT_ID = 'mayapur-google-maps-js';
+
+function googleMapsApiKey(): string {
+  return (process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '').trim();
+}
+
+function loadGoogleMapsScript(apiKey: string): Promise<GoogleMapsNamespace> {
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('no-window'));
   }
-  if (document.getElementById(MAPLIBRE_CSS_ID)) {
-    return;
+  if (window.google?.maps?.Map) {
+    return Promise.resolve(window.google.maps);
   }
-  const link = document.createElement('link');
-  link.id = MAPLIBRE_CSS_ID;
-  link.rel = 'stylesheet';
-  // Bundled CSS via CDN keeps SSR free of Node ESM/CSS edge cases; version matches package.json.
-  link.href = 'https://unpkg.com/maplibre-gl@6.17.0/dist/maplibre-gl.css';
-  document.head.appendChild(link);
+
+  const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
+  if (existing) {
+    return new Promise((resolve, reject) => {
+      const started = Date.now();
+      const poll = () => {
+        if (window.google?.maps?.Map) {
+          resolve(window.google.maps);
+          return;
+        }
+        if (Date.now() - started > 15_000) {
+          reject(new Error('Google Maps script timeout'));
+          return;
+        }
+        requestAnimationFrame(poll);
+      };
+      poll();
+    });
+  }
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.id = SCRIPT_ID;
+    script.async = true;
+    script.defer = true;
+    script.src =
+      `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}` +
+      '&v=weekly&libraries=places';
+    script.onload = () => {
+      if (window.google?.maps?.Map) {
+        resolve(window.google.maps);
+      } else {
+        reject(new Error('Google Maps failed to initialize'));
+      }
+    };
+    script.onerror = () => reject(new Error('Google Maps script failed to load'));
+    document.head.appendChild(script);
+  });
 }
 
 function MapFallback({ message }: { message: string }) {
@@ -52,25 +115,26 @@ function MapFallback({ message }: { message: string }) {
       <Text style={styles.fallbackHint}>
         You can still confirm a location from search or GPS using the panel below.
       </Text>
-      <Text style={styles.attribution}>{OPEN_FREE_MAP_ATTRIBUTION}</Text>
+      <Text style={styles.attribution}>{GOOGLE_MAPS_ATTRIBUTION}</Text>
     </View>
   );
 }
 
 /**
- * Interactive OpenFreeMap surface for Expo web via MapLibre GL JS.
- * Native MapLibre stays in DeliveryMap.native — camera/region helpers stay in mapRegion.ts.
+ * Interactive Google Maps surface for Expo web via Maps JavaScript API.
+ * Native Google Maps stays in DeliveryMap.native — camera/region helpers stay in mapRegion.ts.
  */
 export const DeliveryMap = forwardRef<DeliveryMapHandle, DeliveryMapProps>(function DeliveryMap(
   { initialRegion, onRegionChangeComplete, showsUserLocation: _showsUserLocation = false },
   ref,
 ) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<MapLibreMap | null>(null);
+  const mapRef = useRef<GoogleMapInstance | null>(null);
   const initialRegionRef = useRef(initialRegion);
   const onRegionChangeCompleteRef = useRef(onRegionChangeComplete);
   const programmaticUntil = useRef(0);
   const [failed, setFailed] = useState(false);
+  const [missingKey] = useState(() => !googleMapsApiKey());
 
   useEffect(() => {
     onRegionChangeCompleteRef.current = onRegionChangeComplete;
@@ -79,108 +143,67 @@ export const DeliveryMap = forwardRef<DeliveryMapHandle, DeliveryMapProps>(funct
   useImperativeHandle(ref, () => ({
     animateToRegion(region, duration) {
       const map = mapRef.current;
-      if (!map || failed) {
+      if (!map) {
         return;
       }
-      try {
-        programmaticUntil.current = Date.now() + Math.max(duration, 200) + 120;
-        map.easeTo({
-          center: [region.longitude, region.latitude],
-          zoom: zoomFromLatitudeDelta(region.latitudeDelta),
-          duration,
-          essential: true,
-        });
-      } catch {
-        // Keep the screen usable if the camera rejects moves.
-      }
+      programmaticUntil.current = Date.now() + Math.max(duration, 200);
+      map.setCenter({ lat: region.latitude, lng: region.longitude });
+      map.setZoom(zoomFromLatitudeDelta(region.latitudeDelta));
     },
   }));
 
   useEffect(() => {
-    // SSR / non-DOM environments never touch MapLibre globals.
-    if (typeof window === 'undefined' || typeof document === 'undefined') {
+    if (typeof document === 'undefined' || missingKey) {
       return;
     }
 
     let cancelled = false;
-    let resizeObserver: ResizeObserver | null = null;
-    let map: MapLibreMap | null = null;
-    let styleLoadTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const emitRegion = (isGesture: boolean) => {
-      if (!map) {
-        return;
-      }
-      const center = map.getCenter();
-      const zoom = map.getZoom();
-      const latitudeDelta = latitudeDeltaFromZoom(zoom);
-      onRegionChangeCompleteRef.current(
-        {
-          latitude: center.lat,
-          longitude: center.lng,
-          latitudeDelta,
-          longitudeDelta: latitudeDelta,
-        },
-        isGesture,
-      );
-    };
+    let dragListener: { remove: () => void } | null = null;
+    let idleListener: { remove: () => void } | null = null;
+    let map: GoogleMapInstance | null = null;
 
     void (async () => {
       try {
-        ensureMapLibreStylesheet();
-        const maplibre = await import('maplibre-gl');
+        const maps = await loadGoogleMapsScript(googleMapsApiKey());
         if (cancelled || !containerRef.current) {
           return;
         }
-
-        const initialZoom = zoomFromLatitudeDelta(initialRegionRef.current.latitudeDelta);
-        map = new maplibre.Map({
-          container: containerRef.current,
-          style: OPEN_FREE_MAP_STYLE_URL,
-          center: [initialRegionRef.current.longitude, initialRegionRef.current.latitude],
-          zoom: initialZoom,
-          attributionControl: { compact: true },
-          pitchWithRotate: false,
-          dragRotate: false,
+        const start = initialRegionRef.current;
+        map = new maps.Map(containerRef.current, {
+          center: { lat: start.latitude, lng: start.longitude },
+          zoom: zoomFromLatitudeDelta(start.latitudeDelta),
+          disableDefaultUI: true,
+          gestureHandling: 'greedy',
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
         });
         mapRef.current = map;
 
-        map.on('load', () => {
-          if (cancelled) {
+        let userGesture = false;
+        dragListener = maps.event.addListener(map, 'dragstart', () => {
+          userGesture = true;
+        });
+        idleListener = maps.event.addListener(map, 'idle', () => {
+          const center = map?.getCenter();
+          const zoom = map?.getZoom();
+          if (!center || zoom == null) {
             return;
           }
-          if (styleLoadTimer) {
-            clearTimeout(styleLoadTimer);
-            styleLoadTimer = null;
-          }
-          setFailed(false);
-          map?.resize();
+          const isProgrammatic = Date.now() < programmaticUntil.current;
+          const isGesture = userGesture && !isProgrammatic;
+          userGesture = false;
+          const latitudeDelta = 360 / 2 ** Math.min(20, Math.max(1, zoom));
+          onRegionChangeCompleteRef.current(
+            {
+              latitude: center.lat(),
+              longitude: center.lng(),
+              latitudeDelta,
+              longitudeDelta: latitudeDelta,
+            },
+            isGesture,
+          );
         });
-
-        map.on('error', () => {
-          if (!cancelled) {
-            setFailed(true);
-          }
-        });
-
-        // Style fetch can fail without crashing the page — surface a soft fallback.
-        styleLoadTimer = setTimeout(() => {
-          if (!cancelled && map && !map.isStyleLoaded()) {
-            setFailed(true);
-          }
-        }, 12_000);
-
-        map.on('moveend', () => {
-          const programmatic = Date.now() < programmaticUntil.current;
-          emitRegion(!programmatic);
-        });
-
-        if (typeof ResizeObserver !== 'undefined' && containerRef.current) {
-          resizeObserver = new ResizeObserver(() => {
-            map?.resize();
-          });
-          resizeObserver.observe(containerRef.current);
-        }
       } catch {
         if (!cancelled) {
           setFailed(true);
@@ -190,35 +213,33 @@ export const DeliveryMap = forwardRef<DeliveryMapHandle, DeliveryMapProps>(funct
 
     return () => {
       cancelled = true;
-      if (styleLoadTimer) {
-        clearTimeout(styleLoadTimer);
-      }
-      resizeObserver?.disconnect();
-      map?.remove();
+      dragListener?.remove();
+      idleListener?.remove();
       mapRef.current = null;
     };
-  }, []);
+  }, [missingKey]);
 
-  return (
-    <View style={StyleSheet.absoluteFill}>
-      {createElement('div', {
-        ref: containerRef,
-        style: {
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          // Keep the WebGL container mounted even when showing the soft fallback.
-          visibility: failed ? 'hidden' : 'visible',
-        },
-        'aria-label': 'Delivery location map',
-        'aria-hidden': failed ? true : undefined,
-      })}
-      {failed ? (
-        <MapFallback message="The free map style could not load. Check your internet connection and try again." />
-      ) : null}
-    </View>
-  );
+  if (missingKey) {
+    return (
+      <MapFallback message="Add EXPO_PUBLIC_GOOGLE_MAPS_API_KEY to .env so the web map can load." />
+    );
+  }
+
+  if (failed) {
+    return (
+      <MapFallback message="Google Maps could not load. Check the API key, Maps JavaScript API enablement, and billing." />
+    );
+  }
+
+  return createElement('div', {
+    ref: containerRef,
+    style: {
+      position: 'absolute',
+      inset: 0,
+      width: '100%',
+      height: '100%',
+    },
+  });
 });
 
 const styles = StyleSheet.create({

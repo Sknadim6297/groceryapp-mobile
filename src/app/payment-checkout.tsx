@@ -1,0 +1,1 @@
+export { CashfreeWebCheckoutScreen as default } from '@/components/payment/CashfreeWebCheckoutScreen';

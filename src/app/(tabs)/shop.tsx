@@ -131,7 +131,8 @@ export default function ShopScreen() {
   const gridWidth = Math.max(0, brandFilterActive ? contentWidth : contentWidth - sidebarWidth);
   const gridInner = Math.max(0, gridWidth - cardInset * 2);
   const pairedWidth = Math.floor((gridInner - cardGap) / 2);
-  const columns = pairedWidth >= 96 ? 2 : 1;
+  /** Need ~140px so price + ADD fit; below that use a single column on small phones. */
+  const columns = pairedWidth >= 140 ? 2 : 1;
   const cardWidth = columns === 2 ? pairedWidth : gridInner;
   const { listShelves, initialLoading, liveEnabled, state, products: catalogProducts, message, refresh, refreshing } =
     useCatalog();
@@ -647,7 +648,7 @@ export default function ShopScreen() {
               columnWrapperStyle={columns > 1 ? styles.row : undefined}
               renderItem={({ item }) => (
                 <View style={{ width: cardWidth }}>
-                  <ProductCard product={item} compact={cardWidth < 100} />
+                  <ProductCard product={item} compact={cardWidth < 140} />
                 </View>
               )}
               ListHeaderComponent={

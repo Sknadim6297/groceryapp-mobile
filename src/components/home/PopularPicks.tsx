@@ -18,7 +18,7 @@ export function PopularPicks({ products = [] }: PopularPicksProps) {
   const { width } = useWindowDimensions();
   const columns = productColumns(width, 2, SECTION_PAD, GRID_GAP);
   const cardWidth = productCardWidth(width, columns, SECTION_PAD, GRID_GAP);
-  const compact = cardWidth < 100;
+  const compact = cardWidth < 140;
 
   if (products.length === 0) {
     return null;

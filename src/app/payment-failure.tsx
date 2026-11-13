@@ -1,0 +1,1 @@
+export { PaymentFailureScreen as default } from '@/components/payment/PaymentFailureScreen';

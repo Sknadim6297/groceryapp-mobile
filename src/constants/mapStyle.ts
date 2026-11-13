@@ -1,9 +1,9 @@
 /**
- * Free vector style for delivery maps (no API key).
- * OpenFreeMap public instance — attribution is required and rendered by MapLibre.
- * @see https://openfreemap.org/
+ * Google Maps branding / provider labels for delivery maps.
+ * API keys live in env (see .env.example) — never hardcode secrets here.
  */
-export const OPEN_FREE_MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 
-/** Shown if MapLibre attribution UI is unavailable. */
-export const OPEN_FREE_MAP_ATTRIBUTION = '© OpenFreeMap © OpenMapTiles © OpenStreetMap contributors';
+export const GOOGLE_MAPS_ATTRIBUTION = '© Google Maps';
+
+/** Runtime provider id stored in expo.extra for diagnostics. */
+export const DELIVERY_MAP_PROVIDER = 'google-maps' as const;

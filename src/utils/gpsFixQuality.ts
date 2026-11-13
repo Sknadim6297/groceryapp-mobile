@@ -128,7 +128,7 @@ export function classifyGpsFix(sample: GpsFixSample, options?: { fromWatch?: boo
   };
 }
 
-/** MapLibre camera center is [longitude, latitude] — never swap. */
+/** GeoJSON / some map SDKs use [longitude, latitude] — never swap. */
 export function mapLibreCenterFromLatLng(latitude: number, longitude: number): [number, number] {
   return [longitude, latitude];
 }
@@ -139,3 +139,7 @@ export function latLngFromMapLibreCenter(center: readonly [number, number] | num
 } {
   return { longitude: Number(center[0]), latitude: Number(center[1]) };
 }
+
+/** Alias: Google Maps JS and most app code use { latitude, longitude }. */
+export const lngLatPairFromLatLng = mapLibreCenterFromLatLng;
+export const latLngFromLngLatPair = latLngFromMapLibreCenter;

@@ -32,7 +32,7 @@ export function ProductSection({
   const shelf = columns === 4;
   const resolved = productColumns(width, 2, SECTION_PAD, GRID_GAP);
   const cardWidth = shelf ? shelfCardWidth(width) : productCardWidth(width, resolved, SECTION_PAD, GRID_GAP);
-  const compact = cardWidth < 100;
+  const compact = cardWidth < 140;
 
   return (
     <View style={styles.section}>

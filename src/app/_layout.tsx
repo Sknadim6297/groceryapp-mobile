@@ -139,6 +139,10 @@ export default function RootLayout() {
         <Stack.Screen name="order/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="checkout" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="payment" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="payment-checkout" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="payment-pending" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="payment-success" options={{ headerShown: false, animation: 'fade' }} />
+        <Stack.Screen name="payment-failure" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="my-payment" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="order-confirmed" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="delivery-review" options={{ headerShown: false, animation: 'slide_from_bottom' }} />

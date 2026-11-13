@@ -99,9 +99,11 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: num
   const [opacity] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
+    // Native driver is unavailable on web (no RCTAnimation) — avoid the console warning.
+    const useNativeDriver = Platform.OS !== 'web';
     const animation = Animated.parallel([
-      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }),
-      Animated.timing(shift, { toValue: 0, duration: 180, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver }),
+      Animated.timing(shift, { toValue: 0, duration: 180, useNativeDriver }),
     ]);
     animation.start();
     return () => {

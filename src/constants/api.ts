@@ -45,3 +45,12 @@ export const ADDRESS_API = {
   details: '/api/values/AddressDetails',
   update: '/api/values/UpdateAddress',
 } as const;
+
+/**
+ * Cashfree payment endpoints published on the live ASP.NET Help page.
+ * Path spelling `PaymentGatway` matches the server (typo preserved on purpose).
+ */
+export const PAYMENT_API = {
+  create: '/api/values/PaymentGatway',
+  verify: '/api/values/VerifyPayment',
+} as const;

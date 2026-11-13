@@ -1,7 +1,7 @@
 import { homeLayout } from '@/constants/theme';
 
-/** Narrowest card that still fits a 2-line name, price, and ADD control. */
-export const PRODUCT_CARD_MIN = 120;
+/** Narrowest card that still fits a 2-line name with price+ADD on one row. */
+export const PRODUCT_CARD_MIN = 148;
 /** Home and Shop show two cards across. */
 export const PRODUCT_ROW_COLUMNS = 2;
 

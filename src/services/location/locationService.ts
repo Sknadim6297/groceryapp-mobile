@@ -2,6 +2,12 @@ import { Platform } from 'react-native';
 import * as Location from 'expo-location';
 
 import { formatDeliveryAddress, referenceLocations } from '@/data/referenceLocations';
+import {
+  googleForwardGeocode,
+  googlePlacesAutocomplete,
+  googleReverseGeocode,
+  isGoogleMapsApiConfigured,
+} from '@/services/location/googleMapsApi';
 import type { DeliveryLocation, LocationSearchResult } from '@/types/location';
 import {
   classifyGpsFix,
@@ -128,6 +134,15 @@ export async function reverseGeocodeCoords(
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
     return { status: 'unavailable' };
   }
+
+  // Prefer Google Geocoding when configured (consistent across web + native).
+  if (isGoogleMapsApiConfigured()) {
+    const google = await googleReverseGeocode(latitude, longitude, source);
+    if (google) {
+      return { status: 'ready', location: google };
+    }
+  }
+
   try {
     const places = await Location.reverseGeocodeAsync({ latitude, longitude });
     const address = places[0] ? addressFromPlace(places[0]) : null;
@@ -462,10 +477,12 @@ export async function readCurrentLocation(): Promise<CurrentLocationOutcome> {
 }
 
 /**
- * Forward search using Expo Location geocoding (device/OS provider).
- * Also matches the local reference catalog. Does not invent a remote Places API.
+ * Forward search: Google Places Autocomplete → Geocoding → OS geocode → local catalog.
  */
-export async function searchDeliveryLocations(query: string): Promise<LocationSearchResult[]> {
+export async function searchDeliveryLocations(
+  query: string,
+  bias?: { latitude: number; longitude: number },
+): Promise<LocationSearchResult[]> {
   const trimmed = query.trim();
   if (trimmed.length < 2) {
     return [];
@@ -482,48 +499,74 @@ export async function searchDeliveryLocations(query: string): Promise<LocationSe
     }));
 
   let remote: LocationSearchResult[] = [];
-  try {
-    const coords = await Promise.race([
-      Location.geocodeAsync(trimmed),
-      new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('timeout')), SEARCH_TIMEOUT_MS);
-      }),
-    ]);
 
-    const limited = coords.slice(0, 6);
-    const resolved: LocationSearchResult[] = [];
-    for (let index = 0; index < limited.length; index += 1) {
-      const point = limited[index]!;
-      const reversed = await reverseGeocodeCoords(point.latitude, point.longitude, 'search');
-      if (reversed.status !== 'ready') {
-        continue;
+  if (isGoogleMapsApiConfigured()) {
+    try {
+      const places = await Promise.race([
+        googlePlacesAutocomplete(trimmed, bias),
+        new Promise<LocationSearchResult[]>((resolve) => {
+          setTimeout(() => resolve([]), SEARCH_TIMEOUT_MS);
+        }),
+      ]);
+      if (places.length > 0) {
+        remote = places;
+      } else {
+        remote = await Promise.race([
+          googleForwardGeocode(trimmed),
+          new Promise<LocationSearchResult[]>((resolve) => {
+            setTimeout(() => resolve([]), SEARCH_TIMEOUT_MS);
+          }),
+        ]);
       }
-      const location = reversed.location;
-      const title = location.locality || location.label || trimmed;
-      const subtitle = formatDeliveryAddress(location);
-      resolved.push({
-        id: `geo-${index}-${point.latitude.toFixed(4)}-${point.longitude.toFixed(4)}`,
-        title,
-        subtitle,
-        location: {
-          ...location,
-          id: `search-${point.latitude.toFixed(5)}-${point.longitude.toFixed(5)}`,
-          label: title,
-          source: 'search',
-          fixKind: 'search',
-          approximate: true,
-          fixNote: 'Search/geocode result — adjust the map pin for doorstep accuracy.',
-        },
-      });
+    } catch {
+      remote = [];
     }
-    remote = resolved;
-  } catch {
-    // OS geocode unavailable (web / timeout / denied). Local catalog may still match.
+  }
+
+  if (remote.length === 0) {
+    try {
+      const coords = await Promise.race([
+        Location.geocodeAsync(trimmed),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('timeout')), SEARCH_TIMEOUT_MS);
+        }),
+      ]);
+
+      const limited = coords.slice(0, 6);
+      const resolved: LocationSearchResult[] = [];
+      for (let index = 0; index < limited.length; index += 1) {
+        const point = limited[index]!;
+        const reversed = await reverseGeocodeCoords(point.latitude, point.longitude, 'search');
+        if (reversed.status !== 'ready') {
+          continue;
+        }
+        const location = reversed.location;
+        const title = location.locality || location.label || trimmed;
+        const subtitle = formatDeliveryAddress(location);
+        resolved.push({
+          id: `geo-${index}-${point.latitude.toFixed(4)}-${point.longitude.toFixed(4)}`,
+          title,
+          subtitle,
+          location: {
+            ...location,
+            id: `search-${point.latitude.toFixed(5)}-${point.longitude.toFixed(5)}`,
+            label: title,
+            source: 'search',
+            fixKind: 'search',
+            approximate: true,
+            fixNote: 'Search/geocode result — adjust the map pin for doorstep accuracy.',
+          },
+        });
+      }
+      remote = resolved;
+    } catch {
+      // OS geocode unavailable (web / timeout / denied). Local catalog may still match.
+    }
   }
 
   const seen = new Set<string>();
   const merged: LocationSearchResult[] = [];
-  for (const item of [...localHits, ...remote]) {
+  for (const item of [...remote, ...localHits]) {
     const key = `${item.title}|${item.subtitle}`.toLowerCase();
     if (seen.has(key)) {
       continue;

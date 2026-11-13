@@ -5,19 +5,14 @@ import {
   useImperativeHandle,
   useRef,
   useState,
-  type ComponentType,
   type ErrorInfo,
   type ReactNode,
 } from 'react';
-import { StyleSheet, Text, TurboModuleRegistry, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import MapView, { PROVIDER_GOOGLE, type Region } from 'react-native-maps';
 
-import {
-  latitudeDeltaFromZoom,
-  type DeliveryMapHandle,
-  type MapRegion,
-  zoomFromLatitudeDelta,
-} from '@/components/location/mapRegion';
-import { OPEN_FREE_MAP_ATTRIBUTION, OPEN_FREE_MAP_STYLE_URL } from '@/constants/mapStyle';
+import type { DeliveryMapHandle, MapRegion } from '@/components/location/mapRegion';
+import { GOOGLE_MAPS_ATTRIBUTION } from '@/constants/mapStyle';
 import { colors, fonts } from '@/constants/theme';
 
 type DeliveryMapProps = {
@@ -26,22 +21,6 @@ type DeliveryMapProps = {
   onRegionChangeComplete: (region: MapRegion, isGesture: boolean | undefined) => void;
   /** Only enable after foreground location permission is granted. */
   showsUserLocation?: boolean;
-};
-
-/** Avoid static imports from MapLibre — its entrypoint enforces TurboModules at load. */
-type MapLibreRuntime = {
-  Map: ComponentType<any>;
-  Camera: ComponentType<any>;
-  UserLocation: ComponentType<any>;
-};
-
-type CameraHandle = {
-  easeTo: (options: {
-    center: [number, number];
-    zoom: number;
-    duration: number;
-    easing: 'ease';
-  }) => void;
 };
 
 type MapCrashBoundaryProps = {
@@ -53,24 +32,6 @@ type MapCrashBoundaryState = {
   crashed: boolean;
 };
 
-/**
- * MapLibre TurboModules are only present in a native build that includes the
- * `@maplibre/maplibre-react-native` config plugin (not Expo Go). Probe before
- * requiring the package — its entrypoint calls getEnforcing() at import time.
- */
-function loadMapLibreRuntime(): MapLibreRuntime | null {
-  try {
-    if (TurboModuleRegistry.get('MLRNCameraModule') == null) {
-      return null;
-    }
-    // eslint-disable-next-line @typescript-eslint/no-require-imports -- must stay dynamic
-    return require('@maplibre/maplibre-react-native') as MapLibreRuntime;
-  } catch {
-    return null;
-  }
-}
-
-const mapLibre = loadMapLibreRuntime();
 const isExpoGo = Constants.appOwnership === 'expo';
 
 /** Catches JS-side map failures so the location screen stays mounted. */
@@ -101,125 +62,84 @@ function MapFallback({ message }: { message: string }) {
       <Text style={styles.fallbackHint}>
         You can still confirm a location from search or GPS using the panel below.
       </Text>
-      <Text style={styles.attribution}>{OPEN_FREE_MAP_ATTRIBUTION}</Text>
+      <Text style={styles.attribution}>{GOOGLE_MAPS_ATTRIBUTION}</Text>
     </View>
   );
 }
 
-function missingNativeMessage(): string {
+function missingKeyMessage(): string {
   if (isExpoGo) {
-    return 'Interactive maps need a native Mayapur Bazaar build (expo run:android / EAS APK), not Expo Go.';
+    return 'Google Maps needs a development build with your API key (expo run:android / EAS). Expo Go cannot use your project key.';
   }
-  return 'Map native modules are missing. Rebuild with MapLibre enabled (not the slim ui-preview profile).';
+  return 'Add EXPO_PUBLIC_GOOGLE_MAPS_API_KEY (and rebuild) so Google Maps can load.';
 }
 
 export const DeliveryMap = forwardRef<DeliveryMapHandle, DeliveryMapProps>(function DeliveryMap(
   { initialRegion, onRegionChangeComplete, showsUserLocation = false },
   ref,
 ) {
-  const mapRef = useRef<unknown>(null);
-  const cameraRef = useRef<CameraHandle | null>(null);
-  /** Capture first region only — later camera moves go through animateToRegion. */
+  const mapRef = useRef<MapView | null>(null);
   const [frozenInitial] = useState(() => initialRegion);
   const [crashed, setCrashed] = useState(false);
-  const [loadFailed, setLoadFailed] = useState(false);
-  const [ready, setReady] = useState(false);
-  const nativeMissing = mapLibre == null;
+  const gestureActive = useRef(false);
+  const hasMapsKey = Boolean(
+    (process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ?? '').trim() ||
+      (Constants.expoConfig?.extra as { googleMapsConfigured?: boolean } | undefined)?.googleMapsConfigured,
+  );
 
   useImperativeHandle(ref, () => ({
     animateToRegion(region, duration) {
-      if (nativeMissing || crashed || loadFailed) {
+      if (crashed) {
         return;
       }
       try {
-        const zoom = zoomFromLatitudeDelta(region.latitudeDelta);
-        cameraRef.current?.easeTo({
-          center: [region.longitude, region.latitude],
-          zoom,
-          duration,
-          easing: 'ease',
-        });
+        mapRef.current?.animateToRegion(region as Region, duration);
       } catch {
         // Keep the screen usable if the native camera rejects moves.
       }
     },
   }));
 
-  if (nativeMissing) {
-    return <MapFallback message={missingNativeMessage()} />;
+  if (!hasMapsKey) {
+    return <MapFallback message={missingKeyMessage()} />;
   }
 
-  if (crashed || loadFailed) {
+  if (crashed) {
     return (
-      <MapFallback
-        message={
-          loadFailed
-            ? 'The free map style could not load. Check your internet connection and try again.'
-            : 'The map could not start. You can still pick a location with search or GPS.'
-        }
-      />
+      <MapFallback message="The map could not start. You can still pick a location with search or GPS." />
     );
   }
-
-  const { Map, Camera, UserLocation } = mapLibre;
-  const initialZoom = zoomFromLatitudeDelta(frozenInitial.latitudeDelta);
 
   return (
     <MapCrashBoundary onCrash={() => setCrashed(true)}>
       <View style={StyleSheet.absoluteFill}>
-        <Map
+        <MapView
           ref={mapRef}
           style={StyleSheet.absoluteFill}
-          mapStyle={OPEN_FREE_MAP_STYLE_URL}
-          attribution
-          attributionPosition={{ bottom: 8, left: 8 }}
-          logo={false}
-          compass={false}
-          scaleBar={false}
-          touchRotate={false}
-          touchPitch={false}
-          onDidFinishLoadingMap={() => {
-            setReady(true);
-            setLoadFailed(false);
+          provider={PROVIDER_GOOGLE}
+          initialRegion={frozenInitial as Region}
+          showsUserLocation={showsUserLocation}
+          showsMyLocationButton={false}
+          showsCompass={false}
+          rotateEnabled={false}
+          pitchEnabled={false}
+          onPanDrag={() => {
+            gestureActive.current = true;
           }}
-          onDidFailLoadingMap={() => {
-            setLoadFailed(true);
-          }}
-          onRegionDidChange={(event: { nativeEvent?: { center?: unknown; zoom?: number; userInteraction?: boolean } }) => {
-            const payload = event.nativeEvent;
-            if (!payload) {
-              return;
-            }
-            const center = payload.center;
-            if (!Array.isArray(center) || center.length < 2) {
-              return;
-            }
-            const longitude = Number(center[0]);
-            const latitude = Number(center[1]);
-            if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
-              return;
-            }
-            const zoom = typeof payload.zoom === 'number' ? payload.zoom : initialZoom;
-            const latitudeDelta = latitudeDeltaFromZoom(zoom);
+          onRegionChangeComplete={(region) => {
+            const isGesture = gestureActive.current;
+            gestureActive.current = false;
             onRegionChangeComplete(
               {
-                latitude,
-                longitude,
-                latitudeDelta,
-                longitudeDelta: latitudeDelta,
+                latitude: region.latitude,
+                longitude: region.longitude,
+                latitudeDelta: region.latitudeDelta,
+                longitudeDelta: region.longitudeDelta,
               },
-              payload.userInteraction === true,
+              isGesture,
             );
-          }}>
-          <Camera
-            ref={cameraRef}
-            initialViewState={{
-              center: [frozenInitial.longitude, frozenInitial.latitude],
-              zoom: initialZoom,
-            }}
-          />
-          {showsUserLocation && ready ? <UserLocation animated accuracy /> : null}
-        </Map>
+          }}
+        />
       </View>
     </MapCrashBoundary>
   );
